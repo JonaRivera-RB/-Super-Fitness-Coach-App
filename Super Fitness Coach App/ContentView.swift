@@ -60,6 +60,8 @@ struct ContentView: View {
             await healthKitManager.verifyAuthorization()
             // Start observing HealthKit for new sleep data (auto-refresh on wake)
             healthKitManager.startSleepMonitoring()
+            // Start observing key health metrics (HR, HRV, steps, calories) for real-time updates
+            healthKitManager.startHealthObservers()
             // Request notification permission on launch (no-op if already granted)
             let _ = await notificationService.requestPermission()
             // Now check onboarding and show UI (authorization is already resolved)

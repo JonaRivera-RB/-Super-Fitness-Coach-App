@@ -21,6 +21,16 @@ final class HomeViewModel {
     private(set) var activityBreakdown: ScoreBreakdown?
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
 
+    // MARK: - Smart Dashboard properties
+    private(set) var coachSummary: String = ""
+    private(set) var coachEmoji: String = "🟡"
+    private(set) var actionCardTitle: String = ""
+    private(set) var actionCardIntensity: ActionIntensity = .medium
+    private(set) var recoveryLabel: String = ""
+    private(set) var activityLabel: String = ""
+    private(set) var recoveryInsights: [MetricInsight] = []
+    private(set) var activityInsights: [MetricInsight] = []
+
     private let healthKitManager: HealthKitManager
     private let workoutEngine: WorkoutEngine
     private let gamificationEngine: GamificationEngine
@@ -52,6 +62,26 @@ final class HomeViewModel {
             if score <= 39 { return .red }
             if score <= 69 { return .yellow }
             return .green
+        }
+    }
+
+    enum ActionIntensity {
+        case low, medium, high
+
+        var label: String {
+            switch self {
+            case .low: return "Baja"
+            case .medium: return "Media"
+            case .high: return "Alta"
+            }
+        }
+
+        var systemColor: String {
+            switch self {
+            case .low: return "red"
+            case .medium: return "orange"
+            case .high: return "green"
+            }
         }
     }
 
@@ -110,14 +140,44 @@ final class HomeViewModel {
         // Get today's scheduled workout type from the weekly plan
         todayWorkoutType = todayScheduledWorkoutType()
 
-        // Generate AI Coach recommendation with both scores
+        // Generate AI Coach recommendation with both scores and breakdown
         recommendationText = AICoach.generateMessage(
             userName: userName,
             recoveryScore: recoveryValue,
             activityScore: activityValue,
+            recoveryBreakdown: recoveryBreakdown,
             streakDays: gamificationEngine.currentStreak,
             recentWorkoutCount: gamificationEngine.workoutsCompleted
         )
+
+        // Smart Dashboard: coach summary and emoji
+        coachSummary = recommendationText
+        if recoveryValue < 40 {
+            coachEmoji = "🔴"
+        } else if recoveryValue < 70 {
+            coachEmoji = "🟡"
+        } else {
+            coachEmoji = "🟢"
+        }
+
+        // Smart Dashboard: descriptive labels
+        recoveryLabel = generateRecoveryLabel(score: recoveryValue)
+        activityLabel = generateActivityLabel(score: activityValue)
+
+        // Smart Dashboard: action card
+        generateActionCard(recoveryScore: recoveryValue, workoutType: todayWorkoutType)
+
+        // Smart Dashboard: metric insights
+        if let rb = recoveryBreakdown {
+            recoveryInsights = MetricInsightGenerator.generateInsights(from: rb, config: config)
+        } else {
+            recoveryInsights = []
+        }
+        if let ab = activityBreakdown {
+            activityInsights = MetricInsightGenerator.generateInsights(from: ab, config: config)
+        } else {
+            activityInsights = []
+        }
 
         // Update points
         totalPoints = gamificationEngine.totalPoints
@@ -143,5 +203,38 @@ final class HomeViewModel {
     /// Determine today's workout type from the current weekly plan.
     private func todayScheduledWorkoutType() -> WorkoutType {
         workoutEngine.todayWorkoutType()
+    }
+
+    // MARK: - Smart Dashboard helpers
+
+    private func generateRecoveryLabel(score: Int) -> String {
+        switch score {
+        case 0...39: return "Necesitas descanso"
+        case 40...69: return "Recuperación moderada"
+        case 70...84: return "Buena recuperación"
+        default: return "Recuperación óptima"
+        }
+    }
+
+    private func generateActivityLabel(score: Int) -> String {
+        switch score {
+        case 0...39: return "Día tranquilo"
+        case 40...69: return "En progreso"
+        case 70...84: return "Muy activo"
+        default: return "Excelente actividad"
+        }
+    }
+
+    private func generateActionCard(recoveryScore: Int, workoutType: WorkoutType) {
+        if recoveryScore < 40 {
+            actionCardTitle = "Hoy: Descanso activo"
+            actionCardIntensity = .low
+        } else if recoveryScore < 70 {
+            actionCardTitle = "Hoy: \(workoutType.rawValue.capitalized) moderado"
+            actionCardIntensity = .medium
+        } else {
+            actionCardTitle = "Hoy: \(workoutType.rawValue.capitalized)"
+            actionCardIntensity = .high
+        }
     }
 }

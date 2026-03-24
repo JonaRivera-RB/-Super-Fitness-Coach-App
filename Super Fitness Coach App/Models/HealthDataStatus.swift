@@ -21,4 +21,9 @@ enum HealthDataStatus<T> {
         if case .available = self { return true }
         return false
     }
+
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
 }

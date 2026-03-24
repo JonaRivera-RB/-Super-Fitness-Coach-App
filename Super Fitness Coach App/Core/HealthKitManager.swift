@@ -35,6 +35,9 @@ final class HealthKitManager {
     private var sleepObserverQuery: HKObserverQuery?
     private var sleepMonitoringTimer: Timer?
 
+    // Health Metric Observers
+    private var healthObserverQueries: [HKObserverQuery] = []
+
     // MARK: - Init
 
     init() {
@@ -291,6 +294,60 @@ final class HealthKitManager {
         }
         sleepMonitoringTimer?.invalidate()
         sleepMonitoringTimer = nil
+    }
+
+    // MARK: - Health Metric Observers
+
+    /// Start observing key health metrics (resting HR, HRV, steps, calories)
+    /// so the dashboard updates in real time when HealthKit receives new data.
+    func startHealthObservers() {
+        guard let healthStore else { return }
+        stopHealthObservers()
+
+        let types: [HKSampleType] = [
+            HKQuantityType(.restingHeartRate),
+            HKQuantityType(.heartRateVariabilitySDNN),
+            HKQuantityType(.stepCount),
+            HKQuantityType(.activeEnergyBurned)
+        ]
+
+        for sampleType in types {
+            let query = HKObserverQuery(sampleType: sampleType, predicate: nil) { [weak self] _, completionHandler, error in
+                guard let self else {
+                    completionHandler()
+                    return
+                }
+                if let error {
+                    self.logger.error("Observer error for \(sampleType.identifier): \(error.localizedDescription)")
+                    completionHandler()
+                    return
+                }
+                self.logger.info("📊 Observer fired for \(sampleType.identifier) — refreshing data")
+                Task {
+                    await self.refreshHealthData()
+                    completionHandler()
+                }
+            }
+            healthStore.execute(query)
+            healthObserverQueries.append(query)
+
+            healthStore.enableBackgroundDelivery(for: sampleType, frequency: .immediate) { success, error in
+                if success {
+                    self.logger.info("Background delivery enabled for \(sampleType.identifier)")
+                } else if let error {
+                    self.logger.error("Background delivery failed for \(sampleType.identifier): \(error.localizedDescription)")
+                }
+            }
+        }
+        logger.info("Health metric observers started (\(types.count) types)")
+    }
+
+    func stopHealthObservers() {
+        guard let healthStore else { return }
+        for query in healthObserverQueries {
+            healthStore.stop(query)
+        }
+        healthObserverQueries.removeAll()
     }
 
     // MARK: - Body Metrics Queries

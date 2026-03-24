@@ -10,15 +10,17 @@ struct HomeView: View {
     var onStartRoutine: () -> Void
     @State private var showRecoveryBreakdown = false
     @State private var showActivityBreakdown = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     authorizationBanner
+                    coachSummarySection
+                    actionCardSection
                     recoveryScoreSection
                     activityScoreSection
-                    recommendationSection
                     pointsSection
                     if viewModel.detoxActive {
                         detoxProgressSection
@@ -33,6 +35,11 @@ struct HomeView: View {
             .navigationTitle("Dashboard")
             .task {
                 await viewModel.onAppear()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    Task { await viewModel.refresh() }
+                }
             }
         }
     }
@@ -73,6 +80,118 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Coach Summary Section
+
+    @ViewBuilder
+    private var coachSummarySection: some View {
+        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+            coachSummaryPlaceholder
+        } else {
+            VStack(spacing: 12) {
+                Text(viewModel.coachEmoji)
+                    .font(.system(size: 40))
+
+                Text(viewModel.coachSummary)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(coachSummaryColor.opacity(0.12))
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Coach summary: \(viewModel.coachSummary)")
+        }
+    }
+
+    private var coachSummaryPlaceholder: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Analizando tus datos...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 20)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.systemGray5))
+        )
+        .redacted(reason: .placeholder)
+        .accessibilityLabel("Coach summary loading")
+    }
+
+    // MARK: - Action Card Section
+
+    @ViewBuilder
+    private var actionCardSection: some View {
+        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+            actionCardPlaceholder
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(viewModel.actionCardTitle)
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                HStack(spacing: 8) {
+                    Text("Intensidad: \(viewModel.actionCardIntensity.label)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color(.systemGray4))
+                                .frame(height: 8)
+                            Capsule()
+                                .fill(intensityColor)
+                                .frame(width: geo.size.width * intensityFraction, height: 8)
+                        }
+                    }
+                    .frame(height: 8)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemGray6))
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(viewModel.actionCardTitle), intensidad \(viewModel.actionCardIntensity.label)")
+        }
+    }
+
+    private var actionCardPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cargando plan del día...")
+                .font(.title2)
+                .fontWeight(.bold)
+            HStack(spacing: 8) {
+                Text("Intensidad: --")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Capsule()
+                    .fill(Color(.systemGray4))
+                    .frame(height: 8)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+        .redacted(reason: .placeholder)
+        .accessibilityLabel("Action card loading")
+    }
+
     // MARK: - Recovery Score Section
 
     private var recoveryScoreSection: some View {
@@ -81,23 +200,12 @@ struct HomeView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            healthDataScoreView(
+            compactScoreView(
                 status: viewModel.recoveryScore,
                 color: recoveryColor,
-                label: "Recovery score"
+                label: "Recovery score",
+                descriptiveLabel: viewModel.recoveryLabel
             )
-
-            if viewModel.recoveryScore.isAvailable {
-                HStack(spacing: 6) {
-                    Text(viewModel.statusIndicator.emoji)
-                    Text(viewModel.statusIndicator.label)
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Status: \(viewModel.statusIndicator.label)")
-            }
 
             Button {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -115,8 +223,8 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
 
-            if showRecoveryBreakdown, let breakdown = viewModel.recoveryBreakdown {
-                breakdownView(breakdown: breakdown)
+            if showRecoveryBreakdown {
+                insightsBreakdownView(insights: viewModel.recoveryInsights, breakdown: viewModel.recoveryBreakdown)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -136,10 +244,11 @@ struct HomeView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            healthDataScoreView(
+            compactScoreView(
                 status: viewModel.activityScore,
                 color: activityColor,
-                label: "Activity score"
+                label: "Activity score",
+                descriptiveLabel: viewModel.activityLabel
             )
 
             Button {
@@ -158,8 +267,8 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
 
-            if showActivityBreakdown, let breakdown = viewModel.activityBreakdown {
-                breakdownView(breakdown: breakdown)
+            if showActivityBreakdown {
+                insightsBreakdownView(insights: viewModel.activityInsights, breakdown: viewModel.activityBreakdown)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -171,70 +280,109 @@ struct HomeView: View {
         )
     }
 
-    // MARK: - HealthDataStatus Score View
+    // MARK: - Compact Score View
 
     @ViewBuilder
-    private func healthDataScoreView(status: HealthDataStatus<Int>, color: Color, label: String) -> some View {
+    private func compactScoreView(
+        status: HealthDataStatus<Int>,
+        color: Color,
+        label: String,
+        descriptiveLabel: String
+    ) -> some View {
         switch status {
         case .loading:
             ProgressView()
-                .frame(height: 80)
+                .frame(height: 56)
                 .accessibilityLabel("\(label) loading")
         case .unavailable:
-            Text("--")
-                .font(.system(size: 72, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("\(label) unavailable")
+            HStack(spacing: 12) {
+                Text("--")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("\(label) unavailable")
         case .available(let value):
-            Text("\(value)")
-                .font(.system(size: 72, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
-                .accessibilityLabel("\(label) \(value)")
+            HStack(spacing: 12) {
+                Text("\(value)")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+
+                Text(descriptiveLabel)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+
+                Circle()
+                    .fill(color)
+                    .frame(width: 10, height: 10)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(label) \(value), \(descriptiveLabel)")
         }
     }
 
-    // MARK: - Score Breakdown
+    // MARK: - Insights Breakdown View
 
-    private func breakdownView(breakdown: ScoreBreakdown) -> some View {
+    private func insightsBreakdownView(insights: [MetricInsight], breakdown: ScoreBreakdown?) -> some View {
         VStack(spacing: 12) {
             Divider()
                 .padding(.horizontal)
 
-            VStack(spacing: 10) {
-                ForEach(breakdown.components, id: \.name) { component in
-                    breakdownComponentRow(component: component)
+            if insights.isEmpty, let breakdown = breakdown {
+                // Fallback: show raw breakdown if no insights available
+                VStack(spacing: 10) {
+                    ForEach(breakdown.components, id: \.name) { component in
+                        fallbackComponentRow(component: component)
+                    }
                 }
+                .padding(.horizontal)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(insights.enumerated()), id: \.offset) { _, insight in
+                        insightRow(insight: insight)
+                    }
+                }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
         }
         .padding(.top, 8)
     }
 
-    private func breakdownComponentRow(component: ScoreBreakdown.ScoreComponent) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Circle()
-                    .fill(statusColor(for: component.status))
-                    .frame(width: 8, height: 8)
+    private func insightRow(insight: MetricInsight) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(statusColor(for: insight.status))
+                .frame(width: 8, height: 8)
+                .padding(.top, 6)
+
+            Text(insight.message)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(insight.metricName): \(insight.message)")
+    }
+
+    private func fallbackComponentRow(component: ScoreBreakdown.ScoreComponent) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(statusColor(for: component.status))
+                .frame(width: 8, height: 8)
+                .padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(component.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Spacer()
                 Text("\(String(format: "%.1f", component.rawValue)) \(component.rawUnit)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("(\(String(format: "%.0f", component.weight * 100))%)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
             }
-            ProgressView(value: component.normalizedScore, total: 100)
-                .tint(statusColor(for: component.status))
-            Text(component.description)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Spacer()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(component.name): \(String(format: "%.1f", component.rawValue)) \(component.rawUnit), score \(Int(component.normalizedScore)) out of 100")
+        .accessibilityLabel("\(component.name): \(String(format: "%.1f", component.rawValue)) \(component.rawUnit)")
     }
 
     private func statusColor(for status: ScoreBreakdown.ComponentStatus) -> Color {
@@ -243,30 +391,6 @@ struct HomeView: View {
         case .good: return .green
         case .normal: return .orange
         }
-    }
-
-    // MARK: - Recommendation
-
-    private var recommendationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Today's Plan", systemImage: "sparkles")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text(viewModel.recommendationText)
-                .font(.body)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(viewModel.todayWorkoutType.rawValue.capitalized)
-                .font(.headline)
-                .foregroundStyle(recoveryColor)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-        )
     }
 
     // MARK: - Points
@@ -340,5 +464,29 @@ struct HomeView: View {
         if value >= 70 { return .green }
         if value >= 40 { return .blue }
         return .orange
+    }
+
+    private var coachSummaryColor: Color {
+        switch viewModel.coachEmoji {
+        case "🔴": return .red
+        case "🟢": return .green
+        default: return .orange
+        }
+    }
+
+    private var intensityColor: Color {
+        switch viewModel.actionCardIntensity {
+        case .low: return .red
+        case .medium: return .orange
+        case .high: return .green
+        }
+    }
+
+    private var intensityFraction: CGFloat {
+        switch viewModel.actionCardIntensity {
+        case .low: return 0.33
+        case .medium: return 0.66
+        case .high: return 1.0
+        }
     }
 }
