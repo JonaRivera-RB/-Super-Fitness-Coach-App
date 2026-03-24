@@ -1,4 +1,3 @@
-//
 //  HealthKitManager.swift
 //  Super Fitness Coach App
 //
@@ -32,6 +31,10 @@ final class HealthKitManager {
     private let healthStore: HKHealthStore?
     private let logger = Logger(subsystem: "com.superfitness.coach", category: "HealthKitManager")
 
+    // Sleep Monitoring
+    private var sleepObserverQuery: HKObserverQuery?
+    private var sleepMonitoringTimer: Timer?
+
     // MARK: - Init
 
     init() {
@@ -46,28 +49,18 @@ final class HealthKitManager {
 
     // MARK: - Authorization
 
-    /// Verify actual HealthKit authorization by performing a test query to stepCount.
-    /// Sets authorizationStatus to .authorized, .denied, or .unavailable based on result.
     func verifyAuthorization() async {
         guard let healthStore else {
             authorizationStatus = .unavailable
-            logger.warning("verifyAuthorization: healthStore is nil")
             return
         }
 
         let stepType = HKQuantityType(.stepCount)
-        let now = Date()
-        let yesterday = Calendar.current.date(byAdding: .hour, value: -24, to: now)!
-        let predicate = HKQuery.predicateForSamples(withStart: yesterday, end: now, options: .strictStartDate)
 
         do {
-            let samples = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
-                let query = HKSampleQuery(
-                    sampleType: stepType,
-                    predicate: predicate,
-                    limit: 1,
-                    sortDescriptors: nil
-                ) { _, samples, error in
+            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
+                let query = HKSampleQuery(sampleType: stepType, predicate: nil, limit: 1, sortDescriptors: nil) {
+                    _, samples, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -77,22 +70,15 @@ final class HealthKitManager {
                 healthStore.execute(query)
             }
             authorizationStatus = .authorized
-            logger.info("verifyAuthorization: authorized (samples: \(samples.count))")
         } catch {
-            logger.error("verifyAuthorization failed: \(error.localizedDescription)")
-            // Don't set denied on transient errors — check authorizationStatus for the type
             let status = healthStore.authorizationStatus(for: HKQuantityType(.stepCount))
             if status == .sharingDenied {
                 authorizationStatus = .denied
-                logger.warning("verifyAuthorization: sharing denied by user")
             } else {
-                // Transient error, try requestAuthorization as fallback
-                logger.info("verifyAuthorization: transient error, attempting requestAuthorization")
                 do {
                     try await requestAuthorization()
                 } catch {
                     authorizationStatus = .denied
-                    logger.error("verifyAuthorization: fallback requestAuthorization also failed")
                 }
             }
         }
@@ -100,7 +86,6 @@ final class HealthKitManager {
 
     func requestAuthorization() async throws {
         guard let healthStore else {
-            logger.warning("HealthKit not available, using defaults.")
             applyDefaults()
             return
         }
@@ -120,7 +105,6 @@ final class HealthKitManager {
             try await healthStore.requestAuthorization(toShare: [], read: readTypes)
             authorizationStatus = .authorized
         } catch {
-            logger.error("HealthKit authorization failed: \(error.localizedDescription)")
             authorizationStatus = .denied
             applyDefaults()
             throw error
@@ -134,23 +118,18 @@ final class HealthKitManager {
         await refreshHealthData(config: .default)
     }
 
-    /// Query all health metrics from HealthKit and calculate Recovery/Activity scores
-    /// using the user's personalized FitnessConfig goals.
+    /// Query all health metrics and calculate Recovery/Activity scores using user's FitnessConfig.
     func refreshHealthData(config: FitnessConfig) async {
         guard let healthStore else {
-            logger.warning("refreshHealthData: healthStore is nil")
             applyDefaults()
             return
         }
-        
-        // Auto-verify/request authorization if not yet authorized
+
         if authorizationStatus != .authorized {
-            logger.info("refreshHealthData: not authorized yet, verifying...")
             await verifyAuthorization()
         }
-        
+
         guard authorizationStatus == .authorized else {
-            logger.warning("refreshHealthData: still not authorized after verify (status: \(String(describing: self.authorizationStatus)))")
             applyDefaults()
             return
         }
@@ -161,21 +140,30 @@ final class HealthKitManager {
         logger.info("refreshHealthData: activity range \(startOfToday) to \(now), recovery range \(twentyFourHoursAgo) to \(now)")
 
         // Query all metrics concurrently
-        // Sleep/HR/HRV: last 24h (sleep crosses midnight)
+        // Sleep: uses smart range that crosses midnight (your fix)
+        // HR/HRV: last 24h
         // Steps/Calories: today only (matches Apple Health day view)
-        async let fetchedSleepPhases = querySleepPhases(store: healthStore, start: twentyFourHoursAgo, end: now)
+        async let fetchedSleepPhases = querySleepPhases(store: healthStore, end: now)
         async let fetchedRestingHR = queryQuantity(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now)
         async let fetchedHRV = queryQuantity(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now)
         async let fetchedSteps = queryQuantityCumulative(store: healthStore, type: .stepCount, unit: .count(), start: startOfToday, end: now)
         async let fetchedEnergy = queryQuantityCumulative(store: healthStore, type: .activeEnergyBurned, unit: .kilocalorie(), start: startOfToday, end: now)
+        // Auto-baselines: average over last 14 days
+        async let fetchedBaseline = queryRestingHRBaseline(store: healthStore, end: now)
+        async let fetchedHRVBaseline = queryHRVBaseline(store: healthStore, end: now)
 
         let sleepPhases = await fetchedSleepPhases
         let rhr = await fetchedRestingHR
         let hrvMs = await fetchedHRV
         let steps = await fetchedSteps
         let energy = await fetchedEnergy
+        let autoBaseline = await fetchedBaseline
+        let autoHRVBaseline = await fetchedHRVBaseline
 
-        logger.info("refreshHealthData results — sleep: \(sleepPhases.total.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal")
+        // Use auto-calculated baselines if available, otherwise fall back to config/defaults
+        let effectiveBaseline = autoBaseline ?? config.baselineRestingHR
+        let effectiveHRVBaseline = autoHRVBaseline ?? 60.0 // default 60ms if no history
+        logger.info("refreshHealthData results — sleep: \(sleepPhases.total.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal, rhrBaseline: \(String(format: "%.0f", effectiveBaseline))bpm, hrvBaseline: \(String(format: "%.0f", effectiveHRVBaseline))ms")
 
         // Map each query result to HealthDataStatus
         self.sleepHours = sleepPhases.total.map { .available($0) } ?? .unavailable
@@ -189,15 +177,12 @@ final class HealthKitManager {
         // --- Calculate Recovery Score ---
         if let totalSleep = sleepPhases.total {
             let sleepQualityScore = Self.calculateSleepQualityScore(
-                totalHours: totalSleep,
-                deepHours: sleepPhases.deep,
-                remHours: sleepPhases.rem,
-                sleepGoal: config.sleepGoalHours
+                totalHours: totalSleep, deepHours: sleepPhases.deep,
+                remHours: sleepPhases.rem, sleepGoal: config.sleepGoalHours
             )
-            let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: config.baselineRestingHR) }
-            let hrvNormalized = hrvMs.map { Self.normalizeHRV(milliseconds: $0) }
+            let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
+            let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
 
-            // Determine available recovery components for weight redistribution
             var availableRecovery: [String] = ["sleep"]
             if restingHRScore != nil { availableRecovery.append("hr") }
             if hrvNormalized != nil { availableRecovery.append("hrv") }
@@ -211,40 +196,25 @@ final class HealthKitManager {
                 hrvScore: hrvNormalized
             )
             self.recoveryScore = .available(recScore)
-
             self.recoveryBreakdown = Self.buildRecoveryBreakdown(
-                sleepQualityScore: sleepQualityScore,
-                sleepRawHours: totalSleep,
-                sleepGoal: config.sleepGoalHours,
-                restingHRScore: restingHRScore ?? 0,
-                restingHRRaw: rhr ?? 0,
-                baseline: config.baselineRestingHR,
-                hrvScore: hrvNormalized,
-                hrvRawMs: hrvMs,
-                finalScore: recScore,
-                weights: weights
+                sleepQualityScore: sleepQualityScore, sleepRawHours: totalSleep, sleepGoal: config.sleepGoalHours,
+                restingHRScore: restingHRScore ?? 0, restingHRRaw: rhr ?? 0, baseline: effectiveBaseline,
+                hrvScore: hrvNormalized, hrvRawMs: hrvMs, finalScore: recScore, weights: weights
             )
         } else if rhr != nil || hrvMs != nil {
-            // Sleep unavailable but other recovery metrics available
-            let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: config.baselineRestingHR) }
-            let hrvNormalized = hrvMs.map { Self.normalizeHRV(milliseconds: $0) }
-
+            let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
+            let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
             var available: [String] = []
             if restingHRScore != nil { available.append("hr") }
             if hrvNormalized != nil { available.append("hrv") }
-
             let originalWeights: [String: Double] = ["sleep": 0.45, "hr": 0.25, "hrv": 0.30]
             let weights = Self.redistributeWeights(availableComponents: available, originalWeights: originalWeights)
-
-            // Compute score manually from available components
             var score = 0.0
             if let hrs = restingHRScore, let w = weights["hr"] { score += hrs * w }
             if let h = hrvNormalized, let w = weights["hrv"] { score += h * w }
-            let recScore = Int(round(score))
-            self.recoveryScore = .available(recScore)
+            self.recoveryScore = .available(Int(round(score)))
             self.recoveryBreakdown = nil
         } else if steps != nil || energy != nil {
-            // No sleep/HR/HRV but activity data exists — estimate recovery from activity
             let stepsNorm = steps.map { Self.normalizeSteps(actual: $0, goal: config.stepsGoal) } ?? 0
             let calNorm = energy.map { Self.normalizeCalories(actual: $0, goal: config.calorieGoal) } ?? 0
             let activityLevel = (stepsNorm + calNorm) / 2.0
@@ -263,12 +233,8 @@ final class HealthKitManager {
             let actScore = Self.calculateActivityScore(stepsScore: stepsNorm, caloriesScore: calNorm)
             self.activityScore = .available(actScore)
             self.activityBreakdown = Self.buildActivityBreakdown(
-                stepsScore: stepsNorm,
-                stepsRaw: steps ?? 0,
-                stepsGoal: config.stepsGoal,
-                caloriesScore: calNorm,
-                caloriesRaw: energy ?? 0,
-                caloriesGoal: config.calorieGoal,
+                stepsScore: stepsNorm, stepsRaw: steps ?? 0, stepsGoal: config.stepsGoal,
+                caloriesScore: calNorm, caloriesRaw: energy ?? 0, caloriesGoal: config.calorieGoal,
                 finalScore: actScore
             )
         } else {
@@ -277,132 +243,164 @@ final class HealthKitManager {
         }
     }
 
-    // MARK: - Body Metrics Queries
+    // MARK: - Sleep Monitoring (HKObserverQuery)
 
-    /// Query HealthKit for the most recent body mass sample, returning the value in kilograms.
-    /// Returns nil if HealthKit is unavailable or no data exists.
-    func queryLatestWeight() async -> Double? {
-        guard let healthStore else { return nil }
-        return await queryQuantity(
-            store: healthStore,
-            type: .bodyMass,
-            unit: .gramUnit(with: .kilo),
-            start: Date.distantPast,
-            end: Date()
-        )
+    /// Start observing HealthKit for new sleep data. When the Watch syncs sleep,
+    /// HealthKit fires the observer and we auto-refresh.
+    func startSleepMonitoring() {
+        guard let healthStore else { return }
+        stopSleepMonitoring()
+
+        let sleepType = HKCategoryType(.sleepAnalysis)
+
+        let query = HKObserverQuery(sampleType: sleepType, predicate: nil) { [weak self] _, completionHandler, error in
+            guard let self else {
+                completionHandler()
+                return
+            }
+            if let error {
+                self.logger.error("Sleep observer error: \(error.localizedDescription)")
+                completionHandler()
+                return
+            }
+            self.logger.info("🛌 Sleep observer fired — new sleep data available")
+            Task {
+                await self.refreshHealthData()
+                completionHandler()
+            }
+        }
+
+        healthStore.execute(query)
+        sleepObserverQuery = query
+        logger.info("Sleep observer started")
+
+        // Also enable background delivery so iOS wakes us when sleep data arrives
+        healthStore.enableBackgroundDelivery(for: sleepType, frequency: .immediate) { success, error in
+            if success {
+                self.logger.info("Background delivery enabled for sleep")
+            } else if let error {
+                self.logger.error("Background delivery failed: \(error.localizedDescription)")
+            }
+        }
     }
 
-    /// Query HealthKit for the most recent height sample, returning the value in centimeters.
-    /// Returns nil if HealthKit is unavailable or no data exists.
+    func stopSleepMonitoring() {
+        if let query = sleepObserverQuery, let healthStore {
+            healthStore.stop(query)
+            sleepObserverQuery = nil
+        }
+        sleepMonitoringTimer?.invalidate()
+        sleepMonitoringTimer = nil
+    }
+
+    // MARK: - Body Metrics Queries
+
+    /// Query average resting HR over the last 14 days to use as automatic baseline.
+    /// Returns nil if no data available.
+    private func queryRestingHRBaseline(store: HKHealthStore, end: Date) async -> Double? {
+        let type = HKQuantityType(.restingHeartRate)
+        let unit = HKUnit.count().unitDivided(by: .minute())
+        let start = Calendar.current.date(byAdding: .day, value: -14, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) {
+                _, samples, error in
+                if let error {
+                    self.logger.error("Resting HR baseline query failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                guard let samples = samples as? [HKQuantitySample], !samples.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let sum = samples.reduce(0.0) { $0 + $1.quantity.doubleValue(for: unit) }
+                let avg = sum / Double(samples.count)
+                self.logger.info("Resting HR baseline: \(String(format: "%.0f", avg))bpm from \(samples.count) samples over 14 days")
+                continuation.resume(returning: avg)
+            }
+            store.execute(query)
+        }
+    }
+
+    /// Query average HRV (SDNN) over the last 14 days to use as automatic baseline.
+    private func queryHRVBaseline(store: HKHealthStore, end: Date) async -> Double? {
+        let type = HKQuantityType(.heartRateVariabilitySDNN)
+        let unit = HKUnit.secondUnit(with: .milli)
+        let start = Calendar.current.date(byAdding: .day, value: -14, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) {
+                _, samples, error in
+                if let error {
+                    self.logger.error("HRV baseline query failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                guard let samples = samples as? [HKQuantitySample], !samples.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let sum = samples.reduce(0.0) { $0 + $1.quantity.doubleValue(for: unit) }
+                let avg = sum / Double(samples.count)
+                self.logger.info("HRV baseline: \(String(format: "%.0f", avg))ms from \(samples.count) samples over 14 days")
+                continuation.resume(returning: avg)
+            }
+            store.execute(query)
+        }
+    }
+
+    func queryLatestWeight() async -> Double? {
+        guard let healthStore else { return nil }
+        return await queryQuantity(store: healthStore, type: .bodyMass, unit: .gramUnit(with: .kilo), start: Date.distantPast, end: Date())
+    }
+
     func queryLatestHeight() async -> Double? {
         guard let healthStore else { return nil }
-        return await queryQuantity(
-            store: healthStore,
-            type: .height,
-            unit: .meterUnit(with: .centi),
-            start: Date.distantPast,
-            end: Date()
-        )
+        return await queryQuantity(store: healthStore, type: .height, unit: .meterUnit(with: .centi), start: Date.distantPast, end: Date())
     }
 
     // MARK: - Static Pure Functions
 
-    /// Normalize a value to 0–100 given a min and max range.
-    static func normalize(value: Double, min: Double, max: Double) -> Double {
-        guard max > min else { return 0 }
-        let normalized = (value - min) / (max - min) * 100.0
-        return Swift.min(100, Swift.max(0, normalized))
-    }
-
-    /// Calculate recovery score from health components using the weighted formula.
-    /// Each unavailable component should be passed as its default (50).
-    static func calculateRecoveryScore(
-        sleepHours: Double,
-        restingHR: Double,
-        stepCount: Double,
-        activeEnergy: Double
-    ) -> Int {
-        let sleepQuality = Swift.min(100, Swift.max(0, sleepHours / 8.0 * 100.0))
-        let restingHRScore = Swift.min(100, Swift.max(0, (100.0 - restingHR) / (100.0 - 50.0) * 100.0))
-        let stepsScore = Swift.min(100, Swift.max(0, stepCount / 10000.0 * 100.0))
-        let workoutScore = Swift.min(100, Swift.max(0, activeEnergy / 500.0 * 100.0))
-
-        let raw = sleepQuality * 0.4 + restingHRScore * 0.2 + stepsScore * 0.2 + workoutScore * 0.2
-        let score = Int(round(raw))
-        return Swift.min(100, Swift.max(0, score))
-    }
-
-    /// Normalize steps against user's goal. Returns 0 if goal <= 0.
     static func normalizeSteps(actual: Double, goal: Double) -> Double {
         guard goal > 0 else { return 0 }
         return Swift.min(100, Swift.max(0, actual / goal * 100))
     }
 
-    /// Normalize calories against user's goal. Returns 0 if goal <= 0.
     static func normalizeCalories(actual: Double, goal: Double) -> Double {
         guard goal > 0 else { return 0 }
         return Swift.min(100, Swift.max(0, actual / goal * 100))
     }
 
-    /// Normalize sleep duration against user's goal. Returns 0 if goal <= 0.
-    static func normalizeSleepDuration(actual: Double, goal: Double) -> Double {
-        guard goal > 0 else { return 0 }
-        return Swift.min(100, Swift.max(0, actual / goal * 100))
-    }
-
-    /// Normalize resting HR against personal baseline using percentage-based formula with factor 2.5.
-    /// actual == baseline → 100, actual ≥ baseline × 1.40 → 0, actual < baseline → clamped to 100.
     static func normalizeRestingHR(actual: Double, baseline: Double) -> Double {
         guard baseline > 0 else { return 0 }
         let percentageChange = (actual - baseline) / baseline
         return Swift.min(100, Swift.max(0, 100 - (percentageChange * 100 * 2.5)))
     }
 
-    /// Normalize HRV: linear interpolation from 20ms → 0 to 100ms → 100, clamped [0, 100].
-    static func normalizeHRV(milliseconds: Double) -> Double {
-        return Swift.min(100, Swift.max(0, (milliseconds - 20) / 80 * 100))
+    /// Normalize HRV against personal baseline.
+    /// actual >= baseline → 100 (well recovered), actual at 50% of baseline → 0 (fatigued).
+    static func normalizeHRV(actual: Double, baseline: Double) -> Double {
+        guard baseline > 0 else { return 50 }
+        // Ratio: 1.0 = at baseline, >1 = above (good), <1 = below (bad)
+        let ratio = actual / baseline
+        // Map: ratio 0.5 → 0, ratio 1.0 → 80, ratio 1.5+ → 100
+        let score = (ratio - 0.5) / 0.5 * 80.0
+        return Swift.min(100, Swift.max(0, score))
     }
 
-    /// Calculate sleep quality score using weighted formula:
-    /// durationScore × 0.50 + deepScore × 0.25 + remScore × 0.25.
-    /// Falls back to duration-only (weight 1.0) when deep/REM hours are nil.
-    /// - Parameters:
-    ///   - totalHours: Total sleep hours
-    ///   - deepHours: Deep sleep hours (nil if unavailable)
-    ///   - remHours: REM sleep hours (nil if unavailable)
-    ///   - sleepGoal: User's sleep goal in hours from FitnessConfig
-    /// - Returns: A score between 0 and 100
-    static func calculateSleepQualityScore(
-        totalHours: Double,
-        deepHours: Double?,
-        remHours: Double?,
-        sleepGoal: Double
-    ) -> Double {
+    static func calculateSleepQualityScore(totalHours: Double, deepHours: Double?, remHours: Double?, sleepGoal: Double) -> Double {
         guard sleepGoal > 0 else { return 0 }
-
         let durationScore = Swift.min(100, Swift.max(0, totalHours / sleepGoal * 100))
-
-        // Fallback to duration-only when phase data is unavailable
-        guard let deepHours, let remHours, totalHours > 0 else {
-            return durationScore
-        }
-
-        let deepPercentage = deepHours / totalHours
-        let deepScore = Swift.min(100, Swift.max(0, deepPercentage / 0.175 * 100))
-
-        let remPercentage = remHours / totalHours
-        let remScore = Swift.min(100, Swift.max(0, remPercentage / 0.225 * 100))
-
+        guard let deepHours, let remHours, totalHours > 0 else { return durationScore }
+        let deepScore = Swift.min(100, Swift.max(0, (deepHours / totalHours) / 0.175 * 100))
+        let remScore = Swift.min(100, Swift.max(0, (remHours / totalHours) / 0.225 * 100))
         return durationScore * 0.50 + deepScore * 0.25 + remScore * 0.25
     }
 
-    /// Recovery Score: weights sleep 0.45, HR 0.25, HRV 0.30.
-    /// When HRV is unavailable (nil), falls back to sleep 0.60, HR 0.40.
-    static func calculateRecoveryScore(
-        sleepQualityScore: Double,
-        restingHRScore: Double,
-        hrvScore: Double?
-    ) -> Int {
+    static func calculateRecoveryScore(sleepQualityScore: Double, restingHRScore: Double, hrvScore: Double?) -> Int {
         if let hrvScore {
             return Int(round(sleepQualityScore * 0.45 + restingHRScore * 0.25 + hrvScore * 0.30))
         } else {
@@ -410,20 +408,11 @@ final class HealthKitManager {
         }
     }
 
-    /// Activity Score: weights steps 0.50, calories 0.50.
-    static func calculateActivityScore(
-        stepsScore: Double,
-        caloriesScore: Double
-    ) -> Int {
+    static func calculateActivityScore(stepsScore: Double, caloriesScore: Double) -> Int {
         return Int(round(stepsScore * 0.50 + caloriesScore * 0.50))
     }
 
-    /// Redistribute weights proportionally when some components are unavailable.
-    /// Returns empty dictionary if no available components have positive weights.
-    static func redistributeWeights(
-        availableComponents: [String],
-        originalWeights: [String: Double]
-    ) -> [String: Double] {
+    static func redistributeWeights(availableComponents: [String], originalWeights: [String: Double]) -> [String: Double] {
         let availableSum = availableComponents.reduce(0.0) { $0 + (originalWeights[$1] ?? 0) }
         guard availableSum > 0 else { return [:] }
         var result: [String: Double] = [:]
@@ -433,44 +422,33 @@ final class HealthKitManager {
         return result
     }
 
-    /// Determine ComponentStatus based on normalizedScore thresholds.
     private static func componentStatus(for normalizedScore: Double) -> ScoreBreakdown.ComponentStatus {
         if normalizedScore < 40 { return .warning }
         if normalizedScore >= 70 { return .good }
         return .normal
     }
 
-    /// Build a ScoreBreakdown for Recovery Score with sleep, HR, and optional HRV components.
     static func buildRecoveryBreakdown(
         sleepQualityScore: Double, sleepRawHours: Double, sleepGoal: Double,
         restingHRScore: Double, restingHRRaw: Double, baseline: Double,
         hrvScore: Double?, hrvRawMs: Double?,
-        finalScore: Int,
-        weights: [String: Double]
+        finalScore: Int, weights: [String: Double]
     ) -> ScoreBreakdown {
         let sleepWeight = weights["sleep"] ?? 0.45
         let hrWeight = weights["hr"] ?? 0.25
-
-        // Show duration-based progress in the bar (intuitive: hours vs goal)
         let durationScore = sleepGoal > 0 ? Swift.min(100, Swift.max(0, sleepRawHours / sleepGoal * 100)) : 0
 
         var components: [ScoreBreakdown.ScoreComponent] = [
             ScoreBreakdown.ScoreComponent(
-                name: "Sleep",
-                rawValue: sleepRawHours,
-                rawUnit: "h",
-                normalizedScore: durationScore,
-                weight: sleepWeight,
+                name: "Sleep", rawValue: sleepRawHours, rawUnit: "h",
+                normalizedScore: durationScore, weight: sleepWeight,
                 contribution: sleepQualityScore * sleepWeight,
                 description: "Slept \(String(format: "%.1f", sleepRawHours))h of your \(String(format: "%.0f", sleepGoal))h goal",
                 status: componentStatus(for: durationScore)
             ),
             ScoreBreakdown.ScoreComponent(
-                name: "Resting HR",
-                rawValue: restingHRRaw,
-                rawUnit: "bpm",
-                normalizedScore: restingHRScore,
-                weight: hrWeight,
+                name: "Resting HR", rawValue: restingHRRaw, rawUnit: "bpm",
+                normalizedScore: restingHRScore, weight: hrWeight,
                 contribution: restingHRScore * hrWeight,
                 description: "Resting HR \(String(format: "%.0f", restingHRRaw)) bpm vs \(String(format: "%.0f", baseline))bpm baseline",
                 status: componentStatus(for: restingHRScore)
@@ -479,55 +457,39 @@ final class HealthKitManager {
 
         if let hrvScore, let hrvRawMs {
             let hrvWeight = weights["hrv"] ?? 0.30
-            components.append(
-                ScoreBreakdown.ScoreComponent(
-                    name: "HRV",
-                    rawValue: hrvRawMs,
-                    rawUnit: "ms",
-                    normalizedScore: hrvScore,
-                    weight: hrvWeight,
-                    contribution: hrvScore * hrvWeight,
-                    description: "HRV \(String(format: "%.0f", hrvRawMs))ms",
-                    status: componentStatus(for: hrvScore)
-                )
-            )
+            components.append(ScoreBreakdown.ScoreComponent(
+                name: "HRV", rawValue: hrvRawMs, rawUnit: "ms",
+                normalizedScore: hrvScore, weight: hrvWeight,
+                contribution: hrvScore * hrvWeight,
+                description: "HRV \(String(format: "%.0f", hrvRawMs))ms",
+                status: componentStatus(for: hrvScore)
+            ))
         }
 
         return ScoreBreakdown(components: components, finalScore: finalScore)
     }
 
-    /// Build a ScoreBreakdown for Activity Score with steps and calories components.
     static func buildActivityBreakdown(
         stepsScore: Double, stepsRaw: Double, stepsGoal: Double,
         caloriesScore: Double, caloriesRaw: Double, caloriesGoal: Double,
         finalScore: Int
     ) -> ScoreBreakdown {
-        let stepsWeight = 0.50
-        let caloriesWeight = 0.50
-
         let components: [ScoreBreakdown.ScoreComponent] = [
             ScoreBreakdown.ScoreComponent(
-                name: "Steps",
-                rawValue: stepsRaw,
-                rawUnit: "steps",
-                normalizedScore: stepsScore,
-                weight: stepsWeight,
-                contribution: stepsScore * stepsWeight,
+                name: "Steps", rawValue: stepsRaw, rawUnit: "steps",
+                normalizedScore: stepsScore, weight: 0.50,
+                contribution: stepsScore * 0.50,
                 description: "\(String(format: "%.0f", stepsRaw)) of \(String(format: "%.0f", stepsGoal)) steps",
                 status: componentStatus(for: stepsScore)
             ),
             ScoreBreakdown.ScoreComponent(
-                name: "Active Calories",
-                rawValue: caloriesRaw,
-                rawUnit: "kcal",
-                normalizedScore: caloriesScore,
-                weight: caloriesWeight,
-                contribution: caloriesScore * caloriesWeight,
+                name: "Active Calories", rawValue: caloriesRaw, rawUnit: "kcal",
+                normalizedScore: caloriesScore, weight: 0.50,
+                contribution: caloriesScore * 0.50,
                 description: "\(String(format: "%.0f", caloriesRaw)) of \(String(format: "%.0f", caloriesGoal)) kcal",
                 status: componentStatus(for: caloriesScore)
             )
         ]
-
         return ScoreBreakdown(components: components, finalScore: finalScore)
     }
 
@@ -549,23 +511,31 @@ final class HealthKitManager {
 
     // MARK: - HealthKit Queries
 
-    private func querySleepPhases(store: HKHealthStore, start: Date, end: Date) async -> (total: Double?, deep: Double?, rem: Double?) {
+    /// Sleep query: finds the most recent sleep session from HealthKit data.
+    /// 
+    /// Approach (based on Apple DTS recommendations):
+    /// 1. Query asleep samples from last 24h (covers any sleep schedule)
+    /// 2. Merge overlapping intervals to avoid double-counting (Watch + iPhone)
+    /// 3. Group merged intervals into sessions (gap > 2h = separate session)
+    /// 4. Return only the most recent session
+    ///
+    /// Note: Apple's sleep schedule is user-configured and not accessible via HealthKit API,
+    /// so we detect sessions from the actual data instead of assuming fixed hours.
+    private func querySleepPhases(store: HKHealthStore, end: Date) async -> (total: Double?, deep: Double?, rem: Double?) {
         let sleepType = HKCategoryType(.sleepAnalysis)
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let lookback = Calendar.current.date(byAdding: .hour, value: -24, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: end, options: [])
 
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(
-                sampleType: sleepType,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: nil
-            ) { _, samples, error in
+                sampleType: sleepType, predicate: predicate,
+                limit: HKObjectQueryNoLimit, sortDescriptors: nil
+            ) { [self] _, samples, error in
                 if let error {
-                    self.logger.error("Sleep phases query failed: \(error.localizedDescription)")
+                    self.logger.error("Sleep query failed: \(error.localizedDescription)")
                     continuation.resume(returning: (nil, nil, nil))
                     return
                 }
-
                 guard let samples = samples as? [HKCategorySample], !samples.isEmpty else {
                     continuation.resume(returning: (nil, nil, nil))
                     return
@@ -578,93 +548,125 @@ final class HealthKitManager {
                     HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
                 ]
 
-                let totalSeconds = samples
-                    .filter { asleepValues.contains($0.value) }
-                    .reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+                let asleepSamples = samples.filter { asleepValues.contains($0.value) }
+                guard !asleepSamples.isEmpty else {
+                    continuation.resume(returning: (nil, nil, nil))
+                    return
+                }
 
-                let deepSeconds = samples
+                // Step 1: Merge all overlapping intervals to get clean time blocks
+                let allIntervals = asleepSamples.map { ($0.startDate, $0.endDate) }
+                let merged = Self.mergeIntervals(allIntervals)
+
+                // Step 2: Group merged intervals into sessions (gap > 2h = new session)
+                let sessionGap: TimeInterval = 2 * 60 * 60
+                var sessions: [[(Date, Date)]] = []
+                var currentSession: [(Date, Date)] = []
+
+                for interval in merged {
+                    if let last = currentSession.last, interval.0.timeIntervalSince(last.1) > sessionGap {
+                        sessions.append(currentSession)
+                        currentSession = [interval]
+                    } else {
+                        currentSession.append(interval)
+                    }
+                }
+                if !currentSession.isEmpty {
+                    sessions.append(currentSession)
+                }
+
+                // Step 3: Take the most recent session (last one, since merged is sorted)
+                guard let latestSession = sessions.last else {
+                    continuation.resume(returning: (nil, nil, nil))
+                    return
+                }
+
+                let sessionStart = latestSession.first!.0
+                let sessionEnd = latestSession.last!.1
+                let totalSeconds = latestSession.reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) }
+
+                // Step 4: Deep and REM — filter original samples to this session's time range,
+                // then merge their intervals separately
+                let sessionSamples = asleepSamples.filter { $0.startDate >= sessionStart && $0.endDate <= sessionEnd }
+
+                let deepIntervals = sessionSamples
                     .filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
-                    .reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+                    .map { ($0.startDate, $0.endDate) }
+                let deepSeconds = Self.mergeAndSum(intervals: deepIntervals)
 
-                let remSeconds = samples
+                let remIntervals = sessionSamples
                     .filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
-                    .reduce(0.0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+                    .map { ($0.startDate, $0.endDate) }
+                let remSeconds = Self.mergeAndSum(intervals: remIntervals)
 
                 let totalHours = totalSeconds / 3600.0
-                let deepHours: Double? = deepSeconds > 0 ? deepSeconds / 3600.0 : nil
-                let remHours: Double? = remSeconds > 0 ? remSeconds / 3600.0 : nil
+                let deepHours = deepSeconds / 3600.0
+                let remHours = remSeconds / 3600.0
 
-                continuation.resume(returning: (totalHours > 0 ? totalHours : nil, deepHours, remHours))
+                self.logger.info("Sleep: \(sessionSamples.count) samples in session, \(String(format: "%.1f", totalHours))h total (deep: \(String(format: "%.1f", deepHours))h, rem: \(String(format: "%.1f", remHours))h), session: \(sessionStart) → \(sessionEnd)")
+
+                continuation.resume(returning: (
+                    totalHours > 0 ? totalHours : nil,
+                    deepHours > 0 ? deepHours : nil,
+                    remHours > 0 ? remHours : nil
+                ))
             }
             store.execute(query)
         }
     }
 
-    private func queryQuantity(
-        store: HKHealthStore,
-        type: HKQuantityTypeIdentifier,
-        unit: HKUnit,
-        start: Date,
-        end: Date
-    ) async -> Double? {
+    /// Merge overlapping time intervals into non-overlapping blocks, sorted by start.
+    private static func mergeIntervals(_ intervals: [(Date, Date)]) -> [(Date, Date)] {
+        guard !intervals.isEmpty else { return [] }
+        let sorted = intervals.sorted { $0.0 < $1.0 }
+        var merged: [(Date, Date)] = [sorted[0]]
+        for interval in sorted.dropFirst() {
+            let last = merged[merged.count - 1]
+            if interval.0 <= last.1 {
+                merged[merged.count - 1] = (last.0, max(last.1, interval.1))
+            } else {
+                merged.append(interval)
+            }
+        }
+        return merged
+    }
+
+    /// Merge overlapping intervals and return total seconds.
+    private static func mergeAndSum(intervals: [(Date, Date)]) -> TimeInterval {
+        return mergeIntervals(intervals).reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) }
+    }
+
+    private func queryQuantity(store: HKHealthStore, type: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date) async -> Double? {
         let quantityType = HKQuantityType(type)
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
         return await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: quantityType,
-                predicate: predicate,
-                limit: 1,
-                sortDescriptors: [sortDescriptor]
-            ) { _, samples, error in
+            let query = HKSampleQuery(sampleType: quantityType, predicate: predicate, limit: 1, sortDescriptors: [sortDescriptor]) {
+                _, samples, error in
                 if let error {
                     self.logger.error("Query for \(type.rawValue) failed: \(error.localizedDescription)")
                     continuation.resume(returning: nil)
                     return
                 }
-
                 guard let sample = samples?.first as? HKQuantitySample else {
                     continuation.resume(returning: nil)
                     return
                 }
-
-                let value = sample.quantity.doubleValue(for: unit)
-                continuation.resume(returning: value)
+                continuation.resume(returning: sample.quantity.doubleValue(for: unit))
             }
             store.execute(query)
         }
     }
 
-    private func queryQuantityCumulative(
-        store: HKHealthStore,
-        type: HKQuantityTypeIdentifier,
-        unit: HKUnit,
-        start: Date,
-        end: Date
-    ) async -> Double? {
+    private func queryQuantityCumulative(store: HKHealthStore, type: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date) async -> Double? {
         let quantityType = HKQuantityType(type)
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
 
         return await withCheckedContinuation { continuation in
-            let query = HKStatisticsQuery(
-                quantityType: quantityType,
-                quantitySamplePredicate: predicate,
-                options: .cumulativeSum
-            ) { _, statistics, error in
-                if let error {
-                    self.logger.error("Cumulative query for \(type.rawValue) failed: \(error.localizedDescription)")
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                guard let sum = statistics?.sumQuantity() else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-
-                let value = sum.doubleValue(for: unit)
-                continuation.resume(returning: value)
+            let query = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) {
+                _, stats, _ in
+                continuation.resume(returning: stats?.sumQuantity()?.doubleValue(for: unit))
             }
             store.execute(query)
         }
