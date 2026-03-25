@@ -25,18 +25,26 @@ struct ContentView: View {
     @State private var exerciseImageLoader: ExerciseImageLoader?
     @State private var detoxManager: DetoxManager?
     @State private var userProfile: UserProfile?
+    @State private var trainingPlanRepository: TrainingPlanRepository?
 
     // Cached ViewModels (prevent recreation on every render)
     @State private var homeViewModel: HomeViewModel?
     @State private var workoutViewModel: WorkoutViewModel?
     @State private var statsViewModel: StatsViewModel?
     @State private var profileViewModel: ProfileViewModel?
+    @State private var trainingPreferencesViewModel: TrainingPreferencesViewModel?
+    @State private var trainingPlanViewModel: TrainingPlanViewModel?
 
     // Tab selection
     @State private var selectedTab: Tab = .home
 
     // Navigation state for workout
     @State private var showingWorkout = false
+
+    // Navigation state for training plan flow
+    @State private var showingTrainingPreferences = false
+    @State private var showingWorkoutExecutor = false
+    @State private var selectedDayIndex: Int?
 
     enum Tab: Hashable {
         case home, workout, stats, profile
@@ -56,15 +64,14 @@ struct ContentView: View {
         }
         .task {
             initializeServices()
-            // Verify HealthKit authorization BEFORE showing main UI
-            await healthKitManager.verifyAuthorization()
             // Start observing HealthKit for new sleep data (auto-refresh on wake)
+            // Only starts observers if already authorized — no permission prompt
             healthKitManager.startSleepMonitoring()
             // Start observing key health metrics (HR, HRV, steps, calories) for real-time updates
             healthKitManager.startHealthObservers()
             // Request notification permission on launch (no-op if already granted)
             let _ = await notificationService.requestPermission()
-            // Now check onboarding and show UI (authorization is already resolved)
+            // Now check onboarding and show UI
             checkOnboarding()
         }
     }
@@ -78,9 +85,11 @@ struct ContentView: View {
                 workoutEngine: workoutEngine ?? WorkoutEngine(repository: WorkoutRepository(context: modelContext)),
                 healthKitManager: healthKitManager
             ),
-            onComplete: {
-                checkOnboarding()
+            onComplete: { [self] in
+                // Re-initialize services if needed
                 initializeServices()
+                // Check onboarding status and transition UI
+                checkOnboarding()
             }
         )
     }
@@ -114,13 +123,79 @@ struct ContentView: View {
     private var workoutTab: some View {
         Group {
             if let vm = workoutViewModel {
-                WorkoutView(viewModel: vm, imageLoader: exerciseImageLoader)
+                WorkoutView(
+                    viewModel: vm,
+                    imageLoader: exerciseImageLoader,
+                    trainingPlanVM: trainingPlanViewModel,
+                    onNewTrainingPlan: { showingTrainingPreferences = true },
+                    onStartTrainingWorkout: { dayIndex in
+                        selectedDayIndex = dayIndex
+                        showingWorkoutExecutor = true
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showingTrainingPreferences) {
+            if let vm = trainingPreferencesViewModel {
+                TrainingPreferencesView(viewModel: vm)
+                    .onDisappear {
+                        // Reload plan after creating one
+                        trainingPlanViewModel?.loadPlan()
+                    }
+            }
+        }
+        .sheet(isPresented: $showingWorkoutExecutor) {
+            if let executorVM = buildWorkoutExecutorViewModel() {
+                WorkoutExecutorView(viewModel: executorVM)
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.orange)
+                    Text("Couldn't load workout")
+                        .font(.headline)
+                    Text("No exercises found for today. Try regenerating your plan.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Close") { showingWorkoutExecutor = false }
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding()
             }
         }
         .tabItem {
             Label("Workout", systemImage: "figure.run")
         }
         .tag(Tab.workout)
+    }
+
+    // MARK: - Build WorkoutExecutorViewModel
+
+    private func buildWorkoutExecutorViewModel() -> WorkoutExecutorViewModel? {
+        guard let repo = trainingPlanRepository,
+              let plan = try? repo.fetchActivePlan(),
+              let dayIndex = selectedDayIndex else { return nil }
+
+        let weekIndex = plan.currentWeek - 1
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return nil }
+
+        let week = plan.weeks[weekIndex]
+        guard dayIndex >= 0, dayIndex < week.days.count else { return nil }
+
+        let day = week.days[dayIndex]
+
+        // If the persisted day has no exercises, the plan wasn't saved correctly
+        guard !day.exercises.isEmpty else { return nil }
+
+        let setLogger = SetLogger(repository: repo)
+
+        return WorkoutExecutorViewModel(
+            plan: plan,
+            plannedExercises: day.exercises,
+            setLogger: setLogger,
+            healthKitManager: healthKitManager
+        )
     }
 
     private var statsTab: some View {
@@ -180,6 +255,7 @@ struct ContentView: View {
         exerciseService = es
         exerciseImageLoader = eil
         detoxManager = dm
+        trainingPlanRepository = TrainingPlanRepository(context: modelContext)
         servicesReady = true
     }
 
@@ -227,6 +303,21 @@ struct ContentView: View {
                 notificationService: notificationService
             )
         }
+        if trainingPreferencesViewModel == nil, let repo = trainingPlanRepository {
+            trainingPreferencesViewModel = TrainingPreferencesViewModel(
+                exerciseService: es,
+                repository: repo
+            )
+        }
+        if trainingPlanViewModel == nil, let repo = trainingPlanRepository {
+            let dayMgr = DayManager(repository: repo)
+            let tpvm = TrainingPlanViewModel(
+                repository: repo,
+                dayManager: dayMgr
+            )
+            tpvm.loadPlan()
+            trainingPlanViewModel = tpvm
+        }
     }
 
     // MARK: - Weekly Plan Auto-Regeneration
@@ -259,6 +350,9 @@ struct ContentView: View {
             WeeklyPlan.self,
             WorkoutSession.self,
             GamificationState.self,
-            DetoxProgress.self
+            DetoxProgress.self,
+            TrainingPlan.self,
+            TrainingWeek.self,
+            WorkoutLog.self
         ])
 }

@@ -22,6 +22,9 @@ final class UserProfile {
     // Personalized fitness configuration
     var fitnessConfig: FitnessConfig?
 
+    // Training plan preferences (nil for users who haven't configured a plan)
+    var trainingPreferences: TrainingPreferences?
+
     /// Returns fitnessConfig or default values if not configured.
     var effectiveFitnessConfig: FitnessConfig {
         fitnessConfig ?? .default

@@ -7,15 +7,15 @@ import Foundation
 import Observation
 
 enum OnboardingStep: Int, CaseIterable {
-    case name = 0
-    case goal = 1
-    case bodyMetrics = 2
-    case health = 3
+    case health = 0
+    case name = 1
+    case goal = 2
+    case bodyMetrics = 3
 }
 
 @Observable
 final class OnboardingViewModel {
-    var currentStep: OnboardingStep = .name
+    var currentStep: OnboardingStep = .health
     var userName: String = ""
     var selectedGoal: FitnessGoal = .beHealthy
     var isRequestingHealth: Bool = false
@@ -175,15 +175,26 @@ final class OnboardingViewModel {
             }
         }
 
-        let profile = UserProfile(
-            name: trimmedName,
-            fitnessGoal: selectedGoal,
-            weightKg: weightKg,
-            heightCm: heightCm,
-            unitPreference: unitPreference
-        )
+        // Check if a profile already exists (re-onboarding scenario)
+        if let existing = try? profileRepository.fetch() {
+            existing.name = trimmedName
+            existing.fitnessGoal = selectedGoal
+            existing.weightKg = weightKg
+            existing.heightCm = heightCm
+            existing.unitPreference = unitPreference
+            existing.onboardingCompleted = true
+            try? profileRepository.save(existing)
+        } else {
+            let profile = UserProfile(
+                name: trimmedName,
+                fitnessGoal: selectedGoal,
+                weightKg: weightKg,
+                heightCm: heightCm,
+                unitPreference: unitPreference
+            )
+            try? profileRepository.save(profile)
+        }
 
-        try? profileRepository.save(profile)
         _ = workoutEngine.generateWeeklyPlan(goal: selectedGoal, weightKg: weightKg, heightCm: heightCm)
     }
 }

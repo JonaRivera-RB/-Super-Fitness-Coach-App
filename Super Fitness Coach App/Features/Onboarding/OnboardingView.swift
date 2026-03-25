@@ -25,19 +25,27 @@ struct OnboardingView: View {
             Spacer()
 
             switch viewModel.currentStep {
+            case .health:
+                healthStepView
             case .name:
                 nameStepView
             case .goal:
                 goalStepView
             case .bodyMetrics:
                 bodyMetricsStepView
-            case .health:
-                healthStepView
             }
 
             Spacer()
         }
         .animation(.easeInOut, value: viewModel.currentStep)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+        }
     }
 
     // MARK: - Screen 1: Name Entry
@@ -63,16 +71,27 @@ struct OnboardingView: View {
                     }
                 }
 
-            Button {
-                viewModel.nextStep()
-            } label: {
-                Text("Continue")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 16) {
+                Button {
+                    viewModel.previousStep()
+                } label: {
+                    Text("Back")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button {
+                    viewModel.nextStep()
+                } label: {
+                    Text("Continue")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!viewModel.canProceedFromName)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
             .padding(.horizontal, 40)
-            .disabled(!viewModel.canProceedFromName)
         }
     }
 
@@ -144,7 +163,8 @@ struct OnboardingView: View {
     // MARK: - Screen 3: Body Metrics
 
     private var bodyMetricsStepView: some View {
-        VStack(spacing: 24) {
+        ScrollView {
+            VStack(spacing: 24) {
             Image(systemName: "scalemass.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(Color.accentColor)
@@ -214,17 +234,29 @@ struct OnboardingView: View {
                 .controlSize(.large)
 
                 Button {
-                    viewModel.nextStep()
+                    Task {
+                        await viewModel.completeOnboarding()
+                        onComplete()
+                    }
                 } label: {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
+                    HStack {
+                        if viewModel.isCompleting {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        Text("Get Started")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(!viewModel.canProceedFromBodyMetrics)
+                .disabled(!viewModel.canProceedFromBodyMetrics || viewModel.isCompleting)
             }
             .padding(.horizontal, 40)
+            }
+            .padding(.bottom, 20)
         }
+        .scrollDismissesKeyboard(.interactively)
         .task {
             await viewModel.loadHealthKitMetrics()
         }
@@ -286,34 +318,15 @@ struct OnboardingView: View {
                     .controlSize(.large)
                 }
 
-                HStack(spacing: 16) {
+                if viewModel.healthConnectionResult != nil {
                     Button {
-                        viewModel.previousStep()
+                        viewModel.nextStep()
                     } label: {
-                        Text("Back")
+                        Text("Continue")
                             .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-
-                    Button {
-                        Task {
-                            await viewModel.completeOnboarding()
-                            onComplete()
-                        }
-                    } label: {
-                        HStack {
-                            if viewModel.isCompleting {
-                                ProgressView()
-                                    .tint(.white)
-                            }
-                            Text("Get Started")
-                        }
-                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(viewModel.healthConnectionResult == nil || viewModel.isCompleting)
                 }
             }
             .padding(.horizontal, 40)
