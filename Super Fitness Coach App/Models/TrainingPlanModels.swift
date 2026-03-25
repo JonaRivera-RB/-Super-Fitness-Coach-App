@@ -50,6 +50,7 @@ enum DayStatus: String, Codable {
     case completed
     case skipped
     case rescheduled
+    case unavailable  // days before plan creation date in the current week
 }
 
 enum PlanStatus: String, Codable {
@@ -83,25 +84,6 @@ struct TrainingPreferences: Codable, Equatable {
         wantsCardio: false,
         planDurationWeeks: 4
     )
-}
-
-/// Día dentro del plan de entrenamiento.
-struct TrainingDayPlan: Codable, Equatable {
-    var dayOfWeek: Int                    // 1=Lun, 7=Dom
-    var muscleGroups: [MuscleGroup]       // máx 2
-    var exercises: [PlannedExercise]
-    var dayStatus: DayStatus
-    var isRestDay: Bool
-    var wasRescheduled: Bool              // para limitar reprogramación a 1 vez
-
-    init(dayOfWeek: Int, muscleGroups: [MuscleGroup], exercises: [PlannedExercise], isRestDay: Bool = false) {
-        self.dayOfWeek = dayOfWeek
-        self.muscleGroups = muscleGroups
-        self.exercises = exercises
-        self.dayStatus = .pending
-        self.isRestDay = isRestDay
-        self.wasRescheduled = false
-    }
 }
 
 /// Ejercicio planificado dentro de un día.
@@ -139,13 +121,41 @@ struct DailyAdjustment: Codable, Equatable {
 
 // MARK: - SwiftData Models
 
+/// Ejercicio planificado dentro de un día (persistido como @Model).
+@Model
+final class TrainingDayPlan {
+    var dayOfWeek: Int
+    var muscleGroupsRaw: [String]         // stored as rawValues
+    var exercises: [PlannedExercise]      // Codable struct array — shallow, serializes fine
+    var dayStatusRaw: String
+    var isRestDay: Bool
+    var wasRescheduled: Bool
+
+    var muscleGroups: [MuscleGroup] {
+        get { muscleGroupsRaw.compactMap { MuscleGroup(rawValue: $0) } }
+        set { muscleGroupsRaw = newValue.map(\.rawValue) }
+    }
+
+    var dayStatus: DayStatus {
+        get { DayStatus(rawValue: dayStatusRaw) ?? .pending }
+        set { dayStatusRaw = newValue.rawValue }
+    }
+
+    init(dayOfWeek: Int, muscleGroups: [MuscleGroup], exercises: [PlannedExercise], isRestDay: Bool = false) {
+        self.dayOfWeek = dayOfWeek
+        self.muscleGroupsRaw = muscleGroups.map(\.rawValue)
+        self.exercises = exercises
+        self.dayStatusRaw = DayStatus.pending.rawValue
+        self.isRestDay = isRestDay
+        self.wasRescheduled = false
+    }
+}
+
 /// Semana dentro del plan de entrenamiento (persistida con SwiftData).
-/// SwiftData + arrays anidados = problemas de persistencia/query/actualización.
-/// TrainingWeek como @Model facilita actualizar semanas individuales, hacer queries y analytics.
 @Model
 final class TrainingWeek {
     var weekIndex: Int
-    var days: [TrainingDayPlan]
+    @Relationship(deleteRule: .cascade) var days: [TrainingDayPlan]
 
     init(weekIndex: Int, days: [TrainingDayPlan]) {
         self.weekIndex = weekIndex
@@ -154,18 +164,15 @@ final class TrainingWeek {
 }
 
 /// Plan de entrenamiento completo (persistido con SwiftData).
-/// Nota: SwiftData no soporta enums directamente como propiedades de @Model.
-/// Se usa String backing para planStatus.
 @Model
 final class TrainingPlan {
     @Attribute(.unique) var id: UUID
     var preferences: TrainingPreferences
-    var weeks: [TrainingWeek]
-    var currentWeek: Int                  // 1-based
+    @Relationship(deleteRule: .cascade) var weeks: [TrainingWeek]
+    var currentWeek: Int
     var planStatusRaw: String
     var createdAt: Date
 
-    /// Computed accessor for PlanStatus enum.
     var planStatus: PlanStatus {
         get { PlanStatus(rawValue: planStatusRaw) ?? .active }
         set { planStatusRaw = newValue.rawValue }

@@ -18,6 +18,19 @@ final class TrainingPlanRepository {
     // MARK: - TrainingPlan
 
     func savePlan(_ plan: TrainingPlan) throws {
+        // Deactivate any existing active plans before saving the new one
+        let activeStatus = PlanStatus.active.rawValue
+        let descriptor = FetchDescriptor<TrainingPlan>(
+            predicate: #Predicate<TrainingPlan> { p in
+                p.planStatusRaw == activeStatus
+            }
+        )
+        if let existingPlans = try? context.fetch(descriptor) {
+            for existing in existingPlans {
+                context.delete(existing)
+            }
+        }
+
         context.insert(plan)
         do {
             try context.save()
@@ -30,6 +43,14 @@ final class TrainingPlanRepository {
                 throw error
             }
         }
+    }
+
+    /// Fetches the freshly saved plan by id — use this after savePlan to get a fully hydrated object.
+    func fetchPlan(id: UUID) throws -> TrainingPlan? {
+        let descriptor = FetchDescriptor<TrainingPlan>(
+            predicate: #Predicate<TrainingPlan> { p in p.id == id }
+        )
+        return try context.fetch(descriptor).first
     }
 
     func fetchActivePlan() throws -> TrainingPlan? {

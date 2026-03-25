@@ -19,10 +19,19 @@ final class TrainingPlanViewModel {
     /// The active training plan, if any.
     private(set) var plan: TrainingPlan?
 
-    /// Days for the current week.
+    /// Days for the current week — sorted Mon→Sun.
     private(set) var currentWeekDays: [TrainingDayPlan] = []
 
-    /// Current week number (1-based).
+    /// Snapshot of exercises per day index — value type, avoids SwiftData deserialization issues.
+    private(set) var dayExercises: [[PlannedExercise]] = []
+
+    /// Snapshot of day statuses — value type so @Observable tracks changes on skip/complete.
+    private(set) var dayStatuses: [DayStatus] = []
+
+    /// Increments on every state change to force SwiftUI re-evaluation.
+    private(set) var weekVersion: Int = 0
+
+    /// Current week number in the plan (1-based).
     private(set) var currentWeek: Int = 0
 
     /// Total weeks in the plan.
@@ -57,6 +66,13 @@ final class TrainingPlanViewModel {
 
     // MARK: - Load Plan
 
+    /// Sets the plan directly from memory (e.g., freshly generated plan).
+    /// This bypasses SwiftData fetch and avoids deserialization issues.
+    func setPlan(_ newPlan: TrainingPlan) {
+        self.plan = newPlan
+        refreshState()
+    }
+
     /// Loads the active plan from the repository and refreshes the current week's days.
     func loadPlan() {
         isLoading = true
@@ -76,46 +92,44 @@ final class TrainingPlanViewModel {
 
     // MARK: - Day Actions (Req 10.1)
 
-    /// Marks a day as completed and refreshes state.
-    /// - Parameter dayIndex: 0-based index within the current week's days.
-    func completeDay(at dayIndex: Int) {
-        guard let plan else { return }
-
-        do {
-            try dayManager.completeDay(planId: plan.id, dayIndex: dayIndex)
-            refreshState()
-        } catch {
-            logger.error("Failed to complete day \(dayIndex): \(error.localizedDescription)")
-            errorMessage = "No se pudo completar el día."
-        }
-    }
-
-    /// Marks a day as skipped and refreshes state. Checks for re-engagement (Req 10.10).
-    /// - Parameter dayIndex: 0-based index within the current week's days.
     func skipDay(at dayIndex: Int) {
         guard let plan else { return }
-
         do {
-            try dayManager.skipDay(planId: plan.id, dayIndex: dayIndex)
-            refreshState()
+            try dayManager.skipDay(plan: plan, dayIndex: dayIndex)
+            // Update dayStatuses directly without re-reading from @Model
+            // This avoids SwiftData timing issues where dayStatusRaw hasn't propagated yet
+            if dayIndex < dayStatuses.count {
+                dayStatuses[dayIndex] = .skipped
+            }
+            weekVersion += 1
+            consecutiveSkipped = dayManager.consecutiveSkippedDays(plan: plan)
+            showReEngagement = consecutiveSkipped >= 3
         } catch {
             logger.error("Failed to skip day \(dayIndex): \(error.localizedDescription)")
             errorMessage = "No se pudo saltar el día."
         }
     }
 
-    /// Reschedules a day to the next available rest day and refreshes state.
-    /// - Parameter dayIndex: 0-based index within the current week's days.
-    /// - Returns: `true` if rescheduled successfully.
+    func completeDay(at dayIndex: Int) {
+        guard let plan else { return }
+        do {
+            try dayManager.completeDay(plan: plan, dayIndex: dayIndex)
+            if dayIndex < dayStatuses.count {
+                dayStatuses[dayIndex] = .completed
+            }
+            weekVersion += 1
+        } catch {
+            logger.error("Failed to complete day \(dayIndex): \(error.localizedDescription)")
+            errorMessage = "No se pudo completar el día."
+        }
+    }
+
     @discardableResult
     func rescheduleDay(at dayIndex: Int) -> Bool {
         guard let plan else { return false }
-
         do {
-            let success = try dayManager.rescheduleDay(planId: plan.id, dayIndex: dayIndex)
-            if !success {
-                errorMessage = "No hay días disponibles para reprogramar."
-            }
+            let success = try dayManager.rescheduleDay(plan: plan, dayIndex: dayIndex)
+            if !success { errorMessage = "No hay días disponibles para reprogramar." }
             refreshState()
             return success
         } catch {
@@ -132,7 +146,13 @@ final class TrainingPlanViewModel {
         return dayManager.canReschedule(plan: plan, dayIndex: dayIndex)
     }
 
-    // MARK: - Progress (Req 14.4)
+    // MARK: - Today's Day of Week (1=Mon...7=Sun)
+
+    /// Returns today's day of week (1=Mon, 7=Sun) for UI display purposes.
+    var todayDayOfWeek: Int {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return weekday == 1 ? 7 : weekday - 1
+    }
 
     /// Returns a formatted string like "Semana 2 / 8".
     var progressText: String {
@@ -191,8 +211,22 @@ final class TrainingPlanViewModel {
         let weekIndex = plan.currentWeek - 1
         if weekIndex >= 0, weekIndex < plan.weeks.count {
             currentWeekDays = plan.weeks[weekIndex].days
+                .sorted { $0.dayOfWeek < $1.dayOfWeek }
+            dayStatuses = currentWeekDays.map { $0.dayStatus }
+            dayExercises = currentWeekDays.map { $0.exercises }
         } else {
             currentWeekDays = []
+            dayStatuses = []
+            dayExercises = []
+        }
+        weekVersion += 1
+
+        // Debug: log all day statuses after refresh
+        let logger = Logger(subsystem: "com.superfitnesscoach", category: "TrainingPlanVM")
+        logger.info("refreshState: weekVersion=\(self.weekVersion), days=\(self.currentWeekDays.count)")
+        for (i, day) in currentWeekDays.enumerated() {
+            let s = i < dayStatuses.count ? dayStatuses[i].rawValue : "?"
+            logger.info("  [\(i)] dow=\(day.dayOfWeek) status=\(s) isRest=\(day.isRestDay)")
         }
 
         // Track consecutive skipped days for re-engagement (Req 10.10)

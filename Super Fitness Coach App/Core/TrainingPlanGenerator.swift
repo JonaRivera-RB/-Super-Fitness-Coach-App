@@ -66,69 +66,42 @@ struct TrainingPlanGenerator {
         frequencies: [MuscleGroup: Int],
         trainingDaysPerWeek: Int,
         wantsCardio: Bool,
-        restDays: Set<Int> = [6, 7]
+        restDays: Set<Int> = [6, 7],
+        startDayOfWeek: Int = 1
     ) -> [TrainingDayPlan] {
         let clampedDays = max(3, min(6, trainingDaysPerWeek))
 
-        // Build a pool of muscle assignments sorted by frequency (highest first)
+        // Build muscle pool sorted by frequency descending
         var pool: [MuscleGroup] = []
         for (muscle, freq) in frequencies.sorted(by: { $0.value > $1.value }) {
-            for _ in 0..<freq {
-                pool.append(muscle)
-            }
+            for _ in 0..<freq { pool.append(muscle) }
         }
 
-        // Create training day slots, each holding up to 2 muscle groups
+        // Assign muscles to training slots (greedy, max 2 per slot, no consecutive primary)
         var slots: [[MuscleGroup]] = Array(repeating: [], count: clampedDays)
-
-        // Greedy assignment: place each muscle occurrence respecting constraints
         for muscle in pool {
-            // Find the best slot: fewest muscles, no primary-consecutive conflict, capacity < 2
             var bestSlot: Int? = nil
             var bestCount = Int.max
-
             for i in 0..<clampedDays {
                 guard slots[i].count < 2 else { continue }
-
-                // Check primary-consecutive constraint
                 if muscle.priority == .primary {
-                    if i > 0, slots[i - 1].contains(where: { $0 == muscle }) { continue }
-                    if i < clampedDays - 1, slots[i + 1].contains(where: { $0 == muscle }) { continue }
+                    if i > 0, slots[i - 1].contains(muscle) { continue }
+                    if i < clampedDays - 1, slots[i + 1].contains(muscle) { continue }
                 }
-
                 if slots[i].count < bestCount {
                     bestCount = slots[i].count
                     bestSlot = i
                 }
             }
-
-            if let slot = bestSlot {
-                slots[slot].append(muscle)
-            }
+            if let slot = bestSlot { slots[slot].append(muscle) }
         }
 
-        // Build training day plans (no exercises yet — assigned in a later task)
-        var trainingDays: [TrainingDayPlan] = []
-        for (index, muscleGroups) in slots.enumerated() {
-            trainingDays.append(TrainingDayPlan(
-                dayOfWeek: 0, // placeholder, assigned after rest-day interleaving
-                muscleGroups: muscleGroups,
-                exercises: []
-            ))
-            _ = index // suppress unused warning
-        }
-
-        // If cardio requested, tag the last training day for cardio
-        // (actual cardio exercises assigned in task 4)
-        // We ensure at least one slot exists for cardio by keeping the slot available
-
-        // Distribute rest days using user-selected days
+        // Build the 7-day week in order 1...7 — all days start as pending
         var weekDays: [TrainingDayPlan] = []
-        let restPositions = restDays
-
         var trainingIndex = 0
+
         for dayOfWeek in 1...7 {
-            if restPositions.contains(dayOfWeek) {
+            if restDays.contains(dayOfWeek) {
                 weekDays.append(TrainingDayPlan(
                     dayOfWeek: dayOfWeek,
                     muscleGroups: [],
@@ -136,12 +109,13 @@ struct TrainingPlanGenerator {
                     isRestDay: true
                 ))
             } else {
-                if trainingIndex < trainingDays.count {
-                    var day = trainingDays[trainingIndex]
-                    day.dayOfWeek = dayOfWeek
-                    weekDays.append(day)
-                    trainingIndex += 1
-                }
+                let muscleGroups = trainingIndex < slots.count ? slots[trainingIndex] : []
+                trainingIndex += 1
+                weekDays.append(TrainingDayPlan(
+                    dayOfWeek: dayOfWeek,
+                    muscleGroups: muscleGroups,
+                    exercises: []
+                ))
             }
         }
 
@@ -360,11 +334,13 @@ struct TrainingPlanGenerator {
         )
 
         // Step 2: Generate weekly split template with user-selected rest days
+        // No unavailable days in generator — handled dynamically in UI based on current date
         let weeklySplitTemplate = generateWeeklySplit(
             frequencies: frequencies,
             trainingDaysPerWeek: preferences.trainingDaysPerWeek,
             wantsCardio: preferences.wantsCardio,
-            restDays: restDays
+            restDays: restDays,
+            startDayOfWeek: 1  // always start from Monday — UI handles unavailable display
         )
 
         // Step 3: For each week, create a copy of the split and assign exercises

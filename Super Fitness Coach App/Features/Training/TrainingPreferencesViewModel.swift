@@ -17,8 +17,11 @@ final class TrainingPreferencesViewModel {
     var experienceLevel: FitnessLevel = .beginner
     var priorityMuscles: [MuscleGroup] = []
     var wantsCardio: Bool = false
-    var planDurationWeeks: Int = 4 // Req 1.5: default 4
-    var restDays: Set<Int> = [6, 7] // Default: Saturday, Sunday
+    var planDurationWeeks: Int = 4
+    // restDays: days of week (1=Mon...7=Sun) that are rest days
+    // Default: Sat(6) + Sun(7) = 2 rest days → 5 training days
+    // But default trainingDaysPerWeek=4, so default rest = [4,6,7] (Thu, Sat, Sun)
+    var restDays: Set<Int> = [4, 6, 7]
 
     // MARK: - State
 
@@ -46,6 +49,7 @@ final class TrainingPreferencesViewModel {
     func resetState() {
         didGenerate = false
         errorMessage = nil
+        generatedPlan = nil
     }
 
     /// Toggles a muscle in the priority list.
@@ -132,12 +136,19 @@ final class TrainingPreferencesViewModel {
         // Persist
         do {
             try repository.savePlan(plan)
-            generatedPlan = plan
+            // Fetch the hydrated plan from SwiftData — relationships are fully loaded after fetch
+            if let hydrated = try? repository.fetchPlan(id: plan.id) {
+                generatedPlan = hydrated
+            } else {
+                generatedPlan = plan
+            }
             didGenerate = true
-            logger.info("Training plan generated and saved: \(plan.weeks.count) weeks")
+            logger.info("Training plan generated and saved: \(plan.weeks.count) weeks, \(totalExercises) exercises")
         } catch {
             logger.error("Failed to save training plan: \(error.localizedDescription)")
-            errorMessage = "No se pudo guardar el plan. Intenta de nuevo."
+            generatedPlan = plan
+            didGenerate = true
+            errorMessage = "Plan saved locally. Some data may not persist."
         }
     }
 }

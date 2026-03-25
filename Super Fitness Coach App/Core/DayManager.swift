@@ -6,8 +6,10 @@
 import Foundation
 import os
 
-/// Gestiona acciones sobre días del plan: completar, saltar, reprogramar.
-/// Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10
+/// Gestiona acciones sobre días del plan.
+/// IMPORTANT: dayIndex is always the index in the SORTED (Mon→Sun) array.
+/// We look up the actual @Model object by dayOfWeek to avoid index mismatch
+/// between the sorted UI array and the unsorted SwiftData array.
 final class DayManager {
     private let repository: TrainingPlanRepository
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "DayManager")
@@ -16,190 +18,122 @@ final class DayManager {
         self.repository = repository
     }
 
-    // MARK: - Complete Day (Req 10.7)
+    // MARK: - Private helper: resolve @Model day from sorted index
 
-    /// Marca un día como completado.
-    /// - Parameters:
-    ///   - planId: UUID del plan de entrenamiento.
-    ///   - dayIndex: Índice del día dentro de la semana actual (0-based).
-    func completeDay(planId: UUID, dayIndex: Int) throws {
-        guard let plan = try repository.fetchActivePlan(), plan.id == planId else {
-            logger.error("Plan not found for id: \(planId)")
-            return
-        }
-
-        let weekIndex = plan.currentWeek - 1 // currentWeek is 1-based
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
-            logger.error("Invalid currentWeek \(plan.currentWeek) for plan with \(plan.weeks.count) weeks")
-            return
-        }
-
+    private func resolveDay(plan: TrainingPlan, sortedDayIndex: Int) -> TrainingDayPlan? {
+        let weekIndex = plan.currentWeek - 1
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return nil }
         let week = plan.weeks[weekIndex]
-        guard dayIndex >= 0, dayIndex < week.days.count else {
-            logger.error("Invalid dayIndex \(dayIndex) for week with \(week.days.count) days")
-            return
-        }
+        let sorted = week.days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+        guard sortedDayIndex >= 0, sortedDayIndex < sorted.count else { return nil }
+        let targetDayOfWeek = sorted[sortedDayIndex].dayOfWeek
+        // Return the actual @Model object from the unsorted array
+        return week.days.first(where: { $0.dayOfWeek == targetDayOfWeek })
+    }
 
-        week.days[dayIndex].dayStatus = .completed
-        // Force SwiftData to detect the mutation by reassigning the array
-        let updatedDays = week.days
-        week.days = updatedDays
+    // MARK: - Complete Day
+
+    func completeDay(plan: TrainingPlan, dayIndex: Int) throws {
+        guard let day = resolveDay(plan: plan, sortedDayIndex: dayIndex) else { return }
+        day.dayStatus = .completed
         try repository.savePlan(plan)
     }
 
-    // MARK: - Skip Day (Req 10.2)
+    // MARK: - Skip Day
 
-    /// Marca un día como saltado sin modificar otros días.
-    /// - Parameters:
-    ///   - planId: UUID del plan de entrenamiento.
-    ///   - dayIndex: Índice del día dentro de la semana actual (0-based).
-    func skipDay(planId: UUID, dayIndex: Int) throws {
-        guard let plan = try repository.fetchActivePlan(), plan.id == planId else {
-            logger.error("Plan not found for id: \(planId)")
+    func skipDay(plan: TrainingPlan, dayIndex: Int) throws {
+        guard let day = resolveDay(plan: plan, sortedDayIndex: dayIndex) else {
+            logger.error("skipDay: could not resolve day at sortedIndex \(dayIndex)")
             return
         }
-
-        let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
-            logger.error("Invalid currentWeek \(plan.currentWeek) for plan with \(plan.weeks.count) weeks")
-            return
-        }
-
-        let week = plan.weeks[weekIndex]
-        guard dayIndex >= 0, dayIndex < week.days.count else {
-            logger.error("Invalid dayIndex \(dayIndex) for week with \(week.days.count) days")
-            return
-        }
-
-        week.days[dayIndex].dayStatus = .skipped
-        // Force SwiftData to detect the mutation by reassigning the array
-        let updatedDays = week.days
-        week.days = updatedDays
+        logger.info("skipDay: marking dayOfWeek=\(day.dayOfWeek) as skipped (was \(day.dayStatusRaw))")
+        day.dayStatus = .skipped
         try repository.savePlan(plan)
-    }
 
-    // MARK: - Reschedule Day (Req 10.3, 10.4, 10.5, 10.6, 10.9)
-
-    /// Reprograma un día al siguiente día disponible (pending + isRestDay).
-    /// Retorna false si no hay día disponible.
-    /// - Parameters:
-    ///   - planId: UUID del plan de entrenamiento.
-    ///   - dayIndex: Índice del día dentro de la semana actual (0-based).
-    /// - Returns: `true` si se reprogramó exitosamente, `false` si no hay día disponible.
-    @discardableResult
-    func rescheduleDay(planId: UUID, dayIndex: Int) throws -> Bool {
-        guard let plan = try repository.fetchActivePlan(), plan.id == planId else {
-            logger.error("Plan not found for id: \(planId)")
-            return false
-        }
-
+        // Log all days after skip for debugging
         let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
-            logger.error("Invalid currentWeek \(plan.currentWeek)")
-            return false
-        }
-
-        let week = plan.weeks[weekIndex]
-        guard dayIndex >= 0, dayIndex < week.days.count else {
-            logger.error("Invalid dayIndex \(dayIndex)")
-            return false
-        }
-
-        // Check reschedule limit (Req 10.6)
-        guard canReschedule(plan: plan, dayIndex: dayIndex) else {
-            logger.info("Day at index \(dayIndex) was already rescheduled")
-            return false
-        }
-
-        let sourceDay = week.days[dayIndex]
-
-        // Find next available day: pending + isRestDay, after the current dayIndex (Req 10.4)
-        var targetIndex: Int? = nil
-        for i in (dayIndex + 1)..<week.days.count {
-            let candidate = week.days[i]
-            if candidate.dayStatus == .pending && candidate.isRestDay {
-                targetIndex = i
-                break
+        if weekIndex >= 0, weekIndex < plan.weeks.count {
+            let sorted = plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+            for d in sorted {
+                logger.info("  day \(d.dayOfWeek): status=\(d.dayStatusRaw) isRest=\(d.isRestDay)")
             }
         }
+    }
 
-        guard let target = targetIndex else {
-            // No available day found (Req 10.5)
-            logger.info("No available day to reschedule for dayIndex \(dayIndex)")
+    // MARK: - Reschedule Day
+
+    @discardableResult
+    func rescheduleDay(plan: TrainingPlan, dayIndex: Int) throws -> Bool {
+        let weekIndex = plan.currentWeek - 1
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return false }
+        let week = plan.weeks[weekIndex]
+        let sorted = week.days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+        guard dayIndex >= 0, dayIndex < sorted.count else { return false }
+
+        let sourceDayOfWeek = sorted[dayIndex].dayOfWeek
+        guard let sourceDay = week.days.first(where: { $0.dayOfWeek == sourceDayOfWeek }) else { return false }
+        guard !sourceDay.wasRescheduled else { return false }
+
+        // Find next available rest day after source (by dayOfWeek)
+        guard let targetDay = sorted.first(where: {
+            $0.dayOfWeek > sourceDayOfWeek && $0.dayStatus == .pending && $0.isRestDay
+        }), let actualTarget = week.days.first(where: { $0.dayOfWeek == targetDay.dayOfWeek }) else {
+            logger.info("No available rest day to reschedule into")
             return false
         }
 
-        // Move workout to target day (Req 10.3, 10.9)
-        // Transfer muscle groups and exercises to the target rest day
-        week.days[target].muscleGroups = sourceDay.muscleGroups
-        week.days[target].exercises = sourceDay.exercises
-        week.days[target].isRestDay = false
-        week.days[target].wasRescheduled = true
-        week.days[target].dayStatus = .pending
+        actualTarget.muscleGroups = sourceDay.muscleGroups
+        actualTarget.exercises = sourceDay.exercises
+        actualTarget.isRestDay = false
+        actualTarget.wasRescheduled = true
+        actualTarget.dayStatus = .pending
 
-        // Mark source day as rescheduled and convert to rest day
-        week.days[dayIndex].dayStatus = .rescheduled
-        week.days[dayIndex].wasRescheduled = true
-        week.days[dayIndex].muscleGroups = []
-        week.days[dayIndex].exercises = []
-        week.days[dayIndex].isRestDay = true
+        sourceDay.dayStatus = .rescheduled
+        sourceDay.wasRescheduled = true
+        sourceDay.muscleGroups = []
+        sourceDay.exercises = []
+        sourceDay.isRestDay = true
 
-        // Force SwiftData to detect the mutation by reassigning the array
-        let updatedDays = week.days
-        week.days = updatedDays
         try repository.savePlan(plan)
         return true
     }
 
-    // MARK: - Can Reschedule (Req 10.6)
+    // MARK: - Can Reschedule
 
-    /// Verifica si un día puede ser reprogramado (límite: 1 vez por día).
-    /// - Parameters:
-    ///   - plan: El plan de entrenamiento.
-    ///   - dayIndex: Índice del día dentro de la semana actual (0-based).
-    /// - Returns: `true` si el día no ha sido reprogramado previamente.
     func canReschedule(plan: TrainingPlan, dayIndex: Int) -> Bool {
-        let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
-            return false
-        }
-
-        let week = plan.weeks[weekIndex]
-        guard dayIndex >= 0, dayIndex < week.days.count else {
-            return false
-        }
-
-        return !week.days[dayIndex].wasRescheduled
+        guard let day = resolveDay(plan: plan, sortedDayIndex: dayIndex) else { return false }
+        return !day.wasRescheduled
     }
 
-    // MARK: - Consecutive Skipped Days (Req 10.10)
+    // MARK: - Consecutive Skipped Days
 
-    /// Cuenta días consecutivos saltados desde el final de la semana actual hacia atrás.
-    /// Se usa para disparar re-engagement cuando consecutiveSkippedDays >= 3.
-    /// - Parameter plan: El plan de entrenamiento.
-    /// - Returns: Número de días consecutivos con estado `.skipped`.
     func consecutiveSkippedDays(plan: TrainingPlan) -> Int {
         let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
-            return 0
-        }
-
-        let days = plan.weeks[weekIndex].days
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return 0 }
+        let days = plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
         var count = 0
-
-        // Count consecutive skipped days from the end backwards
         for day in days.reversed() {
-            if day.dayStatus == .skipped {
-                count += 1
-            } else if day.dayStatus != .pending {
-                // Stop at any non-pending, non-skipped day
-                break
-            } else {
-                // Pending days haven't been acted on yet, skip them
-                continue
-            }
+            if day.dayStatus == .skipped { count += 1 }
+            else if day.dayStatus == .pending { continue }
+            else { break }
         }
-
         return count
+    }
+
+    // MARK: - Legacy planId-based API (for tests)
+
+    func completeDay(planId: UUID, dayIndex: Int) throws {
+        guard let plan = try repository.fetchActivePlan(), plan.id == planId else { return }
+        try completeDay(plan: plan, dayIndex: dayIndex)
+    }
+
+    func skipDay(planId: UUID, dayIndex: Int) throws {
+        guard let plan = try repository.fetchActivePlan(), plan.id == planId else { return }
+        try skipDay(plan: plan, dayIndex: dayIndex)
+    }
+
+    func rescheduleDay(planId: UUID, dayIndex: Int) throws -> Bool {
+        guard let plan = try repository.fetchActivePlan(), plan.id == planId else { return false }
+        return try rescheduleDay(plan: plan, dayIndex: dayIndex)
     }
 }

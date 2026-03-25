@@ -5,44 +5,34 @@
 
 import SwiftUI
 
-/// Vista del plan semanal de entrenamiento.
-/// Muestra progreso del plan, días de la semana actual con estados,
-/// acciones por día (completar, saltar, reprogramar) y alerta de re-engagement.
-/// Validates: Requirements 14.1, 14.2, 14.3, 14.4, 10.1
+/// Full-screen training plan view — shows all 7 days of the current week
+/// with statuses, actions, and progress. Used as a detail view when the user
+/// wants to see the full week at a glance.
 struct TrainingPlanView: View {
     @Bindable var viewModel: TrainingPlanViewModel
     @State private var showReEngagementAlert = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView("Cargando plan...")
-                        .accessibilityLabel("Loading training plan")
-                } else if viewModel.plan == nil {
-                    noPlanView
-                } else {
-                    planContent
-                }
+        Group {
+            if viewModel.isLoading {
+                ProgressView("Loading plan...")
+            } else if viewModel.plan == nil {
+                noPlanView
+            } else {
+                planContent
             }
-            .navigationTitle("Training Plan")
-            .onAppear {
-                viewModel.loadPlan()
-            }
-            .onChange(of: viewModel.showReEngagement) { _, show in
-                if show {
-                    showReEngagementAlert = true
-                }
-            }
-            .alert("¡No te rindas!", isPresented: $showReEngagementAlert) {
-                Button("Continuar", role: .cancel) { }
-            } message: {
-                Text("Llevas \(viewModel.consecutiveSkipped) días sin entrenar. ¡Vuelve al plan y sigue avanzando!")
-            }
+        }
+        .onChange(of: viewModel.showReEngagement) { _, show in
+            if show { showReEngagementAlert = true }
+        }
+        .alert("Don't give up!", isPresented: $showReEngagementAlert) {
+            Button("Continue", role: .cancel) { }
+        } message: {
+            Text("You've skipped \(viewModel.consecutiveSkipped) days in a row. Get back on track!")
         }
     }
 
-    // MARK: - No Plan View
+    // MARK: - No Plan
 
     private var noPlanView: some View {
         VStack(spacing: 16) {
@@ -50,250 +40,171 @@ struct TrainingPlanView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             Text("No active plan")
-                .font(.title3)
-                .fontWeight(.medium)
-            Text("Generate a training plan to get started.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.title3).fontWeight(.medium)
+            Text("Create a training plan to get started.")
+                .font(.subheadline).foregroundStyle(.secondary)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("No active training plan. Generate a plan to get started.")
     }
 
     // MARK: - Plan Content
 
     private var planContent: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 progressHeader
                 weekDaysList
-
                 if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal)
-                        .accessibilityLabel("Error: \(error)")
+                    Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal)
                 }
             }
             .padding()
         }
     }
 
-    // MARK: - Progress Header (Req 14.4)
+    // MARK: - Progress Header
 
     private var progressHeader: some View {
-        VStack(spacing: 10) {
-            Text(viewModel.progressText)
-                .font(.title2)
-                .fontWeight(.bold)
-                .accessibilityLabel("Week \(viewModel.currentWeek) of \(viewModel.totalWeeks)")
-
+        VStack(spacing: 8) {
+            HStack {
+                Text(viewModel.progressText)
+                    .font(.title3).fontWeight(.bold)
+                Spacer()
+                let completed = viewModel.currentWeekDays.filter { $0.dayStatus == .completed }.count
+                let training = viewModel.currentWeekDays.filter { !$0.isRestDay && $0.dayStatus != .unavailable }.count
+                Text("\(completed)/\(training)")
+                    .font(.headline).foregroundStyle(.green)
+            }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(.systemGray4))
-                        .frame(height: 8)
-                    Capsule()
-                        .fill(Color.blue)
-                        .frame(width: geo.size.width * viewModel.progressFraction, height: 8)
+                    Capsule().fill(Color(.systemGray4)).frame(height: 6)
+                    Capsule().fill(Color.blue)
+                        .frame(width: geo.size.width * viewModel.progressFraction, height: 6)
                 }
             }
-            .frame(height: 8)
-            .accessibilityElement()
-            .accessibilityLabel("Plan progress \(Int(viewModel.progressFraction * 100)) percent")
+            .frame(height: 6)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.blue.opacity(0.08))
-        )
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.blue.opacity(0.07)))
     }
 
-    // MARK: - Week Days List (Req 14.2, 14.3)
+    // MARK: - Week Days List
 
     private var weekDaysList: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             ForEach(Array(viewModel.currentWeekDays.enumerated()), id: \.offset) { index, day in
                 dayCard(day: day, index: index)
             }
         }
     }
 
-    // MARK: - Day Card
-
     private func dayCard(day: TrainingDayPlan, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(dayOfWeekLabel(day.dayOfWeek))
+                Text(dayName(day.dayOfWeek))
                     .font(.headline)
-
+                    .foregroundStyle(day.dayStatus == .unavailable ? .secondary : .primary)
                 Spacer()
-
-                statusBadge(day.dayStatus)
+                statusBadge(day)
             }
 
-            if day.isRestDay {
-                restDayIndicator
+            if day.dayStatus == .unavailable {
+                Text("Not available")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if day.isRestDay {
+                HStack(spacing: 6) {
+                    Image(systemName: "moon.zzz.fill").foregroundStyle(.purple)
+                    Text("Rest Day").font(.subheadline).foregroundStyle(.secondary)
+                }
             } else {
-                muscleGroupsLabel(day.muscleGroups)
+                Text(day.muscleGroups.map { $0.rawValue.capitalized }.joined(separator: ", "))
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
 
             if !day.isRestDay && day.dayStatus == .pending {
                 dayActions(index: index)
             }
         }
-        .padding()
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(dayBackgroundColor(day))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(cardColor(day))
         )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(dayAccessibilityLabel(day: day, index: index))
+        .opacity(day.dayStatus == .unavailable ? 0.5 : 1.0)
     }
 
-    // MARK: - Status Badge (Req 14.2)
-
-    private func statusBadge(_ status: DayStatus) -> some View {
-        HStack(spacing: 4) {
-            Text(statusIcon(status))
-            Text(status.rawValue.capitalized)
-                .font(.caption)
-                .fontWeight(.medium)
+    private func statusBadge(_ day: TrainingDayPlan) -> some View {
+        let (icon, color) = statusStyle(day)
+        return HStack(spacing: 4) {
+            Text(icon).font(.caption)
+            Text(day.dayStatus.rawValue.capitalized)
+                .font(.caption).fontWeight(.medium)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Capsule()
-                .fill(statusColor(status).opacity(0.15))
-        )
-        .foregroundStyle(statusColor(status))
-        .accessibilityLabel("Status: \(status.rawValue)")
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.15)))
+        .foregroundStyle(color)
     }
-
-    // MARK: - Rest Day Indicator (Req 14.3)
-
-    private var restDayIndicator: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "moon.zzz.fill")
-                .foregroundStyle(.purple)
-            Text("Rest Day")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityLabel("Rest day")
-    }
-
-    // MARK: - Muscle Groups Label
-
-    private func muscleGroupsLabel(_ groups: [MuscleGroup]) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "figure.strengthtraining.traditional")
-                .foregroundStyle(.blue)
-                .font(.subheadline)
-            Text(groups.map { $0.rawValue.capitalized }.joined(separator: ", "))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityLabel("Muscle groups: \(groups.map { $0.rawValue }.joined(separator: ", "))")
-    }
-
-    // MARK: - Day Actions (Req 10.1)
 
     private func dayActions(index: Int) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button {
                 viewModel.completeDay(at: index)
             } label: {
                 Label("Complete", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.caption).fontWeight(.medium)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .controlSize(.small)
-            .accessibilityLabel("Complete day")
+            .buttonStyle(.borderedProminent).tint(.green).controlSize(.mini)
 
             Button {
                 viewModel.skipDay(at: index)
             } label: {
                 Label("Skip", systemImage: "forward.fill")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.caption).fontWeight(.medium)
             }
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .controlSize(.small)
-            .accessibilityLabel("Skip day")
+            .buttonStyle(.bordered).tint(.orange).controlSize(.mini)
 
             if viewModel.canReschedule(at: index) {
                 Button {
                     viewModel.rescheduleDay(at: index)
                 } label: {
                     Label("Reschedule", systemImage: "arrow.uturn.right")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.caption).fontWeight(.medium)
                 }
-                .buttonStyle(.bordered)
-                .tint(.blue)
-                .controlSize(.small)
-                .accessibilityLabel("Reschedule day")
+                .buttonStyle(.bordered).tint(.blue).controlSize(.mini)
             }
         }
-        .padding(.top, 4)
     }
 
     // MARK: - Helpers
 
-    private func dayOfWeekLabel(_ dayOfWeek: Int) -> String {
-        switch dayOfWeek {
-        case 1: return "Monday"
-        case 2: return "Tuesday"
-        case 3: return "Wednesday"
-        case 4: return "Thursday"
-        case 5: return "Friday"
-        case 6: return "Saturday"
-        case 7: return "Sunday"
-        default: return "Day \(dayOfWeek)"
-        }
+    private func dayName(_ dow: Int) -> String {
+        ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"][safe: dow - 1] ?? "Day \(dow)"
     }
 
-    private func statusIcon(_ status: DayStatus) -> String {
-        switch status {
-        case .pending: return "⏳"
-        case .completed: return "✓"
-        case .skipped: return "⏭"
-        case .rescheduled: return "🔄"
-        }
-    }
-
-    private func statusColor(_ status: DayStatus) -> Color {
-        switch status {
-        case .pending: return .gray
-        case .completed: return .green
-        case .skipped: return .orange
-        case .rescheduled: return .blue
-        }
-    }
-
-    private func dayBackgroundColor(_ day: TrainingDayPlan) -> Color {
-        if day.isRestDay {
-            return Color.purple.opacity(0.06)
-        }
+    private func statusStyle(_ day: TrainingDayPlan) -> (String, Color) {
+        if day.isRestDay { return ("🌙", .purple) }
         switch day.dayStatus {
-        case .completed: return Color.green.opacity(0.08)
-        case .skipped: return Color.orange.opacity(0.08)
-        case .rescheduled: return Color.blue.opacity(0.08)
-        case .pending: return Color(.systemGray6)
+        case .pending:     return ("⏳", .gray)
+        case .completed:   return ("✓", .green)
+        case .skipped:     return ("⏭", .orange)
+        case .rescheduled: return ("🔄", .blue)
+        case .unavailable: return ("—", .gray)
         }
     }
 
-    private func dayAccessibilityLabel(day: TrainingDayPlan, index: Int) -> String {
-        let dayName = dayOfWeekLabel(day.dayOfWeek)
-        if day.isRestDay {
-            return "\(dayName), rest day, status \(day.dayStatus.rawValue)"
+    private func cardColor(_ day: TrainingDayPlan) -> Color {
+        if day.dayStatus == .unavailable { return Color(.systemGray6).opacity(0.5) }
+        if day.isRestDay { return Color.purple.opacity(0.06) }
+        switch day.dayStatus {
+        case .completed:   return Color.green.opacity(0.08)
+        case .skipped:     return Color.orange.opacity(0.08)
+        case .rescheduled: return Color.blue.opacity(0.08)
+        default:           return Color(.systemGray6)
         }
-        let muscles = day.muscleGroups.map { $0.rawValue }.joined(separator: " and ")
-        return "\(dayName), \(muscles), status \(day.dayStatus.rawValue)"
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

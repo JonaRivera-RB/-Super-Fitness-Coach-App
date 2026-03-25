@@ -135,13 +135,16 @@ struct ContentView: View {
                 )
             }
         }
-        .sheet(isPresented: $showingTrainingPreferences) {
+        .sheet(isPresented: $showingTrainingPreferences, onDismiss: {
+            if let generated = trainingPreferencesViewModel?.generatedPlan {
+                trainingPlanViewModel?.setPlan(generated)
+            } else {
+                trainingPlanViewModel?.loadPlan()
+            }
+            trainingPreferencesViewModel?.resetState()
+        }) {
             if let vm = trainingPreferencesViewModel {
                 TrainingPreferencesView(viewModel: vm)
-                    .onDisappear {
-                        // Reload plan after creating one
-                        trainingPlanViewModel?.loadPlan()
-                    }
             }
         }
         .sheet(isPresented: $showingWorkoutExecutor) {
@@ -174,25 +177,19 @@ struct ContentView: View {
 
     private func buildWorkoutExecutorViewModel() -> WorkoutExecutorViewModel? {
         guard let repo = trainingPlanRepository,
-              let plan = try? repo.fetchActivePlan(),
               let dayIndex = selectedDayIndex else { return nil }
 
-        let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return nil }
+        guard let planVM = trainingPlanViewModel,
+              let plan = planVM.plan,
+              dayIndex >= 0, dayIndex < planVM.currentWeekDays.count else { return nil }
 
-        let week = plan.weeks[weekIndex]
-        guard dayIndex >= 0, dayIndex < week.days.count else { return nil }
-
-        let day = week.days[dayIndex]
-
-        // If the persisted day has no exercises, the plan wasn't saved correctly
-        guard !day.exercises.isEmpty else { return nil }
+        // Use the value-type exercises snapshot — avoids SwiftData deserialization issues
+        let exercises = dayIndex < planVM.dayExercises.count ? planVM.dayExercises[dayIndex] : []
 
         let setLogger = SetLogger(repository: repo)
-
         return WorkoutExecutorViewModel(
             plan: plan,
-            plannedExercises: day.exercises,
+            plannedExercises: exercises,
             setLogger: setLogger,
             healthKitManager: healthKitManager
         )
@@ -353,6 +350,7 @@ struct ContentView: View {
             DetoxProgress.self,
             TrainingPlan.self,
             TrainingWeek.self,
+            TrainingDayPlan.self,
             WorkoutLog.self
         ])
 }

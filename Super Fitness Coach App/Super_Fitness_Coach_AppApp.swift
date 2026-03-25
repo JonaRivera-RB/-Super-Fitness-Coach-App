@@ -22,6 +22,7 @@ struct Super_Fitness_Coach_AppApp: App {
             DetoxProgress.self,
             TrainingPlan.self,
             TrainingWeek.self,
+            TrainingDayPlan.self,
             WorkoutLog.self
         ])
     }

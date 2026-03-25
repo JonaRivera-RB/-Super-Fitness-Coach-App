@@ -13,10 +13,9 @@ struct TrainingPreferencesView: View {
         NavigationStack {
             Form {
                 goalSection
-                daysSection
                 levelSection
-                musclePrioritySection
                 restDaysSection
+                musclePrioritySection
                 cardioSection
                 durationSection
                 generateSection
@@ -53,13 +52,6 @@ struct TrainingPreferencesView: View {
                 in: 3...6
             )
             .accessibilityLabel("Training days per week, \(viewModel.trainingDaysPerWeek)")
-            .onChange(of: viewModel.trainingDaysPerWeek) { _, newValue in
-                let maxRest = 7 - newValue
-                // Trim rest days if too many selected
-                while viewModel.restDays.count > maxRest {
-                    viewModel.restDays.remove(viewModel.restDays.first!)
-                }
-            }
         }
     }
 
@@ -132,47 +124,65 @@ struct TrainingPreferencesView: View {
         }
     }
 
-    // MARK: - Rest Days Selector
+    // MARK: - Training Days Selector
 
     private let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-    private var maxRestDays: Int {
-        7 - viewModel.trainingDaysPerWeek
-    }
 
     private var restDaysSection: some View {
         Section {
             HStack(spacing: 6) {
                 ForEach(1...7, id: \.self) { day in
-                    let isSelected = viewModel.restDays.contains(day)
+                    let isTraining = !viewModel.restDays.contains(day)
                     Button {
-                        if isSelected {
-                            viewModel.restDays.remove(day)
-                        } else if viewModel.restDays.count < maxRestDays {
-                            viewModel.restDays.insert(day)
+                        if isTraining {
+                            // Can only remove a training day if we'd still have >= 3
+                            if viewModel.trainingDaysPerWeek > 3 {
+                                viewModel.restDays.insert(day)
+                                viewModel.trainingDaysPerWeek -= 1
+                            }
+                        } else {
+                            // Can only add a training day if we'd still have <= 6
+                            if viewModel.trainingDaysPerWeek < 6 {
+                                viewModel.restDays.remove(day)
+                                viewModel.trainingDaysPerWeek += 1
+                            }
                         }
                     } label: {
-                        Text(dayNames[day - 1])
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(isSelected ? Color.purple.opacity(0.2) : Color(.systemGray5))
-                            )
-                            .foregroundStyle(isSelected ? .purple : .primary)
+                        VStack(spacing: 4) {
+                            Text(dayNames[day - 1])
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                            Circle()
+                                .fill(isTraining ? Color.blue : Color(.systemGray4))
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Image(systemName: isTraining ? "dumbbell.fill" : "moon.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.white)
+                                )
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .disabled(!isSelected && viewModel.restDays.count >= maxRestDays)
-                    .accessibilityLabel("\(dayNames[day - 1])\(isSelected ? ", rest day" : "")")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(dayNames[day - 1]), \(isTraining ? "training day" : "rest day")")
                 }
             }
+            .padding(.vertical, 4)
 
-            Text("Select \(maxRestDays) rest day\(maxRestDays == 1 ? "" : "s") — \(viewModel.restDays.count) selected")
-                .font(.caption)
-                .foregroundStyle(viewModel.restDays.count == maxRestDays ? Color.secondary : Color.orange)
+            HStack {
+                Label("\(viewModel.trainingDaysPerWeek) training", systemImage: "dumbbell.fill")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                Spacer()
+                Label("\(7 - viewModel.trainingDaysPerWeek) rest", systemImage: "moon.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         } header: {
-            Text("Rest Days (tap to select)")
+            Text("Weekly Schedule — tap to toggle")
+        } footer: {
+            Text("Blue = training day · Gray = rest day")
+                .font(.caption2)
         }
     }
 
