@@ -14,16 +14,20 @@ struct WorkoutExecutorView: View {
     @Bindable var viewModel: WorkoutExecutorViewModel
     @Environment(\.dismiss) private var dismiss
 
+    var onWorkoutComplete: (([WorkoutLog]) -> Void)?
+
     @State private var weightInputs: [[String]] = []
     @State private var repsInputs: [[String]] = []
+    @State private var showFeedback = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Top progress bar
                 exerciseProgressBar
 
-                if viewModel.exercises.isEmpty {
+                if viewModel.isWorkoutComplete {
+                    workoutCompleteScreen
+                } else if viewModel.exercises.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
@@ -77,10 +81,47 @@ struct WorkoutExecutorView: View {
             .onDisappear {
                 viewModel.stopRestTimer()
             }
+            .onChange(of: viewModel.isWorkoutComplete) { _, complete in
+                if complete {
+                    onWorkoutComplete?(viewModel.completedLogs)
+                }
+            }
             .onChange(of: viewModel.currentExerciseIndex) { _, _ in
                 // Scroll to top when exercise changes
             }
         }
+    }
+
+    // MARK: - Workout Complete Screen
+
+    private var workoutCompleteScreen: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.yellow)
+            Text("¡Workout completado!")
+                .font(.title).fontWeight(.bold)
+            Text("\(viewModel.exercises.count) ejercicios · \(viewModel.completedLogs.flatMap(\.sets).count) sets")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Spacer()
+            VStack(spacing: 12) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Ver resumen", systemImage: "chart.bar.fill")
+                        .fontWeight(.semibold).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+
+                Button("Cerrar") { dismiss() }
+                    .buttonStyle(.bordered).controlSize(.large)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Progress Bar

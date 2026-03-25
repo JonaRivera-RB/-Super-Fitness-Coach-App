@@ -78,15 +78,28 @@ final class TrainingPlanViewModel {
         isLoading = true
         errorMessage = nil
 
-        defer { isLoading = false }
+        Task { @MainActor in
+            do {
+                let activePlan = try repository.fetchActivePlan()
+                self.plan = activePlan
+                refreshState()
 
-        do {
-            let activePlan = try repository.fetchActivePlan()
-            self.plan = activePlan
-            refreshState()
-        } catch {
-            logger.error("Failed to load active plan: \(error.localizedDescription)")
-            errorMessage = "No se pudo cargar el plan. Intenta de nuevo."
+                // If days still empty after first load, retry with increasing delays
+                // SwiftData lazy-loads @Relationship arrays — may need multiple attempts
+                if self.currentWeekDays.isEmpty && activePlan != nil {
+                    for delay: UInt64 in [100_000_000, 300_000_000, 500_000_000] {
+                        try? await Task.sleep(nanoseconds: delay)
+                        let retryPlan = try repository.fetchActivePlan()
+                        self.plan = retryPlan
+                        refreshState()
+                        if !self.currentWeekDays.isEmpty { break }
+                    }
+                }
+            } catch {
+                logger.error("Failed to load active plan: \(error.localizedDescription)")
+                errorMessage = "No se pudo cargar el plan. Intenta de nuevo."
+            }
+            isLoading = false
         }
     }
 

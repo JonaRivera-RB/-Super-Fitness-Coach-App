@@ -80,16 +80,14 @@ final class FeedbackViewModel {
                     hasPreviousData = true
                     let previousMax = ProgressTracker.maxWeight(from: previousLog)
                     let delta = currentMax - previousMax
-                    improvements.append((exerciseName: log.exerciseId, delta: delta))
+                    let displayName = log.notes ?? log.exerciseId
+                    improvements.append((exerciseName: displayName, delta: delta))
 
-                    // Check improving status (Req 12.3)
                     let status = ProgressTracker.compareProgress(current: log, previous: previousLog)
-                    if status == .improving {
-                        hasImproving = true
-                    }
+                    if status == .improving { hasImproving = true }
                 } else {
-                    // No previous data for this exercise
-                    improvements.append((exerciseName: log.exerciseId, delta: 0.0))
+                    let displayName = log.notes ?? log.exerciseId
+                    improvements.append((exerciseName: displayName, delta: 0.0))
                 }
             } catch {
                 logger.error("Failed to fetch previous logs for \(log.exerciseId): \(error.localizedDescription)")

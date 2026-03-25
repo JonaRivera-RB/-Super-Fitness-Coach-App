@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct WorkoutView: View {
     @Bindable var viewModel: WorkoutViewModel
@@ -12,12 +13,21 @@ struct WorkoutView: View {
     var onNewTrainingPlan: (() -> Void)?
     var onStartTrainingWorkout: ((Int) -> Void)?
 
+    // @Query observes SwiftData directly — always hydrated, no timing issues
+    @Query(
+        filter: #Predicate<TrainingPlan> { $0.planStatusRaw == "active" },
+        sort: \TrainingPlan.createdAt,
+        order: .reverse
+    ) private var activePlans: [TrainingPlan]
+
+    private var activePlan: TrainingPlan? { activePlans.first }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    if let planVM = trainingPlanVM, planVM.plan != nil {
-                        trainingPlanSection(planVM: planVM)
+                    if let plan = activePlan {
+                        trainingPlanSection(plan: plan)
                     } else {
                         noPlanBanner
                     }
@@ -71,29 +81,44 @@ struct WorkoutView: View {
 
     // MARK: - Training Plan Section
 
-    private func trainingPlanSection(planVM: TrainingPlanViewModel) -> some View {
-        VStack(spacing: 14) {
-            weekProgressHeader(planVM: planVM)
-            todayCard(planVM: planVM)
-            weekOverview(planVM: planVM)
+    private func trainingPlanSection(plan: TrainingPlan) -> some View {
+        let weekIndex = plan.currentWeek - 1
+        let currentWeekDays: [TrainingDayPlan] = weekIndex >= 0 && weekIndex < plan.weeks.count
+            ? plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+            : []
+
+        return VStack(spacing: 14) {
+            weekProgressHeader(plan: plan, days: currentWeekDays)
+            todayCard(plan: plan, days: currentWeekDays)
+            weekOverview(plan: plan, days: currentWeekDays)
         }
-        // weekVersion is a value-type Int tracked by @Observable — forces re-render on every skip/complete
-        .id(planVM.weekVersion)
+        .id("\(plan.id)-\(currentWeekDays.map(\.dayStatusRaw).joined())")
     }
 
     // MARK: - Week Progress Header
 
-    private func weekProgressHeader(planVM: TrainingPlanViewModel) -> some View {
-        let statuses = planVM.dayStatuses
-        let days = planVM.currentWeekDays
-        let completed = zip(days, statuses).filter { !$0.0.isRestDay && $0.1 == .completed }.count
+    private func weekProgressHeader(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
+        let completed = days.filter { !$0.isRestDay && $0.dayStatus == .completed }.count
         let training = days.filter { !$0.isRestDay }.count
+        let totalWeeks = plan.preferences.planDurationWeeks
+        let currentWeek = plan.currentWeek
+        let progressText = totalWeeks > 0 ? "Semana \(currentWeek) / \(totalWeeks)" : ""
+        let progressFraction = totalWeeks > 0 ? Double(currentWeek) / Double(totalWeeks) : 0
+        let p = WeeklyProgressionEngine.progression(for: currentWeek)
+        let phaseLabel: String
+        switch p.weekInCycle {
+        case 1: phaseLabel = "Base week"
+        case 2: phaseLabel = "+5% weight week"
+        case 3: phaseLabel = "+10% volume week"
+        case 4: phaseLabel = "Deload week"
+        default: phaseLabel = ""
+        }
 
         return VStack(spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(planVM.progressText).font(.title3).fontWeight(.bold)
-                    Text(weekPhaseLabel(planVM: planVM)).font(.caption).foregroundStyle(.secondary)
+                    Text(progressText).font(.title3).fontWeight(.bold)
+                    Text(phaseLabel).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("\(completed)/\(training)")
@@ -103,7 +128,7 @@ struct WorkoutView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemGray4)).frame(height: 6)
                     Capsule().fill(Color.blue)
-                        .frame(width: geo.size.width * planVM.progressFraction, height: 6)
+                        .frame(width: geo.size.width * progressFraction, height: 6)
                 }
             }
             .frame(height: 6)
@@ -114,90 +139,54 @@ struct WorkoutView: View {
 
     // MARK: - Today Card
 
-    /// Determines what to show as "today's card" based on the spec:
-    /// 1. If today is skipped → show blocked card (workout locked until tomorrow)
-    /// 2. If today's calendar day has a pending training day → show it
-    /// 3. If today is a rest day → show rest card
-    /// 4. If all training days are completed or skipped → show appropriate state
     @ViewBuilder
-    private func todayCard(planVM: TrainingPlanViewModel) -> some View {
-        let today = planVM.todayDayOfWeek
-        let days = planVM.currentWeekDays
-        let statuses = planVM.dayStatuses
-
-        // Find today's index in the sorted array
+    private func todayCard(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
+        let today = todayDayOfWeek
         let todayPlanIndex = days.firstIndex(where: { $0.dayOfWeek == today })
-        let todayStatus: DayStatus? = todayPlanIndex.map { idx in
-            idx < statuses.count ? statuses[idx] : days[idx].dayStatus
-        }
+        let todayStatus: DayStatus? = todayPlanIndex.map { days[$0].dayStatus }
 
         if todayStatus == .skipped {
-            // Today was skipped — block workout until tomorrow
             skippedDayCard
+        } else if todayStatus == .completed {
+            dayCompletedCard(day: days[todayPlanIndex!])
         } else {
-            let displayIndex = resolveDisplayIndex(
-                days: days,
-                statuses: statuses,
-                todayPlanIndex: todayPlanIndex,
-                today: today
-            )
+            let displayIndex = resolveDisplayIndex(days: days, todayPlanIndex: todayPlanIndex, today: today)
             if let idx = displayIndex {
                 let day = days[idx]
-                let status = idx < statuses.count ? statuses[idx] : day.dayStatus
                 if day.isRestDay {
                     restDayCard
-                } else if status == .completed {
+                } else if day.dayStatus == .completed {
                     dayCompletedCard(day: day)
                 } else {
-                    let isActuallyToday = (day.dayOfWeek == today)
-                    todayWorkoutCard(day: day, dayIndex: idx, isActuallyToday: isActuallyToday, planVM: planVM)
+                    todayWorkoutCard(day: day, dayIndex: idx, isActuallyToday: day.dayOfWeek == today)
                 }
-            } else if hasPendingTrainingDays(days: days, statuses: statuses) {
+            } else if days.contains(where: { !$0.isRestDay && $0.dayStatus == .pending }) {
                 noWorkoutTodayCard
             } else {
-                weekCompleteCard(days: days, statuses: statuses)
+                weekCompleteCard(days: days)
             }
         }
     }
 
-    /// Resolves which day index to display as "today's workout".
-    private func resolveDisplayIndex(
-        days: [TrainingDayPlan],
-        statuses: [DayStatus],
-        todayPlanIndex: Int?,
-        today: Int
-    ) -> Int? {
-        // 1. If today has a pending training day, show it
+    private var todayDayOfWeek: Int {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return weekday == 1 ? 7 : weekday - 1
+    }
+
+    private func resolveDisplayIndex(days: [TrainingDayPlan], todayPlanIndex: Int?, today: Int) -> Int? {
         if let idx = todayPlanIndex {
-            let status = idx < statuses.count ? statuses[idx] : days[idx].dayStatus
-            if !days[idx].isRestDay && status == .pending {
-                return idx
-            }
-            if days[idx].isRestDay { return idx }
-            if status == .completed { return idx }
+            let day = days[idx]
+            if day.isRestDay { return idx }
+            if day.dayStatus == .pending { return idx }
+            if day.dayStatus == .completed { return idx }
         }
-
-        // 2. Today is skipped or past — find next pending training day
-        for (i, day) in days.enumerated() {
-            let status = i < statuses.count ? statuses[i] : day.dayStatus
-            if !day.isRestDay && status == .pending && day.dayOfWeek > today {
-                return i
-            }
+        // Find next pending training day after today
+        return days.indices.first { i in
+            !days[i].isRestDay && days[i].dayStatus == .pending && days[i].dayOfWeek > today
         }
-
-        return nil
     }
 
-    /// Returns true if any training day (non-rest) is still pending.
-    private func hasPendingTrainingDays(days: [TrainingDayPlan], statuses: [DayStatus]) -> Bool {
-        for (i, day) in days.enumerated() {
-            let status = i < statuses.count ? statuses[i] : day.dayStatus
-            if !day.isRestDay && status == .pending { return true }
-        }
-        return false
-    }
-
-    private func todayWorkoutCard(day: TrainingDayPlan, dayIndex: Int, isActuallyToday: Bool, planVM: TrainingPlanViewModel) -> some View {
+    private func todayWorkoutCard(day: TrainingDayPlan, dayIndex: Int, isActuallyToday: Bool) -> some View {
         VStack(spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -220,7 +209,6 @@ struct WorkoutView: View {
                 }
             }
 
-            // Exercise preview
             VStack(spacing: 0) {
                 ForEach(Array(day.exercises.prefix(4).enumerated()), id: \.offset) { _, exercise in
                     HStack {
@@ -247,16 +235,15 @@ struct WorkoutView: View {
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(.green)
 
-            // Skip only allowed on today's actual calendar day (HU-C2S4)
             if isActuallyToday {
                 HStack(spacing: 12) {
-                    Button { planVM.skipDay(at: dayIndex) } label: {
+                    Button { trainingPlanVM?.skipDay(at: dayIndex) } label: {
                         Label("Skip Today", systemImage: "forward.fill").font(.subheadline)
                     }
                     .buttonStyle(.bordered).tint(.orange).controlSize(.small)
 
-                    if planVM.canReschedule(at: dayIndex) {
-                        Button { planVM.rescheduleDay(at: dayIndex) } label: {
+                    if trainingPlanVM?.canReschedule(at: dayIndex) == true {
+                        Button { trainingPlanVM?.rescheduleDay(at: dayIndex) } label: {
                             Label("Reschedule", systemImage: "arrow.uturn.right").font(.subheadline)
                         }
                         .buttonStyle(.bordered).tint(.blue).controlSize(.small)
@@ -317,13 +304,12 @@ struct WorkoutView: View {
     }
 
     /// Week is only "complete" when ALL training days are completed (skipped ≠ complete).
-    private func weekCompleteCard(days: [TrainingDayPlan], statuses: [DayStatus]) -> some View {
-        // Guard: if no days loaded yet, don't show week complete
-        let trainingDays = zip(days, statuses).filter { !$0.0.isRestDay }
+    private func weekCompleteCard(days: [TrainingDayPlan]) -> some View {
+        let trainingDays = days.filter { !$0.isRestDay }
         guard !trainingDays.isEmpty else {
             return AnyView(noWorkoutTodayCard)
         }
-        let allCompleted = trainingDays.allSatisfy { $0.1 == .completed }
+        let allCompleted = trainingDays.allSatisfy { $0.dayStatus == .completed }
 
         return AnyView(VStack(spacing: 10) {
             Image(systemName: allCompleted ? "trophy.fill" : "checkmark.circle")
@@ -343,12 +329,12 @@ struct WorkoutView: View {
 
     // MARK: - Week Overview
 
-    private func weekOverview(planVM: TrainingPlanViewModel) -> some View {
+    private func weekOverview(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("This Week").font(.headline)
             HStack(spacing: 4) {
-                ForEach(Array(planVM.currentWeekDays.enumerated()), id: \.offset) { idx, day in
-                    dayPill(day: day, index: idx, planVM: planVM)
+                ForEach(Array(days.enumerated()), id: \.offset) { idx, day in
+                    dayPill(day: day)
                 }
             }
         }
@@ -356,9 +342,9 @@ struct WorkoutView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
     }
 
-    private func dayPill(day: TrainingDayPlan, index: Int, planVM: TrainingPlanViewModel) -> some View {
-        let today = planVM.todayDayOfWeek
-        let status = index < planVM.dayStatuses.count ? planVM.dayStatuses[index] : day.dayStatus
+    private func dayPill(day: TrainingDayPlan) -> some View {
+        let today = todayDayOfWeek
+        let status = day.dayStatus
         let isPast = day.dayOfWeek < today && status == .pending
         let isToday = day.dayOfWeek == today
 
@@ -476,17 +462,6 @@ struct WorkoutView: View {
     }
 
     // MARK: - Helpers
-
-    private func weekPhaseLabel(planVM: TrainingPlanViewModel) -> String {
-        let p = WeeklyProgressionEngine.progression(for: planVM.currentWeek)
-        switch p.weekInCycle {
-        case 1: return "Base week"
-        case 2: return "+5% weight week"
-        case 3: return "+10% volume week"
-        case 4: return "Deload week"
-        default: return ""
-        }
-    }
 
     private func shortDayLabel(_ dayOfWeek: Int) -> String {
         ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][safe: dayOfWeek - 1] ?? "?"

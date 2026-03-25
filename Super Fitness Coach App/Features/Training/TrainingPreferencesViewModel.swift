@@ -135,7 +135,7 @@ final class TrainingPreferencesViewModel {
 
         // Persist
         do {
-            try repository.savePlan(plan)
+            try repository.replaceActivePlan(with: plan)
             // Fetch the hydrated plan from SwiftData — relationships are fully loaded after fetch
             if let hydrated = try? repository.fetchPlan(id: plan.id) {
                 generatedPlan = hydrated

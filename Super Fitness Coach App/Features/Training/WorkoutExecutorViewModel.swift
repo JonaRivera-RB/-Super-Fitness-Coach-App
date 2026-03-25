@@ -24,8 +24,14 @@ final class WorkoutExecutorViewModel {
     /// Whether the rest timer is actively counting down.
     private(set) var isRestTimerActive: Bool = false
 
-    /// Tracks completed sets per exercise: completedSets[exerciseIndex] is a set of completed setIndices.
+    /// Tracks completed sets per exercise.
     private(set) var completedSets: [[Bool]] = []
+
+    /// True when every set of every exercise has been completed.
+    private(set) var isWorkoutComplete: Bool = false
+
+    /// WorkoutLogs collected during this session — available once isWorkoutComplete = true.
+    private(set) var completedLogs: [WorkoutLog] = []
 
     // MARK: - Private Properties
 
@@ -34,6 +40,9 @@ final class WorkoutExecutorViewModel {
     private let setLogger: SetLogger
     private let healthKitManager: HealthKitManager
     private var recoveryScore: Int = 50
+
+    /// In-memory log buffer: exerciseId → accumulated SetLogs for this session.
+    private var sessionSetBuffer: [String: (name: String, sets: [SetLog])] = [:]
 
     private var restTimer: Timer?
 
@@ -95,8 +104,6 @@ final class WorkoutExecutorViewModel {
 
     // MARK: - Complete Set (Req 7.2, 8.1)
 
-    /// Marks a set as completed, logs it via SetLogger, and starts the rest timer.
-    /// When all sets of an exercise are completed, auto-advances to the next exercise (Req 7.5).
     func completeSet(exerciseIndex: Int, setIndex: Int, weight: Double, reps: Int) {
         guard exerciseIndex < exercises.count,
               setIndex < (completedSets[safe: exerciseIndex]?.count ?? 0) else {
@@ -104,22 +111,25 @@ final class WorkoutExecutorViewModel {
             return
         }
 
-        // Mark set as completed
         completedSets[exerciseIndex][setIndex] = true
 
-        // Log the set via SetLogger (Req 8.1)
+        // Accumulate set in session buffer (keyed by exerciseId)
         let exercise = exercises[exerciseIndex]
         let setLog = SetLog(weight: weight, reps: reps)
+        if sessionSetBuffer[exercise.id] == nil {
+            sessionSetBuffer[exercise.id] = (name: exercise.name, sets: [])
+        }
+        sessionSetBuffer[exercise.id]?.sets.append(setLog)
+
+        // Persist immediately via SetLogger (Req 8.1)
         do {
             try setLogger.logSet(exerciseId: exercise.id, date: Date(), set: setLog)
         } catch {
             logger.error("Failed to log set: \(error.localizedDescription)")
         }
 
-        // Start rest timer (Req 7.3)
         startRestTimer()
 
-        // Check if all sets for this exercise are completed (Req 7.5)
         let allSetsCompleted = completedSets[exerciseIndex].allSatisfy { $0 }
         if allSetsCompleted {
             advanceToNextExercise()
@@ -158,14 +168,25 @@ final class WorkoutExecutorViewModel {
 
     // MARK: - Private Helpers
 
-    /// Advances to the next exercise when all sets of the current one are completed (Req 7.5).
     private func advanceToNextExercise() {
         if currentExerciseIndex < exercises.count - 1 {
             currentExerciseIndex += 1
             logger.info("Advanced to exercise \(self.currentExerciseIndex): \(self.exercises[self.currentExerciseIndex].name)")
         } else {
-            logger.info("All exercises completed")
+            finishWorkout()
         }
+    }
+
+    private func finishWorkout() {
+        stopRestTimer()
+        isWorkoutComplete = true
+
+        // Build WorkoutLog array with real exercise names from the session buffer
+        completedLogs = sessionSetBuffer.map { exerciseId, entry in
+            WorkoutLog(exerciseId: exerciseId, date: Date(), sets: entry.sets, notes: entry.name)
+        }
+
+        logger.info("Workout complete: \(self.completedLogs.count) exercises logged")
     }
 }
 

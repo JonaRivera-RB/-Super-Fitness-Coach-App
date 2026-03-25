@@ -349,19 +349,28 @@ struct TrainingPlanGenerator {
             var daysWithExercises: [TrainingDayPlan] = []
 
             for day in weeklySplitTemplate {
+                // Always create a NEW TrainingDayPlan instance per week
+                // @Model objects cannot be shared across multiple parents in SwiftData
                 if day.isRestDay || day.muscleGroups.isEmpty {
-                    // Rest day — keep as-is
-                    daysWithExercises.append(day)
+                    let newDay = TrainingDayPlan(
+                        dayOfWeek: day.dayOfWeek,
+                        muscleGroups: [],
+                        exercises: [],
+                        isRestDay: true
+                    )
+                    daysWithExercises.append(newDay)
                 } else {
-                    // Training day — assign exercises
                     let planned = assignExercises(
                         for: day.muscleGroups,
                         from: exercises,
                         previousLogs: previousLogs
                     )
-                    var dayWithExercises = day
-                    dayWithExercises.exercises = planned
-                    daysWithExercises.append(dayWithExercises)
+                    let newDay = TrainingDayPlan(
+                        dayOfWeek: day.dayOfWeek,
+                        muscleGroups: day.muscleGroups,
+                        exercises: planned
+                    )
+                    daysWithExercises.append(newDay)
                 }
             }
 

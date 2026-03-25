@@ -18,19 +18,8 @@ final class TrainingPlanRepository {
     // MARK: - TrainingPlan
 
     func savePlan(_ plan: TrainingPlan) throws {
-        // Deactivate any existing active plans before saving the new one
-        let activeStatus = PlanStatus.active.rawValue
-        let descriptor = FetchDescriptor<TrainingPlan>(
-            predicate: #Predicate<TrainingPlan> { p in
-                p.planStatusRaw == activeStatus
-            }
-        )
-        if let existingPlans = try? context.fetch(descriptor) {
-            for existing in existingPlans {
-                context.delete(existing)
-            }
-        }
-
+        // Only insert if not already tracked by this context
+        // (avoid deleting existing plan when just updating day status)
         context.insert(plan)
         do {
             try context.save()
@@ -45,23 +34,61 @@ final class TrainingPlanRepository {
         }
     }
 
+    /// Saves a new plan, replacing any existing active plans.
+    /// Use this only when generating a brand-new plan.
+    func replaceActivePlan(with plan: TrainingPlan) throws {
+        let activeStatus = PlanStatus.active.rawValue
+        let descriptor = FetchDescriptor<TrainingPlan>(
+            predicate: #Predicate<TrainingPlan> { p in
+                p.planStatusRaw == activeStatus
+            }
+        )
+        if let existingPlans = try? context.fetch(descriptor) {
+            for existing in existingPlans {
+                context.delete(existing)
+            }
+            // Save deletes BEFORE inserting new plan to avoid relationship conflicts
+            try context.save()
+        }
+        context.insert(plan)
+        try context.save()
+    }
+
     /// Fetches the freshly saved plan by id — use this after savePlan to get a fully hydrated object.
     func fetchPlan(id: UUID) throws -> TrainingPlan? {
         let descriptor = FetchDescriptor<TrainingPlan>(
             predicate: #Predicate<TrainingPlan> { p in p.id == id }
         )
-        return try context.fetch(descriptor).first
+        guard let plan = try context.fetch(descriptor).first else { return nil }
+
+        // Force-hydrate relationships
+        for week in plan.weeks {
+            for day in week.days {
+                _ = day.exercises.count
+            }
+        }
+
+        return plan
     }
 
     func fetchActivePlan() throws -> TrainingPlan? {
         let activeStatus = PlanStatus.active.rawValue
-        let descriptor = FetchDescriptor<TrainingPlan>(
+        var descriptor = FetchDescriptor<TrainingPlan>(
             predicate: #Predicate<TrainingPlan> { plan in
                 plan.planStatusRaw == activeStatus
             },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
-        return try context.fetch(descriptor).first
+        // Prefetch nested relationships eagerly — prevents lazy-load empty array bug
+        descriptor.relationshipKeyPathsForPrefetching = [\.weeks]
+        guard let plan = try context.fetch(descriptor).first else { return nil }
+
+        // Also touch days to ensure they're hydrated
+        for week in plan.weeks {
+            _ = week.days.count
+        }
+
+        return plan
     }
 
     // MARK: - WorkoutLog

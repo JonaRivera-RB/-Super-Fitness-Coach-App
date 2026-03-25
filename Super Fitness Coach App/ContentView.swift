@@ -43,8 +43,17 @@ struct ContentView: View {
 
     // Navigation state for training plan flow
     @State private var showingTrainingPreferences = false
-    @State private var showingWorkoutExecutor = false
+    @State private var showingFeedback = false
+    @State private var feedbackLogs: [WorkoutLog] = []
     @State private var selectedDayIndex: Int?
+    @State private var cachedExecutorViewModel: WorkoutExecutorViewModel?
+
+    // Wrapper to make WorkoutExecutorViewModel identifiable for sheet(item:)
+    struct ExecutorItem: Identifiable {
+        let id = UUID()
+        let viewModel: WorkoutExecutorViewModel
+    }
+    @State private var executorItem: ExecutorItem?
 
     enum Tab: Hashable {
         case home, workout, stats, profile
@@ -103,6 +112,14 @@ struct ContentView: View {
             statsTab
             profileTab
         }
+        .onChange(of: trainingPlanViewModel == nil) { _, isNil in
+            if !isNil {
+                // ViewModel just became available — load plan
+                Task { @MainActor in
+                    trainingPlanViewModel?.loadPlan()
+                }
+            }
+        }
     }
 
     private var homeTab: some View {
@@ -130,9 +147,20 @@ struct ContentView: View {
                     onNewTrainingPlan: { showingTrainingPreferences = true },
                     onStartTrainingWorkout: { dayIndex in
                         selectedDayIndex = dayIndex
-                        showingWorkoutExecutor = true
+                        if let vm = buildWorkoutExecutorViewModel(for: dayIndex) {
+                            executorItem = ExecutorItem(viewModel: vm)
+                        }
                     }
                 )
+                .task {
+                    trainingPlanViewModel?.loadPlan()
+                }
+            }
+        }
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .workout {
+                // Re-load every time user switches to workout tab
+                trainingPlanViewModel?.loadPlan()
             }
         }
         .sheet(isPresented: $showingTrainingPreferences, onDismiss: {
@@ -147,24 +175,27 @@ struct ContentView: View {
                 TrainingPreferencesView(viewModel: vm)
             }
         }
-        .sheet(isPresented: $showingWorkoutExecutor) {
-            if let executorVM = buildWorkoutExecutorViewModel() {
-                WorkoutExecutorView(viewModel: executorVM)
-            } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.orange)
-                    Text("Couldn't load workout")
-                        .font(.headline)
-                    Text("No exercises found for today. Try regenerating your plan.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Close") { showingWorkoutExecutor = false }
-                        .buttonStyle(.borderedProminent)
+        .sheet(item: $executorItem) { item in
+            WorkoutExecutorView(
+                viewModel: item.viewModel,
+                onWorkoutComplete: { logs in
+                    feedbackLogs = logs
+                    if let idx = selectedDayIndex {
+                        trainingPlanViewModel?.completeDay(at: idx)
+                    }
+                    executorItem = nil
+                    showingFeedback = true
                 }
-                .padding()
+            )
+        }
+        .sheet(isPresented: $showingFeedback) {
+            if let repo = trainingPlanRepository,
+               let ge = gamificationEngine {
+                FeedbackView(viewModel: FeedbackViewModel(
+                    workoutLogs: feedbackLogs,
+                    repository: repo,
+                    gamificationEngine: ge
+                ))
             }
         }
         .tabItem {
@@ -175,21 +206,45 @@ struct ContentView: View {
 
     // MARK: - Build WorkoutExecutorViewModel
 
-    private func buildWorkoutExecutorViewModel() -> WorkoutExecutorViewModel? {
-        guard let repo = trainingPlanRepository,
-              let dayIndex = selectedDayIndex else { return nil }
+    private func buildWorkoutExecutorViewModel(for dayIndex: Int) -> WorkoutExecutorViewModel? {
+        guard let repo = trainingPlanRepository else {
+            print("❌ buildExecutorVM: no repository")
+            return nil
+        }
 
-        guard let planVM = trainingPlanViewModel,
-              let plan = planVM.plan,
-              dayIndex >= 0, dayIndex < planVM.currentWeekDays.count else { return nil }
+        guard let plan = try? repo.fetchActivePlan() else {
+            print("❌ buildExecutorVM: no active plan")
+            return nil
+        }
 
-        // Use the value-type exercises snapshot — avoids SwiftData deserialization issues
-        let exercises = dayIndex < planVM.dayExercises.count ? planVM.dayExercises[dayIndex] : []
+        print("✅ buildExecutorVM: plan found, weeks=\(plan.weeks.count), currentWeek=\(plan.currentWeek)")
+
+        let weekIndex = plan.currentWeek - 1
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
+            print("❌ buildExecutorVM: weekIndex \(weekIndex) out of range (weeks=\(plan.weeks.count))")
+            return nil
+        }
+
+        let sortedDays = plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+        print("✅ buildExecutorVM: days=\(sortedDays.count), dayIndex=\(dayIndex)")
+
+        guard dayIndex >= 0, dayIndex < sortedDays.count else {
+            print("❌ buildExecutorVM: dayIndex \(dayIndex) out of range (days=\(sortedDays.count))")
+            return nil
+        }
+
+        let day = sortedDays[dayIndex]
+        print("✅ buildExecutorVM: day dow=\(day.dayOfWeek), exercises=\(day.exercises.count), isRest=\(day.isRestDay)")
+
+        guard !day.exercises.isEmpty else {
+            print("❌ buildExecutorVM: exercises empty for day \(day.dayOfWeek)")
+            return nil
+        }
 
         let setLogger = SetLogger(repository: repo)
         return WorkoutExecutorViewModel(
             plan: plan,
-            plannedExercises: exercises,
+            plannedExercises: day.exercises,
             setLogger: setLogger,
             healthKitManager: healthKitManager
         )
@@ -312,8 +367,11 @@ struct ContentView: View {
                 repository: repo,
                 dayManager: dayMgr
             )
-            tpvm.loadPlan()
             trainingPlanViewModel = tpvm
+            // Defer loadPlan to next runloop cycle so SwiftData context is fully ready
+            Task { @MainActor in
+                tpvm.loadPlan()
+            }
         }
     }
 
