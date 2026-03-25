@@ -339,7 +339,7 @@ struct HomeView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(Array(insights.enumerated()), id: \.offset) { _, insight in
-                        insightRow(insight: insight)
+                        insightRow(insight: insight, normalizedScore: insight.normalizedScore)
                     }
                 }
                 .padding(.horizontal)
@@ -348,17 +348,26 @@ struct HomeView: View {
         .padding(.top, 8)
     }
 
-    private func insightRow(insight: MetricInsight) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(statusColor(for: insight.status))
-                .frame(width: 8, height: 8)
-                .padding(.top, 6)
-
-            Text(insight.message)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private func insightRow(insight: MetricInsight, normalizedScore: Double? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                Circle()
+                    .fill(statusColor(for: insight.status))
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 6)
+                Text(insight.message)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let score = normalizedScore {
+                activityProgressBar(
+                    progress: score / 100.0,
+                    normalizedScore: score,
+                    accessibilityLabel: "Progreso de \(insight.metricName): \(Int(min(score, 100))) por ciento"
+                )
+                .padding(.leading, 16)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(insight.metricName): \(insight.message)")
@@ -488,5 +497,34 @@ struct HomeView: View {
         case .medium: return 0.66
         case .high: return 1.0
         }
+    }
+
+    // MARK: - Activity Progress Bar
+
+    /// Barra de progreso para métricas de actividad.
+    private func activityProgressBar(
+        progress: Double,
+        normalizedScore: Double,
+        accessibilityLabel: String
+    ) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(.systemGray4))
+                    .frame(height: 6)
+                Capsule()
+                    .fill(progressBarColor(for: normalizedScore))
+                    .frame(width: geo.size.width * min(max(progress, 0), 1), height: 6)
+            }
+        }
+        .frame(height: 6)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func progressBarColor(for normalizedScore: Double) -> Color {
+        if normalizedScore >= 100 { return .green }
+        if normalizedScore >= 40 { return .blue }
+        return .orange
     }
 }

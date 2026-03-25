@@ -142,22 +142,41 @@ final class HealthKitManager {
         let twentyFourHoursAgo = Calendar.current.date(byAdding: .hour, value: -24, to: now)!
         logger.info("refreshHealthData: activity range \(startOfToday) to \(now), recovery range \(twentyFourHoursAgo) to \(now)")
 
-        // Query all metrics concurrently
-        // Sleep: uses smart range that crosses midnight (your fix)
-        // HR/HRV: last 24h
+        // Query metrics concurrently (except HRV/RHR which depend on sleep window)
+        // Sleep: uses smart range that crosses midnight
         // Steps/Calories: today only (matches Apple Health day view)
         async let fetchedSleepPhases = querySleepPhases(store: healthStore, end: now)
-        async let fetchedRestingHR = queryQuantity(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now)
-        async let fetchedHRV = queryQuantity(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now)
         async let fetchedSteps = queryQuantityCumulative(store: healthStore, type: .stepCount, unit: .count(), start: startOfToday, end: now)
         async let fetchedEnergy = queryQuantityCumulative(store: healthStore, type: .activeEnergyBurned, unit: .kilocalorie(), start: startOfToday, end: now)
         // Auto-baselines: average over last 14 days
         async let fetchedBaseline = queryRestingHRBaseline(store: healthStore, end: now)
         async let fetchedHRVBaseline = queryHRVBaseline(store: healthStore, end: now)
 
+        // Await sleep phases first to get the sleep window for HRV/RHR validation
         let sleepPhases = await fetchedSleepPhases
-        let rhr = await fetchedRestingHR
-        let hrvMs = await fetchedHRV
+
+        // Conditionally query HRV and RHR based on sleep window availability
+        let rhr: Double?
+        let hrvMs: Double?
+
+        if let sessionStart = sleepPhases.sessionStart, let sessionEnd = sleepPhases.sessionEnd {
+            // Sleep window available — use queryQuantityInSleepWindow to filter by sleep window
+            logger.info("Sleep window validation: sleepStart=\(sessionStart) sleepEnd=\(sessionEnd)")
+            async let fetchedRHR = queryQuantityInSleepWindow(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
+            async let fetchedHRV = queryQuantityInSleepWindow(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
+            rhr = await fetchedRHR?.value
+            hrvMs = await fetchedHRV?.value
+            logger.info("HRV validation: \(hrvMs != nil ? "accepted (within sleep window)" : "rejected (no sample within sleep window)")")
+            logger.info("RHR validation: \(rhr != nil ? "accepted (within sleep window)" : "rejected (no sample within sleep window)")")
+        } else {
+            // No sleep window — fallback to existing behavior (most recent sample)
+            logger.info("Sleep window validation: no sleep session detected, using fallback (most recent sample)")
+            async let fetchedRHR = queryQuantity(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now)
+            async let fetchedHRV = queryQuantity(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now)
+            rhr = await fetchedRHR
+            hrvMs = await fetchedHRV
+        }
+
         let steps = await fetchedSteps
         let energy = await fetchedEnergy
         let autoBaseline = await fetchedBaseline
@@ -578,7 +597,7 @@ final class HealthKitManager {
     ///
     /// Note: Apple's sleep schedule is user-configured and not accessible via HealthKit API,
     /// so we detect sessions from the actual data instead of assuming fixed hours.
-    private func querySleepPhases(store: HKHealthStore, end: Date) async -> (total: Double?, deep: Double?, rem: Double?) {
+    private func querySleepPhases(store: HKHealthStore, end: Date) async -> (total: Double?, deep: Double?, rem: Double?, sessionStart: Date?, sessionEnd: Date?) {
         let sleepType = HKCategoryType(.sleepAnalysis)
         let lookback = Calendar.current.date(byAdding: .hour, value: -24, to: end)!
         let predicate = HKQuery.predicateForSamples(withStart: lookback, end: end, options: [])
@@ -590,11 +609,11 @@ final class HealthKitManager {
             ) { [self] _, samples, error in
                 if let error {
                     self.logger.error("Sleep query failed: \(error.localizedDescription)")
-                    continuation.resume(returning: (nil, nil, nil))
+                    continuation.resume(returning: (nil, nil, nil, nil, nil))
                     return
                 }
                 guard let samples = samples as? [HKCategorySample], !samples.isEmpty else {
-                    continuation.resume(returning: (nil, nil, nil))
+                    continuation.resume(returning: (nil, nil, nil, nil, nil))
                     return
                 }
 
@@ -607,7 +626,7 @@ final class HealthKitManager {
 
                 let asleepSamples = samples.filter { asleepValues.contains($0.value) }
                 guard !asleepSamples.isEmpty else {
-                    continuation.resume(returning: (nil, nil, nil))
+                    continuation.resume(returning: (nil, nil, nil, nil, nil))
                     return
                 }
 
@@ -634,7 +653,7 @@ final class HealthKitManager {
 
                 // Step 3: Take the most recent session (last one, since merged is sorted)
                 guard let latestSession = sessions.last else {
-                    continuation.resume(returning: (nil, nil, nil))
+                    continuation.resume(returning: (nil, nil, nil, nil, nil))
                     return
                 }
 
@@ -665,7 +684,9 @@ final class HealthKitManager {
                 continuation.resume(returning: (
                     totalHours > 0 ? totalHours : nil,
                     deepHours > 0 ? deepHours : nil,
-                    remHours > 0 ? remHours : nil
+                    remHours > 0 ? remHours : nil,
+                    sessionStart,
+                    sessionEnd
                 ))
             }
             store.execute(query)
@@ -710,7 +731,64 @@ final class HealthKitManager {
                     continuation.resume(returning: nil)
                     return
                 }
-                continuation.resume(returning: sample.quantity.doubleValue(for: unit))
+
+                let value = sample.quantity.doubleValue(for: unit)
+                let date = sample.startDate
+
+                print("🧪 \(type.rawValue) value: \(value) — date: \(date)")
+
+                continuation.resume(returning: value)
+            }
+            
+            store.execute(query)
+        }
+    }
+
+    /// Query the most recent sample of a given type whose interval overlaps with the sleep window.
+    /// Uses `HKObjectQueryNoLimit` and sorts by `startDate` descending, then returns the first
+    /// sample where `sampleStart < sleepEnd AND sampleEnd > sleepStart`.
+    /// Returns `nil` if no overlapping sample is found.
+    private func queryQuantityInSleepWindow(
+        store: HKHealthStore,
+        type: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        start: Date,
+        end: Date,
+        sleepStart: Date,
+        sleepEnd: Date
+    ) async -> (value: Double, startDate: Date, endDate: Date)? {
+        let quantityType = HKQuantityType(type)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    self.logger.error("queryQuantityInSleepWindow for \(type.rawValue) failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                    return
+                }
+                guard let quantitySamples = samples as? [HKQuantitySample], !quantitySamples.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                // Find the first (most recent due to descending sort) sample that overlaps with the sleep window
+                for sample in quantitySamples {
+                    if sample.startDate < sleepEnd && sample.endDate > sleepStart {
+                        let value = sample.quantity.doubleValue(for: unit)
+                        continuation.resume(returning: (value: value, startDate: sample.startDate, endDate: sample.endDate))
+                        return
+                    }
+                }
+
+                // No sample overlaps with the sleep window
+                continuation.resume(returning: nil)
             }
             store.execute(query)
         }

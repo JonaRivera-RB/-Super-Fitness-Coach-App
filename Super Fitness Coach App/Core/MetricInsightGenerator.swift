@@ -5,6 +5,14 @@ struct MetricInsight {
     let metricName: String
     let message: String
     let status: ScoreBreakdown.ComponentStatus
+    let normalizedScore: Double?
+
+    init(metricName: String, message: String, status: ScoreBreakdown.ComponentStatus, normalizedScore: Double? = nil) {
+        self.metricName = metricName
+        self.message = message
+        self.status = status
+        self.normalizedScore = normalizedScore
+    }
 }
 
 /// Genera insights contextuales en español para cada componente de un ScoreBreakdown.
@@ -41,6 +49,20 @@ struct MetricInsightGenerator {
                 message: "\(component.name): \(formatValue(component.rawValue)) \(component.rawUnit)",
                 status: component.status
             )
+        }
+    }
+
+    // MARK: - Motivational Suffix
+
+    /// Retorna un mensaje motivacional según el rango de normalizedScore.
+    /// Solo aplica a métricas de actividad (pasos, calorías).
+    static func motivationalSuffix(for normalizedScore: Double) -> String {
+        switch normalizedScore {
+        case ..<25:    return "¡Cada paso cuenta!"
+        case 25..<50:  return "¡Buen arranque!"
+        case 50..<75:  return "¡Más de la mitad!"
+        case 75..<100: return "¡Ya casi!"
+        default:       return "¡Meta cumplida! 🎉"
         }
     }
 
@@ -124,18 +146,26 @@ struct MetricInsightGenerator {
     ) -> MetricInsight {
         let steps = Int(component.rawValue)
         let goal = Int(config.stepsGoal)
+        let score = component.normalizedScore
 
+        let suffix = motivationalSuffix(for: score)
         let message: String
-        switch component.status {
-        case .warning:
-            message = "Llevas \(formatInt(steps)) de \(formatInt(goal)) pasos — ¡a moverse! 🚶"
-        case .normal:
-            message = "\(formatInt(steps)) de \(formatInt(goal)) pasos — vas bien"
-        case .good:
-            message = "¡Gran actividad! \(formatInt(steps)) pasos hoy ✓"
+        let status: ScoreBreakdown.ComponentStatus
+        if score >= 100 {
+            message = "¡Meta cumplida! \(formatInt(steps)) pasos hoy ✓"
+            status = .good
+        } else if score >= 70 {
+            message = "\(formatInt(steps)) de \(formatInt(goal)) pasos — ¡ya casi llegas! 💪 \(suffix)"
+            status = .good
+        } else if score >= 40 {
+            message = "\(formatInt(steps)) de \(formatInt(goal)) pasos — vas bien. \(suffix)"
+            status = .normal
+        } else {
+            message = "Llevas \(formatInt(steps)) de \(formatInt(goal)) pasos — ¡a moverse! 🚶 \(suffix)"
+            status = .warning
         }
 
-        return MetricInsight(metricName: "Pasos", message: message, status: component.status)
+        return MetricInsight(metricName: "Pasos", message: message, status: status, normalizedScore: component.normalizedScore)
     }
 
     private static func caloriesInsight(
@@ -144,18 +174,26 @@ struct MetricInsightGenerator {
     ) -> MetricInsight {
         let cals = Int(component.rawValue)
         let goal = Int(config.calorieGoal)
+        let score = component.normalizedScore
 
+        let suffix = motivationalSuffix(for: score)
         let message: String
-        switch component.status {
-        case .warning:
-            message = "\(cals) de \(goal) kcal activas — aún queda camino"
-        case .normal:
-            message = "\(cals) de \(goal) kcal activas — en progreso"
-        case .good:
+        let status: ScoreBreakdown.ComponentStatus
+        if score >= 100 {
             message = "Meta de calorías cumplida: \(cals) kcal ✓"
+            status = .good
+        } else if score >= 70 {
+            message = "\(cals) de \(goal) kcal activas — ¡casi lo logras! 🔥 \(suffix)"
+            status = .good
+        } else if score >= 40 {
+            message = "\(cals) de \(goal) kcal activas — en progreso. \(suffix)"
+            status = .normal
+        } else {
+            message = "\(cals) de \(goal) kcal activas — aún queda camino. \(suffix)"
+            status = .warning
         }
 
-        return MetricInsight(metricName: "Calorías", message: message, status: component.status)
+        return MetricInsight(metricName: "Calorías", message: message, status: status, normalizedScore: component.normalizedScore)
     }
 
     // MARK: - Formatting Helpers
