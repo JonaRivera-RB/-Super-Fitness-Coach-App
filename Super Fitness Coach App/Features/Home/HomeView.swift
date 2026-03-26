@@ -17,6 +17,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     authorizationBanner
+                    dashboardHeroSection
                     coachSummarySection
                     actionCardSection
                     recoveryScoreSection
@@ -54,7 +55,7 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Health data access denied. Open Settings to grant permission.")
+                Text("Salud no compartió datos. Abre Configuración → Privacidad y seguridad → Salud para permitirlo.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -62,12 +63,12 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Health data access denied. Open Settings to grant permission.")
+            .accessibilityLabel("Salud no compartió datos. Abre Configuración, Privacidad y seguridad, Salud, para permitir el acceso.")
         case .unavailable:
             HStack(spacing: 8) {
                 Image(systemName: "heart.slash")
                     .foregroundStyle(.secondary)
-                Text("Health data is not available on this device.")
+                Text("Salud no está disponible en este dispositivo.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -75,9 +76,24 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray5)))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Health data is not available on this device.")
+            .accessibilityLabel("Salud no está disponible en este dispositivo.")
         default:
             EmptyView()
+        }
+    }
+
+    // MARK: - Dashboard hero
+
+    @ViewBuilder
+    private var dashboardHeroSection: some View {
+        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+            EmptyView()
+        } else if !viewModel.dashboardHeroLine.isEmpty {
+            Text(viewModel.dashboardHeroLine)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(viewModel.dashboardHeroLine)
         }
     }
 
@@ -106,7 +122,8 @@ struct HomeView: View {
                     .fill(coachSummaryColor.opacity(0.12))
             )
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Coach summary: \(viewModel.coachSummary)")
+            .accessibilityLabel(viewModel.coachSummaryAccessibilityLabel)
+            .accessibilityHint("Mensaje largo en pantalla; usa el rotor para leer línea por línea si lo necesitas.")
         }
     }
 
@@ -252,7 +269,9 @@ struct HomeView: View {
             EmptyView()
         } else if viewModel.lastNightSleepSummary.isEmpty,
                   viewModel.lastNightSleepWindow.isEmpty,
-                  viewModel.quickMeaningLine.isEmpty {
+                  viewModel.quickMeaningLine.isEmpty,
+                  viewModel.sleepConsistencyLine.isEmpty,
+                  viewModel.sleepTrendLine.isEmpty {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 10) {
@@ -268,10 +287,23 @@ struct HomeView: View {
                     Text(viewModel.quickMeaningLine)
                         .font(.subheadline)
                         .foregroundStyle(.primary)
+                        .accessibilityLabel(viewModel.quickMeaningAccessibilityLabel)
                 }
 
                 if !viewModel.lastNightSleepWindow.isEmpty {
                     Text(viewModel.lastNightSleepWindow)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !viewModel.sleepConsistencyLine.isEmpty {
+                    Text(viewModel.sleepConsistencyLine)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !viewModel.sleepTrendLine.isEmpty {
+                    Text(viewModel.sleepTrendLine)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -299,6 +331,19 @@ struct HomeView: View {
                         Text("La FC y el HRV se comparan con tu media de 14 días. No sustituye consejo médico.")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Glosario rápido")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                            Text("Sueño (intervalo): tramo fusionado de Apple Health; puede no coincidir con tu hora de acostarte.")
+                            Text("HRV: variabilidad entre latidos; suele subir con mejor recuperación.")
+                            Text("FC en reposo: valor del día; a veces se alinea con una ventana algo más amplia que el sueño.")
+                            Text("Regularidad: qué tan cerca quedaron el inicio y el fin de tu sueño del horario guardado en Perfil (promedio de desviación vs acostarte/despertar).")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                     }
                     .padding(.top, 2)
                 }

@@ -20,9 +20,11 @@ struct AICoach {
         activityScore: Int,
         recoveryBreakdown: ScoreBreakdown? = nil,
         streakDays: Int,
-        recentWorkoutCount: Int
+        recentWorkoutCount: Int,
+        recoveryConfidence: HealthKitManager.DataConfidenceLevel? = nil
     ) -> String {
         let firstName = extractFirstName(from: userName)
+        let message: String
 
         // Rule 1: Low recovery → rest recommendation
         if recoveryScore < 40 {
@@ -30,53 +32,64 @@ struct AICoach {
                 // Req 1.7: Acknowledge effort + emphasize recovery
                 if let breakdown = recoveryBreakdown {
                     let reason = contextualReason(from: breakdown)
-                    return "\(firstName), estuviste muy activo pero tu cuerpo necesita descansar. \(reason) 💤"
+                    message = "\(firstName), estuviste muy activo pero tu cuerpo necesita descansar. \(reason) 💤"
+                } else {
+                    message = "\(firstName), estuviste muy activo pero tu cuerpo necesita descansar hoy. Tómatelo con calma 💤"
                 }
-                return "\(firstName), estuviste muy activo pero tu cuerpo necesita descansar hoy. Tómatelo con calma 💤"
-            }
-            // Req 1.2: Recommend rest and explain why
-            if let breakdown = recoveryBreakdown {
+            } else if let breakdown = recoveryBreakdown {
                 let reason = contextualReason(from: breakdown)
-                return "\(firstName), tu cuerpo necesita descansar hoy. \(reason) 💤"
+                message = "\(firstName), tu cuerpo necesita descansar hoy. \(reason) 💤"
+            } else {
+                message = "\(firstName), tu cuerpo necesita descansar hoy. Tómatelo con calma y recupérate bien 💤"
             }
-            return "\(firstName), tu cuerpo necesita descansar hoy. Tómatelo con calma y recupérate bien 💤"
-        }
-
-        // Rule 2: Active streak → combine streak recognition with recovery-based recommendation
-        if streakDays >= 3 {
+        } else if streakDays >= 3 {
+            // Rule 2: Active streak → combine streak recognition with recovery-based recommendation
             let streakText = "\(streakDays) días seguidos, gran progreso"
             if recoveryScore >= 70 {
-                return "\(firstName), \(streakText). Estás listo para entrenar fuerte hoy 🔥"
+                message = "\(firstName), \(streakText). Estás listo para entrenar fuerte hoy 🔥"
             } else if recoveryScore >= 40 {
                 if let breakdown = recoveryBreakdown {
                     let reason = contextualReason(from: breakdown)
-                    return "\(firstName), \(streakText). Hoy ve con actividad moderada, \(reason) 🔥"
+                    message = "\(firstName), \(streakText). Hoy ve con actividad moderada, \(reason) 🔥"
+                } else {
+                    message = "\(firstName), \(streakText). Hoy ve con actividad moderada 🔥"
                 }
-                return "\(firstName), \(streakText). Hoy ve con actividad moderada 🔥"
             } else {
-                return "\(firstName), \(streakText). Hoy toca descansar para seguir avanzando 🔥"
+                message = "\(firstName), \(streakText). Hoy toca descansar para seguir avanzando 🔥"
             }
-        }
-
-        // Rule 3: Recovery 40-69 → moderate activity, indicate limiting metrics
-        if recoveryScore >= 40 && recoveryScore <= 69 {
+        } else if recoveryScore >= 40 && recoveryScore <= 69 {
+            // Rule 3: Recovery 40-69 → moderate activity, indicate limiting metrics
             if let breakdown = recoveryBreakdown {
                 let reason = contextualReason(from: breakdown)
-                return "\(firstName), tu recuperación es moderada. \(reason). Ve con actividad moderada hoy 🟡"
+                message = "\(firstName), tu recuperación es moderada. \(reason). Ve con actividad moderada hoy 🟡"
+            } else {
+                message = "\(firstName), tu recuperación es moderada. Ve con actividad moderada hoy 🟡"
             }
-            return "\(firstName), tu recuperación es moderada. Ve con actividad moderada hoy 🟡"
-        }
-
-        // Rule 4: Recovery >= 70 → ready for intense training
-        if recoveryScore >= 70 {
+        } else if recoveryScore >= 70 {
+            // Rule 4: Recovery >= 70 → ready for intense training
             if streakDays == 0 && activityScore < 30 {
-                return "\(firstName), estás listo para entrenar fuerte y no te has movido mucho. ¡Vamos a darle! 💪"
+                message = "\(firstName), estás listo para entrenar fuerte y no te has movido mucho. ¡Vamos a darle! 💪"
+            } else {
+                message = "\(firstName), estás listo para entrenar fuerte hoy. ¡A darle con todo! 💪"
             }
-            return "\(firstName), estás listo para entrenar fuerte hoy. ¡A darle con todo! 💪"
+        } else {
+            // Rule 5: Default encouragement
+            message = "\(firstName), cada paso cuenta. ¡Sigue adelante! 🌟"
         }
 
-        // Rule 5: Default encouragement
-        return "\(firstName), cada paso cuenta. ¡Sigue adelante! 🌟"
+        return message + Self.confidenceSuffix(recoveryConfidence)
+    }
+
+    private static func confidenceSuffix(_ level: HealthKitManager.DataConfidenceLevel?) -> String {
+        guard let level else { return "" }
+        switch level {
+        case .insufficient:
+            return " Nota: faltan datos clave; la puntuación es poco fiable."
+        case .low:
+            return " Nota: señal de datos débil hoy; interpreta con calma."
+        case .medium, .high:
+            return ""
+        }
     }
 
     /// Identifica el componente con peor normalizedScore del breakdown.

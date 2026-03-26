@@ -71,6 +71,10 @@ struct ContentView: View {
         }
         .task {
             initializeServices()
+            healthKitManager.configureObserverRefresh {
+                let repo = UserProfileRepository(context: modelContext)
+                return (try? repo.fetch())?.effectiveFitnessConfig ?? .default
+            }
             // Start observing HealthKit for new sleep data (auto-refresh on wake)
             // Only starts observers if already authorized — no permission prompt
             healthKitManager.startSleepMonitoring()

@@ -6,6 +6,20 @@ import Foundation
 import HealthKit
 import os
 
+/// How a HealthKit quantity sample was matched to the asleep window (for confidence / UI).
+enum SleepWindowQuantityMatchMode: String, Codable, Sendable {
+    case strict
+    case partialOverlap
+    case relaxedWindow
+}
+
+struct SleepWindowQuantityMatch: Sendable {
+    let value: Double
+    let startDate: Date
+    let endDate: Date
+    let mode: SleepWindowQuantityMatchMode
+}
+
 @Observable
 final class HealthKitManager {
 
@@ -49,11 +63,23 @@ final class HealthKitManager {
     /// Baselines used for scoring this refresh (14-day auto or profile fallback).
     private(set) var restingHRBaselineUsed: Double?
     private(set) var hrvBaselineUsed: Double?
+    /// Last refresh: how RHR was aligned to sleep (relaxed = heuristic).
+    private(set) var lastRHRMatchMode: SleepWindowQuantityMatchMode?
+    /// Alineación del sueño detectado con el horario esperado (0–100). Con `sleepGoal == nil` el filtro devuelve 0.
+    private(set) var sleepConsistencyScore: Int = 0
+    /// Media de horas de sueño principal en hasta 14 noches completadas (excluye la noche que termina hoy).
+    private(set) var sleepHours14DayAverage: Double?
+    /// Cuántas noches entraron en esa media (puede ser menor a 14 si faltan datos).
+    private(set) var sleepHistoryNightsCount: Int = 0
 
     // MARK: - Private
 
     private let healthStore: HKHealthStore?
     private let logger = Logger(subsystem: "com.superfitness.coach", category: "HealthKitManager")
+
+    /// Observers call debounced refresh; use profile config (set via `configureObserverRefresh`).
+    private var fitnessConfigForObservers: () -> FitnessConfig = { .default }
+    private var debouncedRefreshTask: Task<Void, Never>?
 
     // Sleep Monitoring
     private var sleepObserverQuery: HKObserverQuery?
@@ -145,6 +171,24 @@ final class HealthKitManager {
         await refreshHealthData(config: .default)
     }
 
+    /// Call from app root with SwiftData: observers will refresh with the user’s real `FitnessConfig` (sleep goal, etc.).
+    func configureObserverRefresh(_ provider: @escaping () -> FitnessConfig) {
+        fitnessConfigForObservers = provider
+    }
+
+    /// Coalesce multiple HKObserverQuery callbacks into one refresh after a short delay (~3s).
+    func scheduleDebouncedRefreshFromObservers() {
+        debouncedRefreshTask?.cancel()
+        debouncedRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            let config = self.fitnessConfigForObservers()
+            self.logger.info("refreshHealthData: debounced observer refresh (sleepGoal saved=\(config.sleepGoal != nil))")
+            await self.refreshHealthData(config: config)
+        }
+    }
+
     /// Query all health metrics and calculate Recovery/Activity scores using user's FitnessConfig.
     func refreshHealthData(config: FitnessConfig) async {
         guard let healthStore else {
@@ -189,6 +233,7 @@ final class HealthKitManager {
             window: expectedWindow,
             goal: config.sleepGoal
         )
+        async let fetchedSleepHistoryAvg = queryAverageMainSleepLast14Nights(store: healthStore, now: now)
         async let fetchedSteps = queryQuantityCumulative(store: healthStore, type: .stepCount, unit: .count(), start: startOfToday, end: now)
         async let fetchedEnergy = queryQuantityCumulative(store: healthStore, type: .activeEnergyBurned, unit: .kilocalorie(), start: startOfToday, end: now)
         // Auto-baselines: average over last 14 days
@@ -197,6 +242,14 @@ final class HealthKitManager {
 
         // Await sleep phases first to get the sleep window for HRV/RHR validation
         let sleepDetection = await fetchedSleepDetection
+        let (avg14, nights14) = await fetchedSleepHistoryAvg
+        self.sleepHours14DayAverage = avg14
+        self.sleepHistoryNightsCount = nights14
+        if let avg14 {
+            logger.info("sleep-history: 14n avg=\(String(format: "%.2f", avg14))h over \(nights14) nights (completed wake days before today)")
+        } else {
+            logger.info("sleep-history: insufficient nights for rolling average")
+        }
         let sessionLocal: String
         if let s = sleepDetection.sessionStart, let e = sleepDetection.sessionEnd {
             sessionLocal = "\(Self.formatLocalTime(s)) → \(Self.formatLocalTime(e)) (HealthKit merged asleep interval, not your goal times)"
@@ -219,15 +272,21 @@ final class HealthKitManager {
         let rhr: Double?
         let hrvMs: Double?
 
+        var rhrMatchMode: SleepWindowQuantityMatchMode?
+
         if let sessionStart = sleepDetection.sessionStart, let sessionEnd = sleepDetection.sessionEnd {
             // Sleep window available — use queryQuantityInSleepWindow to filter by sleep window
             logger.info("Sleep window validation: sleepStartUTC=\(sessionStart) sleepEndUTC=\(sessionEnd) | local \(Self.formatLocalTime(sessionStart))–\(Self.formatLocalTime(sessionEnd))")
             async let fetchedRHR = queryQuantityInSleepWindow(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
             async let fetchedHRV = queryQuantityInSleepWindow(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
-            rhr = await fetchedRHR?.value
-            hrvMs = await fetchedHRV?.value
+            let rhrResult = await fetchedRHR
+            let hrvResult = await fetchedHRV
+            rhr = rhrResult?.value
+            hrvMs = hrvResult?.value
+            rhrMatchMode = rhrResult?.mode
+            lastRHRMatchMode = rhrResult?.mode
             logger.info("HRV validation: \(hrvMs != nil ? "accepted (within sleep window)" : "rejected (no sample within sleep window)")")
-            logger.info("RHR validation: \(rhr != nil ? "accepted (within sleep window)" : "rejected (no sample within sleep window)")")
+            logger.info("RHR validation: \(rhr != nil ? "accepted (match=\(rhrMatchMode?.rawValue ?? "?"))" : "rejected")")
         } else {
             // No sleep window — fallback to existing behavior (most recent sample)
             logger.info("Sleep window validation: no sleep session detected, using fallback (most recent sample)")
@@ -235,6 +294,8 @@ final class HealthKitManager {
             async let fetchedHRV = queryQuantity(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now)
             rhr = await fetchedRHR
             hrvMs = await fetchedHRV
+            rhrMatchMode = nil
+            lastRHRMatchMode = nil
         }
 
         let steps = await fetchedSteps
@@ -249,7 +310,8 @@ final class HealthKitManager {
             sleepDetected: sleepDetection.sleepDetected,
             sleepConfidence: sleepDetection.sleepConfidence,
             hasRHR: hasRHR,
-            hasHRV: hasHRV
+            hasHRV: hasHRV,
+            rhrMatchMode: rhrMatchMode
         )
         logger.info("recovery-confidence: \(self.recoveryConfidence.rawValue) (\(self.recoveryConfidence.labelEs))")
 
@@ -258,6 +320,7 @@ final class HealthKitManager {
         let effectiveHRVBaseline = autoHRVBaseline ?? 60.0 // default 60ms if no history
         self.sleepSessionStart = sleepDetection.sessionStart
         self.sleepSessionEnd = sleepDetection.sessionEnd
+        self.sleepConsistencyScore = sleepDetection.sleepConsistencyScore
         self.restingHRBaselineUsed = effectiveBaseline
         self.hrvBaselineUsed = effectiveHRVBaseline
         logger.info("refreshHealthData results — sleep: \(sleepDetection.totalSleepHours.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal, rhrBaseline: \(String(format: "%.0f", effectiveBaseline))bpm, hrvBaseline: \(String(format: "%.0f", effectiveHRVBaseline))ms")
@@ -357,10 +420,8 @@ final class HealthKitManager {
                 return
             }
             self.logger.info("🛌 Sleep observer fired — new sleep data available")
-            Task {
-                await self.refreshHealthData()
-                completionHandler()
-            }
+            self.scheduleDebouncedRefreshFromObservers()
+            completionHandler()
         }
 
         healthStore.execute(query)
@@ -412,11 +473,9 @@ final class HealthKitManager {
                     completionHandler()
                     return
                 }
-                self.logger.info("📊 Observer fired for \(sampleType.identifier) — refreshing data")
-                Task {
-                    await self.refreshHealthData()
-                    completionHandler()
-                }
+                self.logger.info("📊 Observer fired for \(sampleType.identifier) — scheduling debounced refresh")
+                self.scheduleDebouncedRefreshFromObservers()
+                completionHandler()
             }
             healthStore.execute(query)
             healthObserverQueries.append(query)
@@ -675,13 +734,18 @@ final class HealthKitManager {
         sleepSessionEnd = nil
         restingHRBaselineUsed = nil
         hrvBaselineUsed = nil
+        lastRHRMatchMode = nil
+        sleepConsistencyScore = 0
+        sleepHours14DayAverage = nil
+        sleepHistoryNightsCount = 0
     }
 
     private static func computeRecoveryConfidence(
         sleepDetected: Bool,
         sleepConfidence: Double,
         hasRHR: Bool,
-        hasHRV: Bool
+        hasHRV: Bool,
+        rhrMatchMode: SleepWindowQuantityMatchMode?
     ) -> DataConfidenceLevel {
         // Insufficient: no sleep detected and no physiological signals.
         if !sleepDetected, !(hasRHR || hasHRV) {
@@ -689,20 +753,22 @@ final class HealthKitManager {
         }
 
         // High: sleep session detected with strong overlap + at least one physiological signal.
+        var level: DataConfidenceLevel
         if sleepDetected, sleepConfidence >= 0.80, (hasRHR || hasHRV) {
-            return .high
+            level = .high
+        } else if sleepDetected, sleepConfidence >= 0.50 {
+            level = .medium
+        } else if sleepDetected, sleepConfidence >= 0.80, !(hasRHR || hasHRV) {
+            level = .medium
+        } else {
+            level = .low
         }
 
-        // Medium: sleep session detected with reasonable overlap, or sleep is strong but only sleep is available.
-        if sleepDetected, sleepConfidence >= 0.50 {
+        // RHR matched with expanded window = heuristic alignment; don’t claim “high” on that basis alone.
+        if level == .high, rhrMatchMode == .relaxedWindow {
             return .medium
         }
-        if sleepDetected, sleepConfidence >= 0.80, !(hasRHR || hasHRV) {
-            return .medium
-        }
-
-        // Low: no sleep detected (but HRV/RHR exists), or weak sleep overlap.
-        return .low
+        return level
     }
 
     // MARK: - HealthKit Queries
@@ -757,6 +823,36 @@ final class HealthKitManager {
         }
     }
 
+    /// Rolling average of main sleep (≥90 min merged asleep) over completed wake days before `now` (excludes today’s wake).
+    private func queryAverageMainSleepLast14Nights(store: HKHealthStore, now: Date) async -> (average: Double?, nights: Int) {
+        let sleepType = HKCategoryType(.sleepAnalysis)
+        let cal = Calendar.current
+        guard let rangeStart = cal.date(byAdding: .day, value: -21, to: cal.startOfDay(for: now)) else {
+            return (nil, 0)
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: rangeStart, end: now, options: [])
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { _, samples, error in
+                if let error {
+                    self.logger.error("queryAverageMainSleepLast14Nights failed: \(error.localizedDescription)")
+                    continuation.resume(returning: (nil, 0))
+                    return
+                }
+                let hkSamples = (samples as? [HKCategorySample]) ?? []
+                let intervals = SleepHistoryAggregator.asleepIntervals(from: hkSamples)
+                let result = SleepHistoryAggregator.averageMainSleepHours(intervals: intervals, now: now, calendar: cal)
+                continuation.resume(returning: (result.average, result.nightsUsed))
+            }
+            store.execute(query)
+        }
+    }
+
     private func queryQuantity(store: HKHealthStore, type: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date) async -> Double? {
         let quantityType = HKQuantityType(type)
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
@@ -800,7 +896,7 @@ final class HealthKitManager {
         end: Date,
         sleepStart: Date,
         sleepEnd: Date
-    ) async -> (value: Double, startDate: Date, endDate: Date)? {
+    ) async -> SleepWindowQuantityMatch? {
         let quantityType = HKQuantityType(type)
         let predicate = HKQuery.predicateForSamples(withStart: start,
                                                     end: end,
@@ -836,7 +932,12 @@ final class HealthKitManager {
                     if sample.startDate < sleepEnd && sample.endDate > sleepStart {
                         let value = sample.quantity.doubleValue(for: unit)
                         self.logger.info("queryQuantityInSleepWindow \(type.rawValue): strict overlap \(sample.startDate) → \(sample.endDate)")
-                        continuation.resume(returning: (value: value, startDate: sample.startDate, endDate: sample.endDate))
+                        continuation.resume(returning: SleepWindowQuantityMatch(
+                            value: value,
+                            startDate: sample.startDate,
+                            endDate: sample.endDate,
+                            mode: .strict
+                        ))
                         return
                     }
                 }
@@ -854,7 +955,12 @@ final class HealthKitManager {
                 if let best, bestOverlap > 0 {
                     let value = best.quantity.doubleValue(for: unit)
                     self.logger.info("queryQuantityInSleepWindow \(type.rawValue): max partial overlap=\(Int(bestOverlap))s \(best.startDate) → \(best.endDate)")
-                    continuation.resume(returning: (value: value, startDate: best.startDate, endDate: best.endDate))
+                    continuation.resume(returning: SleepWindowQuantityMatch(
+                        value: value,
+                        startDate: best.startDate,
+                        endDate: best.endDate,
+                        mode: .partialOverlap
+                    ))
                     return
                 }
 
@@ -876,7 +982,12 @@ final class HealthKitManager {
                     if let bestR, bestRO > 0 {
                         let value = bestR.quantity.doubleValue(for: unit)
                         self.logger.info("queryQuantityInSleepWindow RHR: relaxed-window overlap=\(Int(bestRO))s \(bestR.startDate) → \(bestR.endDate)")
-                        continuation.resume(returning: (value: value, startDate: bestR.startDate, endDate: bestR.endDate))
+                        continuation.resume(returning: SleepWindowQuantityMatch(
+                            value: value,
+                            startDate: bestR.startDate,
+                            endDate: bestR.endDate,
+                            mode: .relaxedWindow
+                        ))
                         return
                     }
                 }

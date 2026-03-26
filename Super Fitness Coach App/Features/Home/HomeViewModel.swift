@@ -36,6 +36,16 @@ final class HomeViewModel {
     private(set) var rhrVsBaselineLine: String = ""
     /// Traduccion humana (bueno/malo) basada en las comparativas vs media.
     private(set) var quickMeaningLine: String = ""
+    /// Regularidad vs horario configurado (Req. 9); vacío si no hay horario en Perfil.
+    private(set) var sleepConsistencyLine: String = ""
+    /// Una línea visible al inicio del dashboard: puntuación + confianza de datos.
+    private(set) var dashboardHeroLine: String = ""
+    /// Sueño anoche vs media de noches previas (HealthKit).
+    private(set) var sleepTrendLine: String = ""
+    /// VoiceOver corto para el resumen del coach (evita leer párrafos largos).
+    private(set) var coachSummaryAccessibilityLabel: String = ""
+    /// VoiceOver corto para la interpretación rápida.
+    private(set) var quickMeaningAccessibilityLabel: String = ""
     private(set) var recoveryInsights: [MetricInsight] = []
     private(set) var activityInsights: [MetricInsight] = []
 
@@ -122,13 +132,16 @@ final class HomeViewModel {
             activityScore: activityValue,
             recoveryBreakdown: recoveryBreakdown,
             streakDays: gamificationEngine.currentStreak,
-            recentWorkoutCount: gamificationEngine.workoutsCompleted
+            recentWorkoutCount: gamificationEngine.workoutsCompleted,
+            recoveryConfidence: healthKitManager.recoveryConfidence
         )
 
         coachSummary = recommendationText
-        coachEmoji = recoveryValue < 40 ? "🔴" : recoveryValue < 70 ? "🟡" : "🟢"
         recoveryLabel = generateRecoveryLabel(score: recoveryValue)
         activityLabel = generateActivityLabel(score: activityValue)
+        coachSummaryAccessibilityLabel = "Recuperación \(recoveryValue) de 100. \(recoveryLabel). \(recoveryConfidenceLabel)."
+        coachEmoji = recoveryValue < 40 ? "🔴" : recoveryValue < 70 ? "🟡" : "🟢"
+        dashboardHeroLine = "Recuperación \(recoveryValue)/100 · \(recoveryConfidenceLabel)"
         generateActionCard(recoveryScore: recoveryValue, muscleLabel: todayMuscleLabel)
 
         recoveryInsights = recoveryBreakdown.map { MetricInsightGenerator.generateInsights(from: $0, config: config) } ?? []
@@ -238,7 +251,11 @@ final class HomeViewModel {
             } else {
                 note = String(format: "%.0f lpm más que tu media (%.0f)", -delta, baseline)
             }
-            rhrVsBaselineLine = String(format: "FC en reposo %.0f lpm · %@", actual, note)
+            var line = String(format: "FC en reposo %.0f lpm · %@", actual, note)
+            if hk.lastRHRMatchMode == .relaxedWindow {
+                line += " · muestra alineada con ventana ampliada (intervalo FC diaria en Salud)"
+            }
+            rhrVsBaselineLine = line
         } else {
             rhrVsBaselineLine = ""
         }
@@ -280,6 +297,46 @@ final class HomeViewModel {
         case .insufficient:
             quickMeaningLine = "Interpretación rápida: faltan datos clave para una lectura fiable."
         }
+
+        // Regularidad vs horario (solo si el usuario definió horario en Perfil)
+        if config.sleepGoal == nil {
+            sleepConsistencyLine = ""
+        } else {
+            let score = hk.sleepConsistencyScore
+            let label: String
+            switch score {
+            case 70...100: label = "alta"
+            case 40..<70: label = "media"
+            default: label = "baja"
+            }
+            if case .available = hk.sleepHours {
+                sleepConsistencyLine = String(format: "Regularidad vs tu horario: %d/100 (%@)", score, label)
+            } else {
+                sleepConsistencyLine = String(format: "Regularidad vs tu horario: %d/100 (%@) — sin sueño registrado en la ventana", score, label)
+            }
+        }
+
+        // Tendencia sueño vs media de noches completadas (excluye la noche que termina hoy)
+        if case .available(let lastNightH) = hk.sleepHours {
+            if let avg = hk.sleepHours14DayAverage, hk.sleepHistoryNightsCount >= 3 {
+                let diff = lastNightH - avg
+                if abs(diff) < 0.15 {
+                    sleepTrendLine = String(format: "Tendencia: anoche ~igual que tu media reciente (~%.1f h, %d noches).", avg, hk.sleepHistoryNightsCount)
+                } else if diff > 0 {
+                    sleepTrendLine = String(format: "Tendencia: anoche +%.1f h vs media ~%.1f h (%d noches).", diff, avg, hk.sleepHistoryNightsCount)
+                } else {
+                    sleepTrendLine = String(format: "Tendencia: anoche %.1f h vs media ~%.1f h (%d noches).", lastNightH, avg, hk.sleepHistoryNightsCount)
+                }
+            } else if hk.sleepHistoryNightsCount < 3 {
+                sleepTrendLine = "Tendencia: necesitamos al menos 3 noches con sueño registrado para calcular la media."
+            } else {
+                sleepTrendLine = ""
+            }
+        } else {
+            sleepTrendLine = ""
+        }
+
+        quickMeaningAccessibilityLabel = "Interpretación rápida. \(recoveryConfidenceLabel)."
     }
 
     private static func formatLocalTimeOnly(_ date: Date) -> String {
