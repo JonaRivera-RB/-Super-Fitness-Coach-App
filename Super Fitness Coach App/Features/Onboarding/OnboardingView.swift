@@ -33,6 +33,8 @@ struct OnboardingView: View {
                 goalStepView
             case .bodyMetrics:
                 bodyMetricsStepView
+            case .sleepSchedule:
+                sleepScheduleStepView
             }
 
             Spacer()
@@ -234,23 +236,16 @@ struct OnboardingView: View {
                 .controlSize(.large)
 
                 Button {
-                    Task {
-                        await viewModel.completeOnboarding()
-                        onComplete()
-                    }
+                    viewModel.nextStep()
                 } label: {
                     HStack {
-                        if viewModel.isCompleting {
-                            ProgressView()
-                                .tint(.white)
-                        }
-                        Text("Get Started")
+                        Text("Continue")
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(!viewModel.canProceedFromBodyMetrics || viewModel.isCompleting)
+                .disabled(!viewModel.canProceedFromBodyMetrics)
             }
             .padding(.horizontal, 40)
             }
@@ -330,6 +325,99 @@ struct OnboardingView: View {
                 }
             }
             .padding(.horizontal, 40)
+        }
+    }
+
+    // MARK: - Screen 5: Sleep Schedule (Optional)
+
+    private var sleepScheduleStepView: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "bed.double.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(Color.accentColor)
+
+            Text("Sleep Schedule (Optional)")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text("Set your usual bedtime and wake time so we can pick the right sleep session and improve recovery accuracy.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Toggle("Enable sleep schedule", isOn: $viewModel.sleepScheduleEnabled)
+                .padding(.horizontal, 40)
+
+            if viewModel.sleepScheduleEnabled {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Bedtime")
+                        Spacer()
+                        DatePicker("", selection: $viewModel.sleepBedtime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    HStack {
+                        Text("Wake")
+                        Spacer()
+                        DatePicker("", selection: $viewModel.sleepWakeTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    HStack {
+                        Text("Buffer")
+                        Spacer()
+                        Stepper("\(viewModel.sleepBufferMinutes) min", value: $viewModel.sleepBufferMinutes, in: 0...180, step: 5)
+                            .labelsHidden()
+                        Text("\(viewModel.sleepBufferMinutes) min")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 40)
+            }
+
+            HStack(spacing: 16) {
+                Button {
+                    viewModel.previousStep()
+                } label: {
+                    Text("Back")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button {
+                    Task {
+                        await viewModel.completeOnboarding()
+                        onComplete()
+                    }
+                } label: {
+                    HStack {
+                        if viewModel.isCompleting {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        Text("Get Started")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(viewModel.isCompleting)
+            }
+            .padding(.horizontal, 40)
+
+            Button {
+                // Skip: disable schedule and finish onboarding.
+                viewModel.sleepScheduleEnabled = false
+                Task {
+                    await viewModel.completeOnboarding()
+                    onComplete()
+                }
+            } label: {
+                Text("Skip for now")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 6)
         }
     }
 

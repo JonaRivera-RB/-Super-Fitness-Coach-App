@@ -19,7 +19,6 @@ struct ContentView: View {
 
     // Lazy-initialized services (depend on modelContext)
     @State private var servicesReady = false
-    @State private var workoutEngine: WorkoutEngine?
     @State private var gamificationEngine: GamificationEngine?
     @State private var exerciseService: ExerciseService?
     @State private var exerciseImageLoader: ExerciseImageLoader?
@@ -29,7 +28,6 @@ struct ContentView: View {
 
     // Cached ViewModels (prevent recreation on every render)
     @State private var homeViewModel: HomeViewModel?
-    @State private var workoutViewModel: WorkoutViewModel?
     @State private var statsViewModel: StatsViewModel?
     @State private var profileViewModel: ProfileViewModel?
     @State private var trainingPreferencesViewModel: TrainingPreferencesViewModel?
@@ -91,13 +89,10 @@ struct ContentView: View {
         OnboardingView(
             viewModel: OnboardingViewModel(
                 profileRepository: UserProfileRepository(context: modelContext),
-                workoutEngine: workoutEngine ?? WorkoutEngine(repository: WorkoutRepository(context: modelContext)),
                 healthKitManager: healthKitManager
             ),
             onComplete: { [self] in
-                // Re-initialize services if needed
                 initializeServices()
-                // Check onboarding status and transition UI
                 checkOnboarding()
             }
         )
@@ -139,22 +134,18 @@ struct ContentView: View {
 
     private var workoutTab: some View {
         Group {
-            if let vm = workoutViewModel {
-                WorkoutView(
-                    viewModel: vm,
-                    imageLoader: exerciseImageLoader,
-                    trainingPlanVM: trainingPlanViewModel,
-                    onNewTrainingPlan: { showingTrainingPreferences = true },
-                    onStartTrainingWorkout: { dayIndex in
-                        selectedDayIndex = dayIndex
-                        if let vm = buildWorkoutExecutorViewModel(for: dayIndex) {
-                            executorItem = ExecutorItem(viewModel: vm)
-                        }
+            WorkoutView(
+                trainingPlanVM: trainingPlanViewModel,
+                onNewTrainingPlan: { showingTrainingPreferences = true },
+                onStartTrainingWorkout: { dayIndex in
+                    selectedDayIndex = dayIndex
+                    if let vm = buildWorkoutExecutorViewModel(for: dayIndex) {
+                        executorItem = ExecutorItem(viewModel: vm)
                     }
-                )
-                .task {
-                    trainingPlanViewModel?.loadPlan()
                 }
+            )
+            .task {
+                trainingPlanViewModel?.loadPlan()
             }
         }
         .onChange(of: selectedTab) { _, tab in
@@ -281,7 +272,6 @@ struct ContentView: View {
         if let profile = try? repo.fetch(), profile.onboardingCompleted {
             userProfile = profile
             hasCompletedOnboarding = true
-            checkWeeklyPlanRegeneration()
             createViewModels()
         } else {
             hasCompletedOnboarding = false
@@ -291,18 +281,15 @@ struct ContentView: View {
 
     private func initializeServices() {
         guard !servicesReady else { return }
-        
-        let workoutRepo = WorkoutRepository(context: modelContext)
+
         let gamificationRepo = GamificationRepository(context: modelContext)
         let detoxRepo = DetoxRepository(context: modelContext)
 
-        let we = WorkoutEngine(repository: workoutRepo)
         let ge = GamificationEngine(repository: gamificationRepo)
         let es = ExerciseService(apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5")
         let eil = ExerciseImageLoader(apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5")
         let dm = DetoxManager(repository: detoxRepo, gamificationEngine: ge)
 
-        workoutEngine = we
         gamificationEngine = ge
         exerciseService = es
         exerciseImageLoader = eil
@@ -312,36 +299,20 @@ struct ContentView: View {
     }
 
     private func createViewModels() {
-        guard let we = workoutEngine,
-              let ge = gamificationEngine,
+        guard let ge = gamificationEngine,
               let es = exerciseService,
-              let dm = detoxManager else { return }
+              let dm = detoxManager,
+              let repo = trainingPlanRepository else { return }
 
         if homeViewModel == nil {
             homeViewModel = HomeViewModel(
                 healthKitManager: healthKitManager,
-                workoutEngine: we,
+                trainingPlanRepository: repo,
                 gamificationEngine: ge,
                 detoxManager: dm,
                 notificationService: notificationService,
                 userProfileRepository: UserProfileRepository(context: modelContext),
                 userName: userProfile?.name ?? ""
-            )
-        }
-        if workoutViewModel == nil {
-            let bmiCategory: BMICategory?
-            if let w = userProfile?.weightKg, let h = userProfile?.heightCm, h > 0 {
-                let bmi = WorkoutEngine.calculateBMI(weightKg: w, heightCm: h)
-                bmiCategory = WorkoutEngine.bmiCategory(bmi: bmi)
-            } else {
-                bmiCategory = nil
-            }
-            workoutViewModel = WorkoutViewModel(
-                workoutEngine: we,
-                exerciseService: es,
-                gamificationEngine: ge,
-                healthKitManager: healthKitManager,
-                bmiCategory: bmiCategory
             )
         }
         if statsViewModel == nil {
@@ -351,59 +322,30 @@ struct ContentView: View {
             profileViewModel = ProfileViewModel(
                 userProfileRepository: UserProfileRepository(context: modelContext),
                 healthKitManager: healthKitManager,
-                workoutEngine: we,
                 notificationService: notificationService
             )
         }
-        if trainingPreferencesViewModel == nil, let repo = trainingPlanRepository {
+        if trainingPreferencesViewModel == nil {
             trainingPreferencesViewModel = TrainingPreferencesViewModel(
                 exerciseService: es,
                 repository: repo
             )
         }
-        if trainingPlanViewModel == nil, let repo = trainingPlanRepository {
+        if trainingPlanViewModel == nil {
             let dayMgr = DayManager(repository: repo)
-            let tpvm = TrainingPlanViewModel(
-                repository: repo,
-                dayManager: dayMgr
-            )
+            let tpvm = TrainingPlanViewModel(repository: repo, dayManager: dayMgr)
             trainingPlanViewModel = tpvm
-            // Defer loadPlan to next runloop cycle so SwiftData context is fully ready
-            Task { @MainActor in
-                tpvm.loadPlan()
-            }
+            Task { @MainActor in tpvm.loadPlan() }
         }
     }
 
-    // MARK: - Weekly Plan Auto-Regeneration
-
-    /// Check if a new week has started (Monday 00:00) and regenerate the plan if needed.
-    private func checkWeeklyPlanRegeneration() {
-        guard let we = workoutEngine, let profile = userProfile else { return }
-
-        let workoutRepo = WorkoutRepository(context: modelContext)
-        let currentMonday = WorkoutEngine.currentWeekMonday()
-
-        if let existingPlan = try? workoutRepo.fetchCurrentWeekPlan() {
-            let calendar = Calendar.current
-            let planMonday = calendar.startOfDay(for: existingPlan.weekStartDate)
-            if planMonday < currentMonday {
-                // New week — regenerate with body metrics
-                let _ = we.generateWeeklyPlan(goal: profile.fitnessGoal, weightKg: profile.weightKg, heightCm: profile.heightCm)
-            }
-        } else {
-            // No plan exists — generate one with body metrics
-            let _ = we.generateWeeklyPlan(goal: profile.fitnessGoal, weightKg: profile.weightKg, heightCm: profile.heightCm)
-        }
-    }
+    // MARK: - Weekly Plan Auto-Regeneration removed (legacy system eliminated)
 }
 
 #Preview {
     ContentView()
         .modelContainer(for: [
             UserProfile.self,
-            WeeklyPlan.self,
-            WorkoutSession.self,
             GamificationState.self,
             DetoxProgress.self,
             TrainingPlan.self,

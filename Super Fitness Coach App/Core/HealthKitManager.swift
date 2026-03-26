@@ -11,11 +11,28 @@ final class HealthKitManager {
 
     // MARK: - Published Properties
 
+    enum DataConfidenceLevel: String, Codable {
+        case insufficient
+        case high
+        case medium
+        case low
+
+        var labelEs: String {
+            switch self {
+            case .insufficient: return "Datos insuficientes"
+            case .high: return "Altamente confiable"
+            case .medium: return "Confiabilidad media"
+            case .low: return "Poco confiable"
+            }
+        }
+    }
+
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
     private(set) var recoveryScore: HealthDataStatus<Int> = .loading
     private(set) var activityScore: HealthDataStatus<Int> = .loading
     private(set) var recoveryBreakdown: ScoreBreakdown?
     private(set) var activityBreakdown: ScoreBreakdown?
+    private(set) var recoveryConfidence: DataConfidenceLevel = .low
 
     // Individual metrics
     private(set) var sleepHours: HealthDataStatus<Double> = .loading
@@ -25,6 +42,13 @@ final class HealthKitManager {
     private(set) var hrv: HealthDataStatus<Double> = .loading
     private(set) var stepCount: HealthDataStatus<Double> = .loading
     private(set) var activeEnergy: HealthDataStatus<Double> = .loading
+
+    /// Last refresh: main sleep interval from HealthKit (for UI). Not the user's goal window.
+    private(set) var sleepSessionStart: Date?
+    private(set) var sleepSessionEnd: Date?
+    /// Baselines used for scoring this refresh (14-day auto or profile fallback).
+    private(set) var restingHRBaselineUsed: Double?
+    private(set) var hrvBaselineUsed: Double?
 
     // MARK: - Private
 
@@ -145,7 +169,26 @@ final class HealthKitManager {
         // Query metrics concurrently (except HRV/RHR which depend on sleep window)
         // Sleep: uses smart range that crosses midnight
         // Steps/Calories: today only (matches Apple Health day view)
-        async let fetchedSleepPhases = querySleepPhases(store: healthStore, end: now)
+        let expectedWindow = SleepWindowBuilder.build(
+            goal: config.sleepGoal,
+            referenceDate: now,
+            bufferMinutes: config.bufferMinutes
+        )
+        logger.info("""
+        sleep-window (UTC):
+        expectedStart=\(expectedWindow.expectedStart)
+        expectedEnd=\(expectedWindow.expectedEnd)
+        adjustedStart=\(expectedWindow.adjustedStart)
+        adjustedEnd=\(expectedWindow.adjustedEnd)
+        isFallback=\(expectedWindow.isFallback)
+        sleep-window (local): expected \(Self.formatLocalTime(expectedWindow.expectedStart))–\(Self.formatLocalTime(expectedWindow.expectedEnd)) | adjusted \(Self.formatLocalTime(expectedWindow.adjustedStart))–\(Self.formatLocalTime(expectedWindow.adjustedEnd))
+        """)
+
+        async let fetchedSleepDetection = querySleepDetection(
+            store: healthStore,
+            window: expectedWindow,
+            goal: config.sleepGoal
+        )
         async let fetchedSteps = queryQuantityCumulative(store: healthStore, type: .stepCount, unit: .count(), start: startOfToday, end: now)
         async let fetchedEnergy = queryQuantityCumulative(store: healthStore, type: .activeEnergyBurned, unit: .kilocalorie(), start: startOfToday, end: now)
         // Auto-baselines: average over last 14 days
@@ -153,15 +196,32 @@ final class HealthKitManager {
         async let fetchedHRVBaseline = queryHRVBaseline(store: healthStore, end: now)
 
         // Await sleep phases first to get the sleep window for HRV/RHR validation
-        let sleepPhases = await fetchedSleepPhases
+        let sleepDetection = await fetchedSleepDetection
+        let sessionLocal: String
+        if let s = sleepDetection.sessionStart, let e = sleepDetection.sessionEnd {
+            sessionLocal = "\(Self.formatLocalTime(s)) → \(Self.formatLocalTime(e)) (HealthKit merged asleep interval, not your goal times)"
+        } else {
+            sessionLocal = "nil"
+        }
+        logger.info("""
+        sleep-detection:
+        detected=\(sleepDetection.sleepDetected)
+        rawSamples=\(sleepDetection.rawSampleCount)
+        mergedSessions=\(sleepDetection.mergedSessionCount)
+        sessionStartUTC=\(sleepDetection.sessionStart?.description ?? "nil")
+        sessionEndUTC=\(sleepDetection.sessionEnd?.description ?? "nil")
+        sessionLocal=\(sessionLocal)
+        sleepConfidence=\(String(format: "%.2f", sleepDetection.sleepConfidence))
+        consistency=\(sleepDetection.sleepConsistencyScore)
+        """)
 
         // Conditionally query HRV and RHR based on sleep window availability
         let rhr: Double?
         let hrvMs: Double?
 
-        if let sessionStart = sleepPhases.sessionStart, let sessionEnd = sleepPhases.sessionEnd {
+        if let sessionStart = sleepDetection.sessionStart, let sessionEnd = sleepDetection.sessionEnd {
             // Sleep window available — use queryQuantityInSleepWindow to filter by sleep window
-            logger.info("Sleep window validation: sleepStart=\(sessionStart) sleepEnd=\(sessionEnd)")
+            logger.info("Sleep window validation: sleepStartUTC=\(sessionStart) sleepEndUTC=\(sessionEnd) | local \(Self.formatLocalTime(sessionStart))–\(Self.formatLocalTime(sessionEnd))")
             async let fetchedRHR = queryQuantityInSleepWindow(store: healthStore, type: .restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
             async let fetchedHRV = queryQuantityInSleepWindow(store: healthStore, type: .heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: twentyFourHoursAgo, end: now, sleepStart: sessionStart, sleepEnd: sessionEnd)
             rhr = await fetchedRHR?.value
@@ -182,26 +242,43 @@ final class HealthKitManager {
         let autoBaseline = await fetchedBaseline
         let autoHRVBaseline = await fetchedHRVBaseline
 
+        // Compute overall confidence based on available signals.
+        let hasRHR = (rhr != nil)
+        let hasHRV = (hrvMs != nil)
+        recoveryConfidence = Self.computeRecoveryConfidence(
+            sleepDetected: sleepDetection.sleepDetected,
+            sleepConfidence: sleepDetection.sleepConfidence,
+            hasRHR: hasRHR,
+            hasHRV: hasHRV
+        )
+        logger.info("recovery-confidence: \(self.recoveryConfidence.rawValue) (\(self.recoveryConfidence.labelEs))")
+
         // Use auto-calculated baselines if available, otherwise fall back to config/defaults
         let effectiveBaseline = autoBaseline ?? config.baselineRestingHR
         let effectiveHRVBaseline = autoHRVBaseline ?? 60.0 // default 60ms if no history
-        logger.info("refreshHealthData results — sleep: \(sleepPhases.total.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal, rhrBaseline: \(String(format: "%.0f", effectiveBaseline))bpm, hrvBaseline: \(String(format: "%.0f", effectiveHRVBaseline))ms")
+        self.sleepSessionStart = sleepDetection.sessionStart
+        self.sleepSessionEnd = sleepDetection.sessionEnd
+        self.restingHRBaselineUsed = effectiveBaseline
+        self.hrvBaselineUsed = effectiveHRVBaseline
+        logger.info("refreshHealthData results — sleep: \(sleepDetection.totalSleepHours.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal, rhrBaseline: \(String(format: "%.0f", effectiveBaseline))bpm, hrvBaseline: \(String(format: "%.0f", effectiveHRVBaseline))ms")
 
         // Map each query result to HealthDataStatus
-        self.sleepHours = sleepPhases.total.map { .available($0) } ?? .unavailable
-        self.deepSleepHours = sleepPhases.deep.map { .available($0) } ?? .unavailable
-        self.remSleepHours = sleepPhases.rem.map { .available($0) } ?? .unavailable
+        self.sleepHours = sleepDetection.totalSleepHours.map { .available($0) } ?? .unavailable
+        self.deepSleepHours = sleepDetection.deepSleepHours.map { .available($0) } ?? .unavailable
+        self.remSleepHours = sleepDetection.remSleepHours.map { .available($0) } ?? .unavailable
         self.restingHR = rhr.map { .available($0) } ?? .unavailable
         self.hrv = hrvMs.map { .available($0) } ?? .unavailable
         self.stepCount = steps.map { .available($0) } ?? .unavailable
         self.activeEnergy = energy.map { .available($0) } ?? .unavailable
 
         // --- Calculate Recovery Score ---
-        if let totalSleep = sleepPhases.total {
+        if let totalSleep = sleepDetection.totalSleepHours {
             let sleepQualityScore = Self.calculateSleepQualityScore(
-                totalHours: totalSleep, deepHours: sleepPhases.deep,
-                remHours: sleepPhases.rem, sleepGoal: config.sleepGoalHours
+                totalHours: totalSleep, deepHours: sleepDetection.deepSleepHours,
+                remHours: sleepDetection.remSleepHours, sleepGoal: config.sleepGoalHours
             )
+            let effectiveSleepScore = sleepQualityScore * sleepDetection.sleepConfidence
+            logger.info("recovery: sleepQuality=\(String(format: "%.1f", sleepQualityScore)) confidence=\(String(format: "%.2f", sleepDetection.sleepConfidence)) effectiveSleep=\(String(format: "%.1f", effectiveSleepScore))")
             let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
             let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
 
@@ -213,13 +290,13 @@ final class HealthKitManager {
             let weights = Self.redistributeWeights(availableComponents: availableRecovery, originalWeights: originalWeights)
 
             let recScore = Self.calculateRecoveryScore(
-                sleepQualityScore: sleepQualityScore,
+                sleepQualityScore: effectiveSleepScore,
                 restingHRScore: restingHRScore ?? 0,
                 hrvScore: hrvNormalized
             )
             self.recoveryScore = .available(recScore)
             self.recoveryBreakdown = Self.buildRecoveryBreakdown(
-                sleepQualityScore: sleepQualityScore, sleepRawHours: totalSleep, sleepGoal: config.sleepGoalHours,
+                sleepQualityScore: effectiveSleepScore, sleepRawHours: totalSleep, sleepGoal: config.sleepGoalHours,
                 restingHRScore: restingHRScore ?? 0, restingHRRaw: rhr ?? 0, baseline: effectiveBaseline,
                 hrvScore: hrvNormalized, hrvRawMs: hrvMs, finalScore: recScore, weights: weights
             )
@@ -236,15 +313,9 @@ final class HealthKitManager {
             if let h = hrvNormalized, let w = weights["hrv"] { score += h * w }
             self.recoveryScore = .available(Int(round(score)))
             self.recoveryBreakdown = nil
-        } else if steps != nil || energy != nil {
-            let stepsNorm = steps.map { Self.normalizeSteps(actual: $0, goal: config.stepsGoal) } ?? 0
-            let calNorm = energy.map { Self.normalizeCalories(actual: $0, goal: config.calorieGoal) } ?? 0
-            let activityLevel = (stepsNorm + calNorm) / 2.0
-            let estimatedRecovery = Int(round(70.0 - activityLevel * 0.30))
-            self.recoveryScore = .available(max(20, min(80, estimatedRecovery)))
-            self.recoveryBreakdown = nil
         } else {
-            self.recoveryScore = .unavailable
+            // Neutral recovery when no sleep and no HRV/RHR.
+            self.recoveryScore = .available(50)
             self.recoveryBreakdown = nil
         }
 
@@ -394,6 +465,12 @@ final class HealthKitManager {
                 let sum = samples.reduce(0.0) { $0 + $1.quantity.doubleValue(for: unit) }
                 let avg = sum / Double(samples.count)
                 self.logger.info("Resting HR baseline: \(String(format: "%.0f", avg))bpm from \(samples.count) samples over 14 days")
+                
+                for sample in samples {
+                    let value = sample.quantity.doubleValue(for: unit)
+                    self.logger.info("RHR sample: \(sample.startDate) → \(sample.endDate) | value: \(value)")
+                }
+                
                 continuation.resume(returning: avg)
             }
             store.execute(query)
@@ -571,6 +648,16 @@ final class HealthKitManager {
 
     // MARK: - Private Helpers
 
+    /// For logs: same `Date` as the user sees in Settings / Health app (not UTC).
+    private static func formatLocalTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = .current
+        f.timeZone = .current
+        f.dateStyle = .medium
+        f.timeStyle = .medium
+        return f.string(from: date)
+    }
+
     private func applyDefaults() {
         sleepHours = .unavailable
         deepSleepHours = .unavailable
@@ -583,135 +670,91 @@ final class HealthKitManager {
         activityScore = .unavailable
         recoveryBreakdown = nil
         activityBreakdown = nil
+        recoveryConfidence = .low
+        sleepSessionStart = nil
+        sleepSessionEnd = nil
+        restingHRBaselineUsed = nil
+        hrvBaselineUsed = nil
+    }
+
+    private static func computeRecoveryConfidence(
+        sleepDetected: Bool,
+        sleepConfidence: Double,
+        hasRHR: Bool,
+        hasHRV: Bool
+    ) -> DataConfidenceLevel {
+        // Insufficient: no sleep detected and no physiological signals.
+        if !sleepDetected, !(hasRHR || hasHRV) {
+            return .insufficient
+        }
+
+        // High: sleep session detected with strong overlap + at least one physiological signal.
+        if sleepDetected, sleepConfidence >= 0.80, (hasRHR || hasHRV) {
+            return .high
+        }
+
+        // Medium: sleep session detected with reasonable overlap, or sleep is strong but only sleep is available.
+        if sleepDetected, sleepConfidence >= 0.50 {
+            return .medium
+        }
+        if sleepDetected, sleepConfidence >= 0.80, !(hasRHR || hasHRV) {
+            return .medium
+        }
+
+        // Low: no sleep detected (but HRV/RHR exists), or weak sleep overlap.
+        return .low
     }
 
     // MARK: - HealthKit Queries
 
-    /// Sleep query: finds the most recent sleep session from HealthKit data.
-    /// 
-    /// Approach (based on Apple DTS recommendations):
-    /// 1. Query asleep samples from last 24h (covers any sleep schedule)
-    /// 2. Merge overlapping intervals to avoid double-counting (Watch + iPhone)
-    /// 3. Group merged intervals into sessions (gap > 2h = separate session)
-    /// 4. Return only the most recent session
-    ///
-    /// Note: Apple's sleep schedule is user-configured and not accessible via HealthKit API,
-    /// so we detect sessions from the actual data instead of assuming fixed hours.
-    private func querySleepPhases(store: HKHealthStore, end: Date) async -> (total: Double?, deep: Double?, rem: Double?, sessionStart: Date?, sessionEnd: Date?) {
+    /// Sleep query: fetch raw HealthKit samples in the adjusted window and select the main
+    /// session using SleepSessionFilter (merging, nap exclusion, confidence).
+    private func querySleepDetection(
+        store: HKHealthStore,
+        window: SleepWindowBuilder.ExpectedSleepWindow,
+        goal: SleepGoal?
+    ) async -> SleepDetectionResult {
         let sleepType = HKCategoryType(.sleepAnalysis)
-        let lookback = Calendar.current.date(byAdding: .hour, value: -24, to: end)!
-        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: end, options: [])
+        let predicate = HKQuery.predicateForSamples(withStart: window.adjustedStart, end: window.adjustedEnd, options: [])
 
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(
-                sampleType: sleepType, predicate: predicate,
-                limit: HKObjectQueryNoLimit, sortDescriptors: nil
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
             ) { [self] _, samples, error in
                 if let error {
                     self.logger.error("Sleep query failed: \(error.localizedDescription)")
-                    continuation.resume(returning: (nil, nil, nil, nil, nil))
-                    return
-                }
-                guard let samples = samples as? [HKCategorySample], !samples.isEmpty else {
-                    continuation.resume(returning: (nil, nil, nil, nil, nil))
-                    return
-                }
-
-                let asleepValues: Set<Int> = [
-                    HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepREM.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
-                ]
-
-                let asleepSamples = samples.filter { asleepValues.contains($0.value) }
-                guard !asleepSamples.isEmpty else {
-                    continuation.resume(returning: (nil, nil, nil, nil, nil))
+                    continuation.resume(returning: SleepDetectionResult(
+                        sleepDetected: false,
+                        sessionStart: nil,
+                        sessionEnd: nil,
+                        totalSleepHours: nil,
+                        deepSleepHours: nil,
+                        remSleepHours: nil,
+                        sleepConfidence: 0.2,
+                        sleepConsistencyScore: 0,
+                        rawSampleCount: 0,
+                        mergedSessionCount: 0
+                    ))
                     return
                 }
 
-                // Step 1: Merge all overlapping intervals to get clean time blocks
-                let allIntervals = asleepSamples.map { ($0.startDate, $0.endDate) }
-                let merged = Self.mergeIntervals(allIntervals)
+                let hkSamples = (samples as? [HKCategorySample]) ?? []
+                let result = SleepSessionFilter.process(samples: hkSamples, window: window, goal: goal)
 
-                // Step 2: Group merged intervals into sessions (gap > 2h = new session)
-                let sessionGap: TimeInterval = 2 * 60 * 60
-                var sessions: [[(Date, Date)]] = []
-                var currentSession: [(Date, Date)] = []
-
-                for interval in merged {
-                    if let last = currentSession.last, interval.0.timeIntervalSince(last.1) > sessionGap {
-                        sessions.append(currentSession)
-                        currentSession = [interval]
-                    } else {
-                        currentSession.append(interval)
-                    }
-                }
-                if !currentSession.isEmpty {
-                    sessions.append(currentSession)
+                if hkSamples.isEmpty {
+                    self.logger.info("Sleep query: 0 samples in adjusted window")
+                } else {
+                    self.logger.info("Sleep query: \(hkSamples.count) samples in adjusted window")
                 }
 
-                // Step 3: Take the most recent session (last one, since merged is sorted)
-                guard let latestSession = sessions.last else {
-                    continuation.resume(returning: (nil, nil, nil, nil, nil))
-                    return
-                }
-
-                let sessionStart = latestSession.first!.0
-                let sessionEnd = latestSession.last!.1
-                let totalSeconds = latestSession.reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) }
-
-                // Step 4: Deep and REM — filter original samples to this session's time range,
-                // then merge their intervals separately
-                let sessionSamples = asleepSamples.filter { $0.startDate >= sessionStart && $0.endDate <= sessionEnd }
-
-                let deepIntervals = sessionSamples
-                    .filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
-                    .map { ($0.startDate, $0.endDate) }
-                let deepSeconds = Self.mergeAndSum(intervals: deepIntervals)
-
-                let remIntervals = sessionSamples
-                    .filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
-                    .map { ($0.startDate, $0.endDate) }
-                let remSeconds = Self.mergeAndSum(intervals: remIntervals)
-
-                let totalHours = totalSeconds / 3600.0
-                let deepHours = deepSeconds / 3600.0
-                let remHours = remSeconds / 3600.0
-
-                self.logger.info("Sleep: \(sessionSamples.count) samples in session, \(String(format: "%.1f", totalHours))h total (deep: \(String(format: "%.1f", deepHours))h, rem: \(String(format: "%.1f", remHours))h), session: \(sessionStart) → \(sessionEnd)")
-
-                continuation.resume(returning: (
-                    totalHours > 0 ? totalHours : nil,
-                    deepHours > 0 ? deepHours : nil,
-                    remHours > 0 ? remHours : nil,
-                    sessionStart,
-                    sessionEnd
-                ))
+                continuation.resume(returning: result)
             }
+
             store.execute(query)
         }
-    }
-
-    /// Merge overlapping time intervals into non-overlapping blocks, sorted by start.
-    private static func mergeIntervals(_ intervals: [(Date, Date)]) -> [(Date, Date)] {
-        guard !intervals.isEmpty else { return [] }
-        let sorted = intervals.sorted { $0.0 < $1.0 }
-        var merged: [(Date, Date)] = [sorted[0]]
-        for interval in sorted.dropFirst() {
-            let last = merged[merged.count - 1]
-            if interval.0 <= last.1 {
-                merged[merged.count - 1] = (last.0, max(last.1, interval.1))
-            } else {
-                merged.append(interval)
-            }
-        }
-        return merged
-    }
-
-    /// Merge overlapping intervals and return total seconds.
-    private static func mergeAndSum(intervals: [(Date, Date)]) -> TimeInterval {
-        return mergeIntervals(intervals).reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) }
     }
 
     private func queryQuantity(store: HKHealthStore, type: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date) async -> Double? {
@@ -744,10 +787,11 @@ final class HealthKitManager {
         }
     }
 
-    /// Query the most recent sample of a given type whose interval overlaps with the sleep window.
-    /// Uses `HKObjectQueryNoLimit` and sorts by `startDate` descending, then returns the first
-    /// sample where `sampleStart < sleepEnd AND sampleEnd > sleepStart`.
-    /// Returns `nil` if no overlapping sample is found.
+    /// Query a quantity sample best associated with the sleep window.
+    /// 1) Strict interval overlap with `[sleepStart, sleepEnd]`.
+    /// 2) If none (common for Resting HR “daily” intervals), pick the sample with **maximum overlap**
+    ///    with sleep; if still zero, use a **slightly expanded** sleep window for RHR only (HealthKit
+    ///    often stores RHR in intervals that don’t align with asleep segments).
     private func queryQuantityInSleepWindow(
         store: HKHealthStore,
         type: HKQuantityTypeIdentifier,
@@ -758,7 +802,10 @@ final class HealthKitManager {
         sleepEnd: Date
     ) async -> (value: Double, startDate: Date, endDate: Date)? {
         let quantityType = HKQuantityType(type)
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let predicate = HKQuery.predicateForSamples(withStart: start,
+                                                    end: end,
+                                                    options: [])
+        
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
         return await withCheckedContinuation { continuation in
@@ -778,16 +825,67 @@ final class HealthKitManager {
                     return
                 }
 
-                // Find the first (most recent due to descending sort) sample that overlaps with the sleep window
+                func overlapSeconds(_ a0: Date, _ a1: Date, _ b0: Date, _ b1: Date) -> TimeInterval {
+                    let s = max(a0, b0)
+                    let e = min(a1, b1)
+                    return max(0, e.timeIntervalSince(s))
+                }
+
+                // 1) Strict overlap — prefer most recent start among ties (query already sorted desc by start)
                 for sample in quantitySamples {
                     if sample.startDate < sleepEnd && sample.endDate > sleepStart {
                         let value = sample.quantity.doubleValue(for: unit)
+                        self.logger.info("queryQuantityInSleepWindow \(type.rawValue): strict overlap \(sample.startDate) → \(sample.endDate)")
                         continuation.resume(returning: (value: value, startDate: sample.startDate, endDate: sample.endDate))
                         return
                     }
                 }
 
-                // No sample overlaps with the sleep window
+                // 2) Best overlap duration with asleep window
+                var best: HKQuantitySample?
+                var bestOverlap: TimeInterval = 0
+                for sample in quantitySamples {
+                    let o = overlapSeconds(sample.startDate, sample.endDate, sleepStart, sleepEnd)
+                    if o > bestOverlap {
+                        bestOverlap = o
+                        best = sample
+                    }
+                }
+                if let best, bestOverlap > 0 {
+                    let value = best.quantity.doubleValue(for: unit)
+                    self.logger.info("queryQuantityInSleepWindow \(type.rawValue): max partial overlap=\(Int(bestOverlap))s \(best.startDate) → \(best.endDate)")
+                    continuation.resume(returning: (value: value, startDate: best.startDate, endDate: best.endDate))
+                    return
+                }
+
+                // 3) Resting HR: expand search window (Apple’s RHR intervals often end before final awake time)
+                if type == .restingHeartRate {
+                    let expandPre: TimeInterval = -3 * 3600
+                    let expandPost: TimeInterval = 3600
+                    let win0 = sleepStart.addingTimeInterval(expandPre)
+                    let win1 = sleepEnd.addingTimeInterval(expandPost)
+                    var bestR: HKQuantitySample?
+                    var bestRO: TimeInterval = 0
+                    for sample in quantitySamples {
+                        let o = overlapSeconds(sample.startDate, sample.endDate, win0, win1)
+                        if o > bestRO {
+                            bestRO = o
+                            bestR = sample
+                        }
+                    }
+                    if let bestR, bestRO > 0 {
+                        let value = bestR.quantity.doubleValue(for: unit)
+                        self.logger.info("queryQuantityInSleepWindow RHR: relaxed-window overlap=\(Int(bestRO))s \(bestR.startDate) → \(bestR.endDate)")
+                        continuation.resume(returning: (value: value, startDate: bestR.startDate, endDate: bestR.endDate))
+                        return
+                    }
+                }
+
+                for sample in quantitySamples {
+                    let value = sample.quantity.doubleValue(for: unit)
+                    self.logger.info("RHR sample del dia: \(sample.startDate) → \(sample.endDate) | value: \(value)")
+                }
+
                 continuation.resume(returning: nil)
             }
             store.execute(query)

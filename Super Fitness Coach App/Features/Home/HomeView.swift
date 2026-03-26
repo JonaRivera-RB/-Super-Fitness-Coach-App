@@ -20,6 +20,7 @@ struct HomeView: View {
                     coachSummarySection
                     actionCardSection
                     recoveryScoreSection
+                    lastNightContextSection
                     activityScoreSection
                     pointsSection
                     if viewModel.detoxActive {
@@ -207,6 +208,13 @@ struct HomeView: View {
                 descriptiveLabel: viewModel.recoveryLabel
             )
 
+            if !(viewModel.isLoading || viewModel.recoveryScore.isLoading) {
+                Text("Confianza: \(viewModel.recoveryConfidenceLabel)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Confianza del recovery: \(viewModel.recoveryConfidenceLabel)")
+            }
+
             Button {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     showRecoveryBreakdown.toggle()
@@ -234,6 +242,75 @@ struct HomeView: View {
             RoundedRectangle(cornerRadius: 20)
                 .fill(recoveryColor.opacity(0.08))
         )
+    }
+
+    // MARK: - Last night (sleep window + vs baseline)
+
+    @ViewBuilder
+    private var lastNightContextSection: some View {
+        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+            EmptyView()
+        } else if viewModel.lastNightSleepSummary.isEmpty,
+                  viewModel.lastNightSleepWindow.isEmpty,
+                  viewModel.quickMeaningLine.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Anoche", systemImage: "moon.zzz.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text(viewModel.lastNightSleepSummary)
+                    .font(.body)
+                    .fontWeight(.medium)
+
+                if !viewModel.quickMeaningLine.isEmpty {
+                    Text(viewModel.quickMeaningLine)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                }
+
+                if !viewModel.lastNightSleepWindow.isEmpty {
+                    Text(viewModel.lastNightSleepWindow)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                DisclosureGroup("Ver detalles (Apple Health)") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !viewModel.sleepGoalComparisonLine.isEmpty {
+                            Text(viewModel.sleepGoalComparisonLine)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if !viewModel.rhrVsBaselineLine.isEmpty {
+                            Text(viewModel.rhrVsBaselineLine)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                        }
+
+                        if !viewModel.hrvVsBaselineLine.isEmpty {
+                            Text(viewModel.hrvVsBaselineLine)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                        }
+
+                        Text("La FC y el HRV se comparan con tu media de 14 días. No sustituye consejo médico.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemGray6))
+            )
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: - Activity Score Section

@@ -11,6 +11,7 @@ enum OnboardingStep: Int, CaseIterable {
     case name = 1
     case goal = 2
     case bodyMetrics = 3
+    case sleepSchedule = 4
 }
 
 @Observable
@@ -30,8 +31,14 @@ final class OnboardingViewModel {
     var isHealthKitMetricsLoaded: Bool = false
     var healthKitMetricsLabel: String? = nil
 
+    // Sleep schedule (optional step)
+    var sleepBedtime: Date = Date()
+    var sleepWakeTime: Date = Date()
+    var sleepBufferMinutes: Int = 60
+    var sleepScheduleEnabled: Bool = false
+    var sleepScheduleValidationError: String?
+
     private let profileRepository: UserProfileRepository
-    private let workoutEngine: WorkoutEngine
     private let healthKitManager: HealthKitManager
 
     var canProceedFromName: Bool {
@@ -54,12 +61,15 @@ final class OnboardingViewModel {
 
     init(
         profileRepository: UserProfileRepository,
-        workoutEngine: WorkoutEngine,
         healthKitManager: HealthKitManager
     ) {
         self.profileRepository = profileRepository
-        self.workoutEngine = workoutEngine
         self.healthKitManager = healthKitManager
+
+        let cal = Calendar.current
+        let startOfDay = cal.startOfDay(for: Date())
+        self.sleepBedtime = cal.date(bySettingHour: 23, minute: 0, second: 0, of: startOfDay) ?? Date()
+        self.sleepWakeTime = cal.date(bySettingHour: 7, minute: 0, second: 0, of: startOfDay) ?? Date()
     }
 
     func nextStep() {
@@ -183,6 +193,11 @@ final class OnboardingViewModel {
             existing.heightCm = heightCm
             existing.unitPreference = unitPreference
             existing.onboardingCompleted = true
+
+            // Persist sleep schedule into FitnessConfig (additive/backward compatible)
+            let currentConfig = existing.effectiveFitnessConfig
+            let updatedConfig = updatedFitnessConfig(from: currentConfig)
+            existing.fitnessConfig = updatedConfig
             try? profileRepository.save(existing)
         } else {
             let profile = UserProfile(
@@ -192,9 +207,51 @@ final class OnboardingViewModel {
                 heightCm: heightCm,
                 unitPreference: unitPreference
             )
+            profile.fitnessConfig = updatedFitnessConfig(from: profile.effectiveFitnessConfig)
             try? profileRepository.save(profile)
         }
+    }
 
-        _ = workoutEngine.generateWeeklyPlan(goal: selectedGoal, weightKg: weightKg, heightCm: heightCm)
+    private func updatedFitnessConfig(from base: FitnessConfig) -> FitnessConfig {
+        if sleepScheduleEnabled {
+            let cal = Calendar.current
+            let bedComps = cal.dateComponents([.hour, .minute], from: sleepBedtime)
+            let wakeComps = cal.dateComponents([.hour, .minute], from: sleepWakeTime)
+            let goal = SleepGoal(targetSleepTime: bedComps, targetWakeTime: wakeComps)
+
+            if !goal.isValid {
+                // Don't block onboarding; just drop the schedule if invalid.
+                return FitnessConfig(
+                    sleepGoalHours: base.sleepGoalHours,
+                    stepsGoal: base.stepsGoal,
+                    calorieGoal: base.calorieGoal,
+                    baselineRestingHR: base.baselineRestingHR,
+                    fitnessLevel: base.fitnessLevel,
+                    sleepGoal: nil,
+                    bufferMinutes: base.bufferMinutes
+                )
+            }
+
+            let clampedBuffer = max(0, min(180, sleepBufferMinutes))
+            return FitnessConfig(
+                sleepGoalHours: base.sleepGoalHours,
+                stepsGoal: base.stepsGoal,
+                calorieGoal: base.calorieGoal,
+                baselineRestingHR: base.baselineRestingHR,
+                fitnessLevel: base.fitnessLevel,
+                sleepGoal: goal,
+                bufferMinutes: clampedBuffer
+            )
+        } else {
+            return FitnessConfig(
+                sleepGoalHours: base.sleepGoalHours,
+                stepsGoal: base.stepsGoal,
+                calorieGoal: base.calorieGoal,
+                baselineRestingHR: base.baselineRestingHR,
+                fitnessLevel: base.fitnessLevel,
+                sleepGoal: nil,
+                bufferMinutes: base.bufferMinutes
+            )
+        }
     }
 }

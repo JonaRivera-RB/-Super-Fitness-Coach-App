@@ -32,23 +32,28 @@ final class ProfileViewModel {
     var isEditingFitnessConfig: Bool = false
     var fitnessConfigValidationError: String?
 
+    // Sleep schedule editing (bedtime/wake time + buffer)
+    private(set) var sleepGoal: SleepGoal? = nil
+    private(set) var sleepGoalBedtime: Date = Date()
+    private(set) var sleepGoalWakeTime: Date = Date()
+    private(set) var bufferMinutes: Int = 60
+    var isEditingSleepSchedule: Bool = false
+    var sleepScheduleValidationError: String?
+
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
 
     private let userProfileRepository: UserProfileRepository
     private let healthKitManager: HealthKitManager
-    private let workoutEngine: WorkoutEngine
     private let notificationService: NotificationService
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "ProfileViewModel")
 
     init(
         userProfileRepository: UserProfileRepository,
         healthKitManager: HealthKitManager,
-        workoutEngine: WorkoutEngine,
         notificationService: NotificationService
     ) {
         self.userProfileRepository = userProfileRepository
         self.healthKitManager = healthKitManager
-        self.workoutEngine = workoutEngine
         self.notificationService = notificationService
         loadProfile()
     }
@@ -74,6 +79,34 @@ final class ProfileViewModel {
         calorieGoalText = String(format: "%.0f", config.calorieGoal)
         baselineRestingHRText = String(format: "%.0f", config.baselineRestingHR)
         fitnessLevel = config.fitnessLevel
+
+        sleepGoal = config.sleepGoal
+        bufferMinutes = config.bufferMinutes
+        let (bed, wake) = Self.defaultPickerDates(from: config.sleepGoal)
+        sleepGoalBedtime = bed
+        sleepGoalWakeTime = wake
+    }
+
+    private static func defaultPickerDates(from goal: SleepGoal?) -> (bed: Date, wake: Date) {
+        let cal = Calendar.current
+        let now = Date()
+        let startOfDay = cal.startOfDay(for: now)
+
+        func dateFor(_ comps: DateComponents, fallbackHour: Int, fallbackMinute: Int) -> Date {
+            let hour = comps.hour ?? fallbackHour
+            let minute = comps.minute ?? fallbackMinute
+            return cal.date(bySettingHour: hour, minute: minute, second: 0, of: startOfDay) ?? startOfDay
+        }
+
+        if let goal {
+            let bed = dateFor(goal.targetSleepTime.asDateComponents, fallbackHour: 23, fallbackMinute: 0)
+            let wake = dateFor(goal.targetWakeTime.asDateComponents, fallbackHour: 7, fallbackMinute: 0)
+            return (bed, wake)
+        } else {
+            let bed = cal.date(bySettingHour: 23, minute: 0, second: 0, of: startOfDay) ?? startOfDay
+            let wake = cal.date(bySettingHour: 7, minute: 0, second: 0, of: startOfDay) ?? startOfDay
+            return (bed, wake)
+        }
     }
 
     private func loadBodyMetricsDisplay(weightKg: Double?, heightCm: Double?) {
@@ -177,9 +210,6 @@ final class ProfileViewModel {
             return
         }
 
-        // Trigger workout re-evaluation
-        let _ = workoutEngine.generateWeeklyPlan(goal: selectedGoal, weightKg: weightKg, heightCm: heightCm)
-
         isEditingBodyMetrics = false
         showGoalChanged = true
     }
@@ -199,12 +229,6 @@ final class ProfileViewModel {
             logger.error("Failed to update fitness goal: \(error.localizedDescription)")
         }
 
-        // Regenerate weekly plan for the new goal, including body metrics if available
-        if let profile = try? userProfileRepository.fetch() {
-            let _ = workoutEngine.generateWeeklyPlan(goal: goal, weightKg: profile.weightKg, heightCm: profile.heightCm)
-        } else {
-            let _ = workoutEngine.generateWeeklyPlan(goal: goal)
-        }
         showGoalChanged = true
     }
 
@@ -240,12 +264,17 @@ final class ProfileViewModel {
             return
         }
 
+        // Preserve sleep schedule fields while editing numeric goals.
+        let existingSchedule: (SleepGoal?, Int) = (sleepGoal, bufferMinutes)
+
         let config = FitnessConfig(
             sleepGoalHours: sleepVal,
             stepsGoal: stepsVal,
             calorieGoal: calVal,
             baselineRestingHR: hrVal,
-            fitnessLevel: level
+            fitnessLevel: level,
+            sleepGoal: existingSchedule.0,
+            bufferMinutes: existingSchedule.1
         )
 
         guard config.isValid else {
@@ -278,6 +307,80 @@ final class ProfileViewModel {
             logger.error("Failed to reload fitness config: \(error.localizedDescription)")
         }
         isEditingFitnessConfig = false
+    }
+
+    // MARK: - Sleep Schedule Editing
+
+    func beginSleepScheduleEditing() {
+        sleepScheduleValidationError = nil
+        let (bed, wake) = Self.defaultPickerDates(from: sleepGoal)
+        sleepGoalBedtime = bed
+        sleepGoalWakeTime = wake
+        isEditingSleepSchedule = true
+    }
+
+    func cancelSleepScheduleEditing() {
+        sleepScheduleValidationError = nil
+        // Reload persisted values to discard unsaved changes
+        do {
+            if let profile = try userProfileRepository.fetch() {
+                loadFitnessConfig(profile.effectiveFitnessConfig)
+            }
+        } catch {
+            logger.error("Failed to reload sleep schedule: \(error.localizedDescription)")
+        }
+        isEditingSleepSchedule = false
+    }
+
+    func saveSleepSchedule(bedtime: Date, wakeTime: Date, bufferMinutes: Int) async {
+        sleepScheduleValidationError = nil
+
+        let cal = Calendar.current
+        let bedComps = cal.dateComponents([.hour, .minute], from: bedtime)
+        let wakeComps = cal.dateComponents([.hour, .minute], from: wakeTime)
+        let goal = SleepGoal(targetSleepTime: bedComps, targetWakeTime: wakeComps)
+
+        guard goal.isValid else {
+            if (bedComps.hour == wakeComps.hour) && (bedComps.minute == wakeComps.minute) {
+                sleepScheduleValidationError = "Bedtime and wake time cannot be the same."
+            } else {
+                sleepScheduleValidationError = "Sleep window must be at least 4 hours."
+            }
+            return
+        }
+
+        let clampedBuffer = max(0, min(180, bufferMinutes))
+
+        // Merge into existing FitnessConfig so we don't wipe other fields.
+        let existing: FitnessConfig
+        do {
+            existing = (try userProfileRepository.fetch()?.effectiveFitnessConfig) ?? .default
+        } catch {
+            existing = .default
+        }
+
+        let updated = FitnessConfig(
+            sleepGoalHours: existing.sleepGoalHours,
+            stepsGoal: existing.stepsGoal,
+            calorieGoal: existing.calorieGoal,
+            baselineRestingHR: existing.baselineRestingHR,
+            fitnessLevel: existing.fitnessLevel,
+            sleepGoal: goal,
+            bufferMinutes: clampedBuffer
+        )
+
+        do {
+            try userProfileRepository.updateFitnessConfig(updated)
+            loadFitnessConfig(updated)
+            logger.info("Saved sleep schedule: bed=\(goal.targetSleepTime.hour):\(goal.targetSleepTime.minute) wake=\(goal.targetWakeTime.hour):\(goal.targetWakeTime.minute) buffer=\(clampedBuffer)m")
+        } catch {
+            logger.error("Failed to save sleep schedule: \(error.localizedDescription)")
+            sleepScheduleValidationError = "Failed to save. Please try again."
+            return
+        }
+
+        isEditingSleepSchedule = false
+        await healthKitManager.refreshHealthData(config: updated)
     }
 
     // MARK: - Notifications

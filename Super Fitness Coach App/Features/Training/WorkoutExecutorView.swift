@@ -19,6 +19,7 @@ struct WorkoutExecutorView: View {
     @State private var weightInputs: [[String]] = []
     @State private var repsInputs: [[String]] = []
     @State private var showFeedback = false
+    @State private var showExerciseDetail = false
 
     var body: some View {
         NavigationStack {
@@ -151,11 +152,29 @@ struct WorkoutExecutorView: View {
         let exercise = viewModel.exercises[viewModel.currentExerciseIndex]
 
         return VStack(spacing: 8) {
-            Text(exercise.name)
-                .font(.title2)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.center)
-                .accessibilityAddTraits(.isHeader)
+            Button {
+                showExerciseDetail = true
+            } label: {
+                VStack(spacing: 4) {
+                    Text(exercise.name)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.primary)
+                        .accessibilityAddTraits(.isHeader)
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                        Text("Ver detalle")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.blue)
+                }
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showExerciseDetail) {
+                ExerciseDetailView(exercise: exercise)
+            }
 
             HStack(spacing: 10) {
                 Label(exercise.muscleGroup.rawValue.capitalized, systemImage: "figure.strengthtraining.traditional")

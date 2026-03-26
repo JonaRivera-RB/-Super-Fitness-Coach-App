@@ -16,8 +16,6 @@ struct Super_Fitness_Coach_AppApp: App {
         }
         .modelContainer(for: [
             UserProfile.self,
-            WeeklyPlan.self,
-            WorkoutSession.self,
             GamificationState.self,
             DetoxProgress.self,
             TrainingPlan.self,

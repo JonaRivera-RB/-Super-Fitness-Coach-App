@@ -21,6 +21,11 @@ struct ProfileView: View {
     @State private var editHeightFeet: String = ""
     @State private var editHeightInches: String = ""
 
+    // Local @State for sleep schedule editing
+    @State private var editBedtime: Date = Date()
+    @State private var editWakeTime: Date = Date()
+    @State private var editBufferMinutes: Int = 60
+
     var body: some View {
         NavigationStack {
             List {
@@ -301,6 +306,8 @@ struct ProfileView: View {
 
     private var fitnessGoalsSection: some View {
         Section("Fitness Goals") {
+            sleepScheduleSectionContent
+
             if viewModel.isEditingFitnessConfig {
                 fitnessGoalsEditingFields
             } else {
@@ -314,6 +321,98 @@ struct ProfileView: View {
                     .accessibilityLabel("Validation error: \(error)")
             }
         }
+    }
+
+    private var sleepScheduleSectionContent: some View {
+        Group {
+            if viewModel.isEditingSleepSchedule {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label("Bedtime", systemImage: "moon.stars")
+                        Spacer()
+                        DatePicker("", selection: $editBedtime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    HStack {
+                        Label("Wake", systemImage: "sunrise")
+                        Spacer()
+                        DatePicker("", selection: $editWakeTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    HStack {
+                        Label("Buffer", systemImage: "slider.horizontal.3")
+                        Spacer()
+                        Stepper("\(editBufferMinutes) min", value: $editBufferMinutes, in: 0...180, step: 5)
+                            .labelsHidden()
+                        Text("\(editBufferMinutes) min")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let error = viewModel.sleepScheduleValidationError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    HStack {
+                        Button("Cancel") {
+                            viewModel.cancelSleepScheduleEditing()
+                        }
+                        .foregroundStyle(.red)
+
+                        Spacer()
+
+                        Button("Save") {
+                            Task {
+                                await viewModel.saveSleepSchedule(
+                                    bedtime: editBedtime,
+                                    wakeTime: editWakeTime,
+                                    bufferMinutes: editBufferMinutes
+                                )
+                            }
+                        }
+                        .fontWeight(.semibold)
+                    }
+                }
+                .onAppear {
+                    editBedtime = viewModel.sleepGoalBedtime
+                    editWakeTime = viewModel.sleepGoalWakeTime
+                    editBufferMinutes = viewModel.bufferMinutes
+                }
+            } else {
+                HStack {
+                    Label("Sleep Schedule", systemImage: "bed.double.fill")
+                    Spacer()
+                    Text(sleepScheduleSummary)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Edit Sleep Schedule") {
+                    // Preload local state from viewModel
+                    editBedtime = viewModel.sleepGoalBedtime
+                    editWakeTime = viewModel.sleepGoalWakeTime
+                    editBufferMinutes = viewModel.bufferMinutes
+                    viewModel.beginSleepScheduleEditing()
+                }
+            }
+        }
+    }
+
+    private var sleepScheduleSummary: String {
+        let cal = Calendar.current
+        let startOfDay = cal.startOfDay(for: Date())
+        let bed: Date
+        let wake: Date
+
+        if let goal = viewModel.sleepGoal {
+            bed = cal.date(bySettingHour: goal.targetSleepTime.hour, minute: goal.targetSleepTime.minute, second: 0, of: startOfDay) ?? startOfDay
+            wake = cal.date(bySettingHour: goal.targetWakeTime.hour, minute: goal.targetWakeTime.minute, second: 0, of: startOfDay) ?? startOfDay
+        } else {
+            return "Not set"
+        }
+
+        let bedStr = DateFormatter.localizedString(from: bed, dateStyle: .none, timeStyle: .short)
+        let wakeStr = DateFormatter.localizedString(from: wake, dateStyle: .none, timeStyle: .short)
+        return "\(bedStr)–\(wakeStr) (+\(viewModel.bufferMinutes)m)"
     }
 
     private var fitnessGoalsDisplayFields: some View {

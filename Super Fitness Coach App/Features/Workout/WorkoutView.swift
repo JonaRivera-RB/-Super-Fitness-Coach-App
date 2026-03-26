@@ -7,8 +7,6 @@ import SwiftUI
 import SwiftData
 
 struct WorkoutView: View {
-    @Bindable var viewModel: WorkoutViewModel
-    var imageLoader: ExerciseImageLoader?
     var trainingPlanVM: TrainingPlanViewModel?
     var onNewTrainingPlan: (() -> Void)?
     var onStartTrainingWorkout: ((Int) -> Void)?
@@ -31,12 +29,6 @@ struct WorkoutView: View {
                     } else {
                         noPlanBanner
                     }
-
-                    if !viewModel.exercises.isEmpty && !viewModel.isSessionComplete {
-                        legacyWorkoutSection
-                    } else if viewModel.isSessionComplete {
-                        completionCard
-                    }
                 }
                 .padding()
             }
@@ -45,9 +37,7 @@ struct WorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button {
-                            onNewTrainingPlan?()
-                        } label: {
+                        Button { onNewTrainingPlan?() } label: {
                             Label("New Training Plan", systemImage: "plus.circle")
                         }
                     } label: {
@@ -56,7 +46,6 @@ struct WorkoutView: View {
                     }
                 }
             }
-            .task { await viewModel.loadSession() }
         }
     }
 
@@ -399,66 +388,6 @@ struct WorkoutView: View {
         case .rescheduled: return .blue
         case .pending, .unavailable: return .gray.opacity(0.4)
         }
-    }
-
-    // MARK: - Legacy Workout Section
-
-    private var legacyWorkoutSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Quick Workout").font(.headline)
-                Spacer()
-                Text("\(viewModel.completedCount)/\(viewModel.totalCount)")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            if let label = viewModel.adjustmentLabel {
-                HStack(spacing: 4) {
-                    Image(systemName: "info.circle.fill")
-                    Text(label).font(.caption)
-                }
-                .foregroundStyle(.orange)
-            }
-            ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
-                legacyExerciseRow(exercise: exercise, index: index)
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
-    }
-
-    private func legacyExerciseRow(exercise: SessionExercise, index: Int) -> some View {
-        HStack {
-            Circle()
-                .fill(exercise.isCompleted ? Color.green : (index == viewModel.currentExerciseIndex ? Color.blue : Color.gray.opacity(0.3)))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(exercise.name.capitalized).font(.subheadline)
-                    .fontWeight(index == viewModel.currentExerciseIndex ? .semibold : .regular)
-                    .strikethrough(exercise.isCompleted)
-                Text("\(exercise.sets)×\(exercise.reps) · \(exercise.target.capitalized)")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if exercise.isCompleted {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            } else if index == viewModel.currentExerciseIndex {
-                Button("Done") { Task { await viewModel.completeExercise(at: index) } }
-                    .buttonStyle(.borderedProminent).controlSize(.mini).tint(.green)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Completion Card
-
-    private var completionCard: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 48)).foregroundStyle(.green)
-            Text("Workout Complete").font(.title2).fontWeight(.bold)
-            Text("+20 points earned").font(.subheadline).foregroundStyle(.orange).fontWeight(.medium)
-        }
-        .padding(24).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.green.opacity(0.07)))
     }
 
     // MARK: - Helpers
