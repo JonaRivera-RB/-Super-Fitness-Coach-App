@@ -138,4 +138,94 @@ final class TrainingPlanRepository {
         descriptor.fetchLimit = limit
         return try context.fetch(descriptor)
     }
+
+    // MARK: - Performance-based Plan Updates (post-workout)
+
+    /// Updates the active plan's future prescriptions using real session performance.
+    /// - Uses logged reps vs planned reps to adjust suggestedWeight.
+    /// - Optionally adds a set (high-volume preference) when user consistently beats target reps.
+    func applyPerformanceUpdates(workoutLogs: [WorkoutLog]) throws {
+        guard let plan = try fetchActivePlan() else { return }
+        guard !workoutLogs.isEmpty else { return }
+
+        // Map: exerciseId → (avgReps, avgWeight)
+        struct Summary {
+            let avgReps: Double
+            let avgWeight: Double
+        }
+        var summaries: [String: Summary] = [:]
+        for log in workoutLogs {
+            let reps = log.sets.map { Double($0.reps) }
+            let weights = log.sets.map { $0.weight }
+            guard !reps.isEmpty, !weights.isEmpty else { continue }
+            let avgReps = reps.reduce(0, +) / Double(reps.count)
+            let avgWeight = weights.reduce(0, +) / Double(weights.count)
+            summaries[log.exerciseId] = Summary(avgReps: avgReps, avgWeight: avgWeight)
+        }
+        guard !summaries.isEmpty else { return }
+
+        let prefersHighVolume = plan.preferences.prefersHighVolume
+
+        // Heuristics:
+        // - If user beats target reps by >=2 on average → +2.5% weight next time
+        // - If user misses target by >=2 on average → -2.5% weight next time
+        // - If high-volume and beats by >=3 → +1 set (cap 8)
+        let upWeightFactor = 1.025
+        let downWeightFactor = 0.975
+
+        var didChange = false
+
+        for week in plan.weeks {
+            for day in week.days {
+                guard !day.exercises.isEmpty else { continue }
+                var updated: [PlannedExercise] = []
+                updated.reserveCapacity(day.exercises.count)
+
+                for ex in day.exercises {
+                    guard let s = summaries[ex.effectiveCatalogId] ?? summaries[ex.id] else {
+                        updated.append(ex)
+                        continue
+                    }
+
+                    var next = ex
+                    let targetReps = Double(ex.reps)
+                    let delta = s.avgReps - targetReps
+
+                    if delta >= 2.0 {
+                        next.suggestedWeight = max(0, ex.suggestedWeight * upWeightFactor)
+                        if let maxW = ex.targetWeightMax {
+                            next.targetWeightMax = maxW * upWeightFactor
+                        }
+                        didChange = true
+
+                        if prefersHighVolume, delta >= 3.0 {
+                            next.sets = min(8, ex.sets + 1)
+                            if let per = next.perSetRestSeconds, per.count == ex.sets {
+                                // If per-set rest existed, extend with last known rest.
+                                let last = per.last ?? ex.effectiveRestBetweenSets
+                                next.perSetRestSeconds = per + [last]
+                            }
+                            didChange = true
+                        }
+                    } else if delta <= -2.0 {
+                        next.suggestedWeight = max(0, ex.suggestedWeight * downWeightFactor)
+                        if let maxW = ex.targetWeightMax {
+                            next.targetWeightMax = maxW * downWeightFactor
+                        }
+                        didChange = true
+                    }
+
+                    updated.append(next)
+                }
+
+                if updated != day.exercises {
+                    day.exercises = updated
+                }
+            }
+        }
+
+        if didChange {
+            try savePlan(plan)
+        }
+    }
 }

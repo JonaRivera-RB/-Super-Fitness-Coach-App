@@ -7,7 +7,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var viewModel: OnboardingViewModel
-    var onComplete: () -> Void
+    var onComplete: @MainActor () -> Void
 
     var body: some View {
         VStack {
@@ -388,7 +388,11 @@ struct OnboardingView: View {
                 Button {
                     Task {
                         await viewModel.completeOnboarding()
-                        onComplete()
+                        if viewModel.completionError == nil {
+                            await MainActor.run {
+                                onComplete()
+                            }
+                        }
                     }
                 } label: {
                     HStack {
@@ -411,13 +415,26 @@ struct OnboardingView: View {
                 viewModel.sleepScheduleEnabled = false
                 Task {
                     await viewModel.completeOnboarding()
-                    onComplete()
+                    if viewModel.completionError == nil {
+                        await MainActor.run {
+                            onComplete()
+                        }
+                    }
                 }
             } label: {
                 Text("Skip for now")
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 6)
+
+            if let err = viewModel.completionError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 4)
+            }
         }
     }
 

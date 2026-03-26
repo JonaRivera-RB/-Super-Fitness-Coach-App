@@ -45,6 +45,7 @@ final class WorkoutExecutorViewModel {
     private let plannedExercises: [PlannedExercise]
     private let setLogger: SetLogger
     private let healthKitManager: HealthKitManager
+    private let goal: FitnessGoal
     private var recoveryScore: Int = 50
 
     /// In-memory log buffer: exerciseId → accumulated SetLogs for this session.
@@ -67,12 +68,14 @@ final class WorkoutExecutorViewModel {
         currentWeek: Int,
         plannedExercises: [PlannedExercise],
         setLogger: SetLogger,
-        healthKitManager: HealthKitManager
+        healthKitManager: HealthKitManager,
+        goal: FitnessGoal
     ) {
         self.currentWeek = currentWeek
         self.plannedExercises = plannedExercises
         self.setLogger = setLogger
         self.healthKitManager = healthKitManager
+        self.goal = goal
 
         // Read recovery score from HealthKitManager; default 50 if unavailable (Req 6.1)
         self.recoveryScore = healthKitManager.recoveryScore.value ?? 50
@@ -97,16 +100,8 @@ final class WorkoutExecutorViewModel {
             WeeklyProgressionEngine.applyProgression(to: $0, progression: progression)
         }
 
-        // Step 2: Apply recovery adjustment (override)
-        let adjustment = RecoveryAdapter.dailyAdjustment(recoveryScore: recoveryScore)
-        adjusted = adjusted.map {
-            RecoveryAdapter.applyAdjustment(to: $0, adjustment: adjustment)
-        }
-
-        self.exercises = adjusted
-        self.currentExerciseIndex = 0
-
-        // Cache previous sets for autofill / "previous" column.
+        // Step 2: Use performance (latest e1RM) to set today's target weight from rep target.
+        // This keeps intensity aligned with the user's real strength, not just past suggestedWeight.
         var prev: [String: [SetLog]] = [:]
         var prevBest: [String: Double] = [:]
         for ex in adjusted {
@@ -120,6 +115,32 @@ final class WorkoutExecutorViewModel {
         }
         self.previousSets = prev
         self.previousBestE1RM = prevBest
+
+        adjusted = adjusted.map { ex in
+            guard let e1rm = prevBest[ex.effectiveCatalogId], e1rm > 0 else { return ex }
+            var next = ex
+            let pct = Self.targetPercentForExercise(goal: goal, isCompound: ex.isCompound, targetReps: ex.reps)
+            let target = e1rm * pct
+            if target > 0 {
+                next.suggestedWeight = target
+                // Keep targetWeightMax only for gain muscle, otherwise nil to reduce noise.
+                if goal != .gainMuscle {
+                    next.targetWeightMax = nil
+                } else if let maxW = next.targetWeightMax, maxW > 0 {
+                    // Re-scale max to stay consistent with new base weight.
+                    let ratio = maxW / max(1e-6, ex.suggestedWeight)
+                    next.targetWeightMax = target * ratio
+                }
+            }
+            return next
+        }
+
+        // Step 3: Apply recovery adjustment (override)
+        let adjustment = RecoveryAdapter.dailyAdjustment(recoveryScore: recoveryScore)
+        adjusted = adjusted.map { RecoveryAdapter.applyAdjustment(to: $0, adjustment: adjustment) }
+
+        self.exercises = adjusted
+        self.currentExerciseIndex = 0
 
         // Initialize completed sets tracking: array of Bool arrays per exercise
         self.completedSets = adjusted.map { exercise in
@@ -179,6 +200,69 @@ final class WorkoutExecutorViewModel {
         return weight * (1.0 + Double(r) / 30.0)
     }
 
+    // MARK: - Intensity table (reps → %1RM)
+
+    /// Approximate %1RM for a given "to-failure" rep count (EduFitness-style guidance).
+    /// We use anchor points and linear interpolation for smooth behavior.
+    private static func percent1RM(for reps: Int) -> Double {
+        let r = max(1, min(30, reps))
+        // Anchors (reps : %1RM). These are approximate and intentionally conservative.
+        let anchors: [(Int, Double)] = [
+            (1, 1.00),
+            (2, 0.95),
+            (3, 0.93),
+            (4, 0.90),
+            (5, 0.87),
+            (6, 0.85),
+            (7, 0.83),
+            (8, 0.80),
+            (9, 0.77),
+            (10, 0.75),
+            (12, 0.70),
+            (15, 0.65),
+            (20, 0.60),
+            (25, 0.55),
+            (30, 0.50),
+        ]
+
+        // Exact match
+        if let exact = anchors.first(where: { $0.0 == r }) {
+            return exact.1
+        }
+
+        // Find surrounding anchors
+        var lower = anchors[0]
+        var upper = anchors[anchors.count - 1]
+        for i in 0..<(anchors.count - 1) {
+            let a = anchors[i]
+            let b = anchors[i + 1]
+            if r > a.0 && r < b.0 {
+                lower = a
+                upper = b
+                break
+            }
+        }
+
+        let t = Double(r - lower.0) / Double(upper.0 - lower.0)
+        return lower.1 + (upper.1 - lower.1) * t
+    }
+
+    private static func targetPercentForExercise(goal: FitnessGoal, isCompound: Bool, targetReps: Int) -> Double {
+        // Default: derive from reps table.
+        // For Lose Weight we bias slightly lighter to keep technique clean with short rests,
+        // but still anchored to reps target.
+        var pct = percent1RM(for: targetReps)
+        switch goal {
+        case .loseWeight:
+            pct *= isCompound ? 0.98 : 0.96
+        case .beHealthy:
+            pct *= 0.98
+        case .gainMuscle:
+            pct *= 1.00
+        }
+        return max(0.40, min(1.00, pct))
+    }
+
     // MARK: - Complete Set (Req 7.2, 8.1)
 
     func completeSet(exerciseIndex: Int, setIndex: Int, weight: Double, reps: Int) {
@@ -194,14 +278,16 @@ final class WorkoutExecutorViewModel {
 
         // Accumulate set in session buffer (keyed by exerciseId)
         let setLog = SetLog(weight: weight, reps: reps)
-        if sessionSetBuffer[exercise.id] == nil {
-            sessionSetBuffer[exercise.id] = (name: exercise.name, sets: [])
+        let catalogId = exercise.effectiveCatalogId
+        if sessionSetBuffer[catalogId] == nil {
+            sessionSetBuffer[catalogId] = (name: exercise.name, sets: [])
         }
-        sessionSetBuffer[exercise.id]?.sets.append(setLog)
+        sessionSetBuffer[catalogId]?.sets.append(setLog)
 
         // Persist immediately via SetLogger (Req 8.1)
         do {
-            try setLogger.logSet(exerciseId: exercise.id, date: Date(), set: setLog)
+            // IMPORTANT: persist by catalog id so history, PRs, and plan updates match.
+            try setLogger.logSet(exerciseId: catalogId, date: Date(), set: setLog)
         } catch {
             logger.error("Failed to log set: \(error.localizedDescription)")
         }

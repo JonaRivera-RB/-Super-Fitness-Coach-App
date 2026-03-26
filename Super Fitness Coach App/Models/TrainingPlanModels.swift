@@ -75,6 +75,8 @@ struct TrainingPreferences: Codable, Equatable {
     var priorityMuscles: [MuscleGroup]    // máx 2
     var wantsCardio: Bool
     var planDurationWeeks: Int            // 4, 6, 8
+    /// Preferencia de volumen. Útil para usuarios avanzados que toleran más sets por ejercicio.
+    var prefersHighVolume: Bool
 
     static let `default` = TrainingPreferences(
         goal: .gainMuscle,
@@ -82,7 +84,8 @@ struct TrainingPreferences: Codable, Equatable {
         experienceLevel: .beginner,
         priorityMuscles: [],
         wantsCardio: false,
-        planDurationWeeks: 4
+        planDurationWeeks: 4,
+        prefersHighVolume: false
     )
 }
 

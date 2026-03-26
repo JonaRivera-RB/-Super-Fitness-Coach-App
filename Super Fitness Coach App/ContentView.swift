@@ -191,6 +191,10 @@ struct ContentView: View {
                     if let dow = item.routineDayOfWeek {
                         markRoutineDayCompleted(dayOfWeek: dow)
                     } else if let idx = selectedDayIndex {
+                        // Apply performance-based updates before completing the day
+                        if let repo = trainingPlanRepository {
+                            try? repo.applyPerformanceUpdates(workoutLogs: logs)
+                        }
                         trainingPlanViewModel?.completeDay(at: idx)
                     }
                     selectedDayIndex = nil
@@ -266,7 +270,8 @@ struct ContentView: View {
             currentWeek: plan.currentWeek,
             plannedExercises: day.exercises,
             setLogger: setLogger,
-            healthKitManager: healthKitManager
+            healthKitManager: healthKitManager,
+            goal: plan.preferences.goal
         )
     }
 
@@ -277,7 +282,8 @@ struct ContentView: View {
             currentWeek: 1,
             plannedExercises: plannedExercises,
             setLogger: setLogger,
-            healthKitManager: healthKitManager
+            healthKitManager: healthKitManager,
+            goal: .beHealthy
         )
     }
 
@@ -309,7 +315,7 @@ struct ContentView: View {
 
     private func checkOnboarding() {
         let repo = UserProfileRepository(context: modelContext)
-        if let profile = try? repo.fetch(), profile.onboardingCompleted {
+        if let profile = try? repo.fetchCompleted() {
             userProfile = profile
             hasCompletedOnboarding = true
             createViewModels()
@@ -373,7 +379,8 @@ struct ContentView: View {
         if trainingPreferencesViewModel == nil {
             trainingPreferencesViewModel = TrainingPreferencesViewModel(
                 exerciseService: es,
-                repository: repo
+                repository: repo,
+                userProfileRepository: UserProfileRepository(context: modelContext)
             )
         }
         if trainingPlanViewModel == nil {

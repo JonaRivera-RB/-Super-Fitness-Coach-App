@@ -95,12 +95,10 @@ struct WorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
-                        if hasRoutine {
-                            Button {
-                                onEditRoutine?()
-                            } label: {
-                                Label("Editar rutina", systemImage: "slider.horizontal.3")
-                            }
+                        Button {
+                            onEditRoutine?()
+                        } label: {
+                            Label(hasRoutine ? "Editar rutina" : "Crear rutina", systemImage: "slider.horizontal.3")
                         }
                         Menu {
                             Button { onNewTrainingPlan?() } label: {
@@ -129,6 +127,18 @@ struct WorkoutView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            if onEditRoutine != nil {
+                Button {
+                    onEditRoutine?()
+                } label: {
+                    Label("Crear Mi rutina", systemImage: "list.clipboard")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding()

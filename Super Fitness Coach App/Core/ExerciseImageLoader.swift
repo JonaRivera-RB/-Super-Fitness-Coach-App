@@ -45,33 +45,43 @@ final class ExerciseImageLoader {
         inFlight.insert(exerciseId)
         defer { inFlight.remove(exerciseId) }
 
-        let urlString = "https://\(apiHost)/image?resolution=1080&exerciseId=\(exerciseId)"
-        guard let url = URL(string: urlString) else { return nil }
+        // ExerciseDB image service supports multiple resolutions; some tiers only allow low res.
+        // Also, docs support passing key as query parameter; we do both headers + query for compatibility.
+        let resolutions = [1080, 720, 360, 180]
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
-        request.setValue(apiHost, forHTTPHeaderField: "X-RapidAPI-Host")
-        request.timeoutInterval = 30
+        for res in resolutions {
+            guard var comps = URLComponents(string: "https://\(apiHost)/image") else { continue }
+            comps.queryItems = [
+                URLQueryItem(name: "resolution", value: "\(res)"),
+                URLQueryItem(name: "exerciseId", value: exerciseId),
+                URLQueryItem(name: "rapidapi-key", value: apiKey),
+            ]
+            guard let url = comps.url else { continue }
 
-        do {
-            let (data, response) = try await session.data(for: request)
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
+            request.setValue(apiHost, forHTTPHeaderField: "X-RapidAPI-Host")
+            request.timeoutInterval = 30
 
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                logger.warning("Image fetch failed for \(exerciseId): HTTP \(code)")
-                return nil
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else { continue }
+                guard httpResponse.statusCode == 200, !data.isEmpty else {
+                    logger.warning("Image fetch failed for \(exerciseId) at \(res)p: HTTP \(httpResponse.statusCode)")
+                    continue
+                }
+
+                logger.info("Image fetch OK for \(exerciseId) at \(res)p: \(data.count) bytes, content-type: \(httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown")")
+                cache[exerciseId] = data
+                return data
+            } catch {
+                logger.error("Image download error for \(exerciseId) at \(res)p: \(error.localizedDescription)")
+                continue
             }
-
-            logger.info("Image fetch OK for \(exerciseId): \(data.count) bytes, content-type: \(httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown")")
-
-            cache[exerciseId] = data
-            return data
-        } catch {
-            logger.error("Image download error for \(exerciseId): \(error.localizedDescription)")
-            return nil
         }
+
+        return nil
     }
 
     func clearCache() {

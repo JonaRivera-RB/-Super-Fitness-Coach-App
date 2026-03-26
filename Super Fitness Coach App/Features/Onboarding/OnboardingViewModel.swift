@@ -37,6 +37,7 @@ final class OnboardingViewModel {
     var sleepBufferMinutes: Int = 60
     var sleepScheduleEnabled: Bool = false
     var sleepScheduleValidationError: String?
+    var completionError: String?
 
     private let profileRepository: UserProfileRepository
     private let healthKitManager: HealthKitManager
@@ -162,9 +163,11 @@ final class OnboardingViewModel {
         }
     }
 
+    @MainActor
     func completeOnboarding() async {
         isCompleting = true
         defer { isCompleting = false }
+        completionError = nil
 
         let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -185,30 +188,38 @@ final class OnboardingViewModel {
             }
         }
 
-        // Check if a profile already exists (re-onboarding scenario)
-        if let existing = try? profileRepository.fetch() {
-            existing.name = trimmedName
-            existing.fitnessGoal = selectedGoal
-            existing.weightKg = weightKg
-            existing.heightCm = heightCm
-            existing.unitPreference = unitPreference
-            existing.onboardingCompleted = true
+        do {
+            // Check if a profile already exists (re-onboarding scenario)
+            if let existing = try profileRepository.fetch() {
+                existing.name = trimmedName
+                existing.fitnessGoal = selectedGoal
+                existing.weightKg = weightKg
+                existing.heightCm = heightCm
+                existing.unitPreference = unitPreference
+                existing.onboardingCompleted = true
 
-            // Persist sleep schedule into FitnessConfig (additive/backward compatible)
-            let currentConfig = existing.effectiveFitnessConfig
-            let updatedConfig = updatedFitnessConfig(from: currentConfig)
-            existing.fitnessConfig = updatedConfig
-            try? profileRepository.save(existing)
-        } else {
-            let profile = UserProfile(
-                name: trimmedName,
-                fitnessGoal: selectedGoal,
-                weightKg: weightKg,
-                heightCm: heightCm,
-                unitPreference: unitPreference
-            )
-            profile.fitnessConfig = updatedFitnessConfig(from: profile.effectiveFitnessConfig)
-            try? profileRepository.save(profile)
+                // Persist sleep schedule into FitnessConfig (additive/backward compatible)
+                let currentConfig = existing.effectiveFitnessConfig
+                let updatedConfig = updatedFitnessConfig(from: currentConfig)
+                try profileRepository.save(existing)
+                // Force-save FitnessConfig via delete+reinsert workaround (SwiftData Codable issue)
+                try profileRepository.updateFitnessConfig(profileId: existing.id, config: updatedConfig)
+            } else {
+                let profile = UserProfile(
+                    name: trimmedName,
+                    fitnessGoal: selectedGoal,
+                    weightKg: weightKg,
+                    heightCm: heightCm,
+                    unitPreference: unitPreference
+                )
+                profile.onboardingCompleted = true
+                let config = updatedFitnessConfig(from: profile.effectiveFitnessConfig)
+                profile.fitnessConfig = config
+                try profileRepository.save(profile)
+                // For a brand-new profile, fitnessConfig is persisted on insert.
+            }
+        } catch {
+            completionError = "No se pudo guardar tu perfil. Intenta de nuevo."
         }
     }
 

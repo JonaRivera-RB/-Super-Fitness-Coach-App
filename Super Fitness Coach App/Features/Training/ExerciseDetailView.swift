@@ -13,6 +13,7 @@ struct ExerciseDetailView: View {
 
     @State private var gifData: Data? = nil
     @State private var isLoadingGif = false
+    @State private var gifErrorMessage: String? = nil
 
     private let imageLoader = ExerciseImageLoader(
         apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5"
@@ -70,6 +71,13 @@ struct ExerciseDetailView: View {
                     Text("Sin imagen disponible")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let msg = gifErrorMessage {
+                        Text(msg)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 18)
+                    }
                 }
             }
         }
@@ -164,9 +172,17 @@ struct ExerciseDetailView: View {
         let catalogId = exercise.effectiveCatalogId
         guard !catalogId.isEmpty else { return }
         isLoadingGif = true
+        gifErrorMessage = nil
         defer { isLoadingGif = false }
 
         if let data = await imageLoader.loadImageData(exerciseId: catalogId), !data.isEmpty {
+            gifData = data
+            return
+        }
+
+        // Direct fallback to the documented endpoint (query-param auth).
+        // This also lets us surface HTTP status in the UI.
+        if let data = await fetchGifDirect(exerciseId: catalogId) {
             gifData = data
             return
         }
@@ -175,6 +191,9 @@ struct ExerciseDetailView: View {
         let urlString = exercise.gifUrl ?? bundled?.gifUrl
         guard let urlString, let url = URL(string: urlString), url.scheme == "http" || url.scheme == "https" else {
             gifData = nil
+            if gifErrorMessage == nil {
+                gifErrorMessage = "No se pudo cargar la animación (sin URL y el endpoint de imágenes falló)."
+            }
             return
         }
 
@@ -184,9 +203,58 @@ struct ExerciseDetailView: View {
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, http.statusCode == 200, !data.isEmpty {
                 gifData = data
+            } else if let http = response as? HTTPURLResponse {
+                gifErrorMessage = "No se pudo cargar la animación (HTTP \(http.statusCode))."
             }
         } catch {
             gifData = nil
+            gifErrorMessage = "No se pudo cargar la animación (\(error.localizedDescription))."
         }
+    }
+
+    private func fetchGifDirect(exerciseId: String) async -> Data? {
+        let apiHost = "exercisedb.p.rapidapi.com"
+        let apiKey = "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5"
+
+        // Try from lowest resolution up — BASIC tier often only supports 180.
+        let resolutions = [180, 360, 720, 1080]
+        for res in resolutions {
+            guard var comps = URLComponents(string: "https://\(apiHost)/image") else { continue }
+            comps.queryItems = [
+                URLQueryItem(name: "exerciseId", value: exerciseId),
+                URLQueryItem(name: "resolution", value: "\(res)"),
+                URLQueryItem(name: "rapidapi-key", value: apiKey),
+            ]
+            guard let url = comps.url else { continue }
+
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 25
+            request.setValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
+            request.setValue(apiHost, forHTTPHeaderField: "X-RapidAPI-Host")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else { continue }
+                if http.statusCode == 200, !data.isEmpty {
+                    return data
+                }
+                // Surface the most useful error once.
+                if gifErrorMessage == nil {
+                    if http.statusCode == 401 || http.statusCode == 403 {
+                        gifErrorMessage = "GIF bloqueado por autenticación/plan (HTTP \(http.statusCode))."
+                    } else if http.statusCode == 422 {
+                        gifErrorMessage = "GIF no disponible para ese ejercicio o resolución (HTTP 422)."
+                    } else {
+                        gifErrorMessage = "No se pudo cargar GIF desde ExerciseDB (HTTP \(http.statusCode))."
+                    }
+                }
+            } catch {
+                if gifErrorMessage == nil {
+                    gifErrorMessage = "Error de red cargando GIF (\(error.localizedDescription))."
+                }
+                continue
+            }
+        }
+        return nil
     }
 }

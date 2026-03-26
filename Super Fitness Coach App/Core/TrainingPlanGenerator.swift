@@ -6,6 +6,20 @@
 import Foundation
 
 struct TrainingPlanGenerator {
+    enum BMICategory: String {
+        case underweight, normal, overweight, obese
+    }
+
+    private static func bmiCategory(weightKg: Double?, heightCm: Double?) -> BMICategory? {
+        guard let kg = weightKg, let cm = heightCm, kg > 0, cm > 0 else { return nil }
+        let m = cm / 100.0
+        guard m > 0 else { return nil }
+        let bmi = kg / (m * m)
+        if bmi < 18.5 { return .underweight }
+        if bmi < 25.0 { return .normal }
+        if bmi < 30.0 { return .overweight }
+        return .obese
+    }
 
     // MARK: - Cálculo de Frecuencia Muscular (Req 2)
 
@@ -187,6 +201,113 @@ struct TrainingPlanGenerator {
         }
     }
 
+    private static func bodyWeightBasedDefault(
+        weightKg: Double?,
+        muscleGroup: MuscleGroup,
+        isCompound: Bool,
+        experienceLevel: FitnessLevel,
+        bmi: BMICategory?
+    ) -> Double? {
+        guard let bw = weightKg, bw > 0 else { return nil }
+
+        let baseFactor: Double = {
+            switch muscleGroup {
+            case .quads: return 0.55
+            case .glutes: return 0.50
+            case .hamstrings: return 0.45
+            case .back: return 0.45
+            case .chest: return 0.40
+            case .shoulders: return 0.25
+            case .biceps, .triceps: return 0.18
+            case .calves: return 0.22
+            case .core: return 0.12
+            }
+        }()
+
+        let compoundMultiplier = isCompound ? 1.0 : 0.55
+        let levelMultiplier: Double = {
+            switch experienceLevel {
+            case .beginner: return 0.85
+            case .intermediate: return 1.0
+            case .advanced: return 1.12
+            }
+        }()
+        let bmiMultiplier: Double = {
+            switch bmi {
+            case .underweight: return 0.90
+            case .normal: return 1.0
+            case .overweight: return 0.95
+            case .obese: return 0.90
+            case .none: return 1.0
+            }
+        }()
+
+        let suggested = bw * baseFactor * compoundMultiplier * levelMultiplier * bmiMultiplier
+        return min(220.0, max(2.5, suggested))
+    }
+
+    private static func prescription(
+        goal: FitnessGoal,
+        experienceLevel: FitnessLevel,
+        isCompound: Bool,
+        bmi: BMICategory?
+    ) -> (sets: Int, reps: Int, restSeconds: Int, weightTuning: Double, targetMaxFactor: Double?) {
+        // weightTuning: multiplies the suggestedWeight when we DON'T have previous logs
+        // targetMaxFactor: optional top-end weight range (for UI guidance)
+
+        let base: (sets: Int, reps: Int, rest: Int) = {
+            switch goal {
+            case .gainMuscle:
+                return isCompound ? (3, 8, 120) : (3, 12, 75)
+            case .loseWeight:
+                return isCompound ? (3, 12, 75) : (2, 15, 45)
+            case .beHealthy:
+                return isCompound ? (3, 10, 90) : (2, 12, 60)
+            }
+        }()
+
+        let levelAdjust: (setDelta: Int, repDelta: Int, restDelta: Int) = {
+            switch experienceLevel {
+            case .beginner:
+                return (0, +2, 0)
+            case .intermediate:
+                return (0, 0, 0)
+            case .advanced:
+                return (+1, -1, +15)
+            }
+        }()
+
+        // NOTE: BMI NO afecta sets/reps (evita penalización fija por IMC).
+        // Solo ajusta el peso sugerido inicial si no hay logs, y levemente el descanso.
+        let bmiAdjust: (restDelta: Int, weightTuning: Double) = {
+            switch bmi {
+            case .underweight:
+                return (+10, 1.02)
+            case .obese:
+                return (-5, 0.92)
+            case .overweight:
+                return (-5, 0.97)
+            case .normal, .none:
+                return (0, 1.0)
+            }
+        }()
+
+        let sets = max(1, min(6, base.sets + levelAdjust.setDelta))
+        let reps = max(5, min(20, base.reps + levelAdjust.repDelta))
+        let restSeconds = max(30, min(240, base.rest + levelAdjust.restDelta + bmiAdjust.restDelta))
+
+        let targetMaxFactor: Double? = {
+            switch goal {
+            case .gainMuscle:
+                return isCompound ? 1.10 : 1.08
+            case .loseWeight, .beHealthy:
+                return nil
+            }
+        }()
+
+        return (sets, reps, restSeconds, bmiAdjust.weightTuning, targetMaxFactor)
+    }
+
     /// Looks up the most recent WorkoutLog for a given exerciseId and returns
     /// the maximum weight across all its sets, or nil if no log exists.
     private static func previousWeight(
@@ -212,9 +333,13 @@ struct TrainingPlanGenerator {
         for muscleGroups: [MuscleGroup],
         from exercises: [Exercise],
         previousLogs: [WorkoutLog],
+        preferences: TrainingPreferences,
+        weightKg: Double?,
+        heightCm: Double?,
         exerciseCount: Int = 5
     ) -> [PlannedExercise] {
         let targetCount = max(4, min(6, exerciseCount))
+        let bmi = bmiCategory(weightKg: weightKg, heightCm: heightCm)
 
         var compounds: [PlannedExercise] = []
         var accessories: [PlannedExercise] = []
@@ -232,19 +357,37 @@ struct TrainingPlanGenerator {
 
             // Pick 1 mandatory compound for this muscle group
             if let compound = compoundPool.first {
-                let weight = previousWeight(for: compound.id, in: previousLogs)
+                let hasPrev = previousWeight(for: compound.id, in: previousLogs)
+                let baseWeight = hasPrev
+                    ?? bodyWeightBasedDefault(
+                        weightKg: weightKg,
+                        muscleGroup: muscleGroup,
+                        isCompound: true,
+                        experienceLevel: preferences.experienceLevel,
+                        bmi: bmi
+                    )
                     ?? defaultWeight(for: muscleGroup)
+                let p = prescription(
+                    goal: preferences.goal,
+                    experienceLevel: preferences.experienceLevel,
+                    isCompound: true,
+                    bmi: bmi
+                )
+                let tunedWeight = hasPrev == nil ? (baseWeight * p.weightTuning) : baseWeight
                 compounds.append(PlannedExercise(
                     id: compound.id,
                     name: compound.name,
                     muscleGroup: muscleGroup,
                     isCompound: true,
-                    sets: 3,
-                    reps: 10,
-                    suggestedWeight: weight,
+                    sets: p.sets,
+                    reps: p.reps,
+                    suggestedWeight: tunedWeight,
+                    targetWeightMax: p.targetMaxFactor.map { tunedWeight * $0 },
                     equipment: compound.equipment,
                     gifUrl: compound.gifUrl,
                     instructions: compound.instructions ?? []
+                    ,
+                    restBetweenSetsSeconds: p.restSeconds
                 ))
                 usedIds.insert(compound.id)
             }
@@ -252,19 +395,37 @@ struct TrainingPlanGenerator {
             // Collect accessories for later filling
             for accessory in accessoryPool {
                 guard !usedIds.contains(accessory.id) else { continue }
-                let weight = previousWeight(for: accessory.id, in: previousLogs)
+                let hasPrev = previousWeight(for: accessory.id, in: previousLogs)
+                let baseWeight = hasPrev
+                    ?? bodyWeightBasedDefault(
+                        weightKg: weightKg,
+                        muscleGroup: muscleGroup,
+                        isCompound: false,
+                        experienceLevel: preferences.experienceLevel,
+                        bmi: bmi
+                    )
                     ?? defaultWeight(for: muscleGroup)
+                let p = prescription(
+                    goal: preferences.goal,
+                    experienceLevel: preferences.experienceLevel,
+                    isCompound: false,
+                    bmi: bmi
+                )
+                let tunedWeight = hasPrev == nil ? (baseWeight * p.weightTuning) : baseWeight
                 accessories.append(PlannedExercise(
                     id: accessory.id,
                     name: accessory.name,
                     muscleGroup: muscleGroup,
                     isCompound: false,
-                    sets: 3,
-                    reps: 10,
-                    suggestedWeight: weight,
+                    sets: p.sets,
+                    reps: p.reps,
+                    suggestedWeight: tunedWeight,
+                    targetWeightMax: p.targetMaxFactor.map { tunedWeight * $0 },
                     equipment: accessory.equipment,
                     gifUrl: accessory.gifUrl,
                     instructions: accessory.instructions ?? []
+                    ,
+                    restBetweenSetsSeconds: p.restSeconds
                 ))
                 usedIds.insert(accessory.id)
             }
@@ -288,19 +449,38 @@ struct TrainingPlanGenerator {
                 }
                 for ex in matching {
                     guard result.count < 4 else { break }
-                    let weight = previousWeight(for: ex.id, in: previousLogs)
+                    let isComp = isCompound(ex)
+                    let hasPrev = previousWeight(for: ex.id, in: previousLogs)
+                    let baseWeight = hasPrev
+                        ?? bodyWeightBasedDefault(
+                            weightKg: weightKg,
+                            muscleGroup: muscleGroup,
+                            isCompound: isComp,
+                            experienceLevel: preferences.experienceLevel,
+                            bmi: bmi
+                        )
                         ?? defaultWeight(for: muscleGroup)
+                    let p = prescription(
+                        goal: preferences.goal,
+                        experienceLevel: preferences.experienceLevel,
+                        isCompound: isComp,
+                        bmi: bmi
+                    )
+                    let tunedWeight = hasPrev == nil ? (baseWeight * p.weightTuning) : baseWeight
                     result.append(PlannedExercise(
                         id: ex.id,
                         name: ex.name,
                         muscleGroup: muscleGroup,
-                        isCompound: isCompound(ex),
-                        sets: 3,
-                        reps: 10,
-                        suggestedWeight: weight,
+                        isCompound: isComp,
+                        sets: p.sets,
+                        reps: p.reps,
+                        suggestedWeight: tunedWeight,
+                        targetWeightMax: p.targetMaxFactor.map { tunedWeight * $0 },
                         equipment: ex.equipment,
                         gifUrl: ex.gifUrl,
                         instructions: ex.instructions ?? []
+                        ,
+                        restBetweenSetsSeconds: p.restSeconds
                     ))
                     usedIds.insert(ex.id)
                 }
@@ -325,6 +505,8 @@ struct TrainingPlanGenerator {
         preferences: TrainingPreferences,
         exercises: [Exercise],
         previousLogs: [WorkoutLog],
+        weightKg: Double? = nil,
+        heightCm: Double? = nil,
         restDays: Set<Int> = [6, 7]
     ) -> TrainingPlan {
         // Step 1: Calculate muscle frequency
@@ -364,6 +546,10 @@ struct TrainingPlanGenerator {
                         for: day.muscleGroups,
                         from: exercises,
                         previousLogs: previousLogs
+                        ,
+                        preferences: preferences,
+                        weightKg: weightKg,
+                        heightCm: heightCm
                     )
                     let newDay = TrainingDayPlan(
                         dayOfWeek: day.dayOfWeek,

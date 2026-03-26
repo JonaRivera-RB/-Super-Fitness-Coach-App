@@ -18,6 +18,7 @@ final class TrainingPreferencesViewModel {
     var priorityMuscles: [MuscleGroup] = []
     var wantsCardio: Bool = false
     var planDurationWeeks: Int = 4
+    var prefersHighVolume: Bool = false
     // restDays: days of week (1=Mon...7=Sun) that are rest days
     // Default: Sat(6) + Sun(7) = 2 rest days → 5 training days
     // But default trainingDaysPerWeek=4, so default rest = [4,6,7] (Thu, Sat, Sun)
@@ -34,13 +35,19 @@ final class TrainingPreferencesViewModel {
 
     private let exerciseService: ExerciseService
     private let repository: TrainingPlanRepository
+    private let userProfileRepository: UserProfileRepository
     @ObservationIgnored private let logger = Logger(subsystem: "com.superfitnesscoach", category: "TrainingPreferencesVM")
 
     // MARK: - Init
 
-    init(exerciseService: ExerciseService, repository: TrainingPlanRepository) {
+    init(
+        exerciseService: ExerciseService,
+        repository: TrainingPlanRepository,
+        userProfileRepository: UserProfileRepository
+    ) {
         self.exerciseService = exerciseService
         self.repository = repository
+        self.userProfileRepository = userProfileRepository
     }
 
     // MARK: - Muscle Toggle (Req 1.3)
@@ -80,8 +87,13 @@ final class TrainingPreferencesViewModel {
             experienceLevel: experienceLevel,
             priorityMuscles: priorityMuscles,
             wantsCardio: wantsCardio,
-            planDurationWeeks: planDurationWeeks
+            planDurationWeeks: planDurationWeeks,
+            prefersHighVolume: prefersHighVolume || experienceLevel == .advanced
         )
+
+        let profile = (try? userProfileRepository.fetch())
+        let weightKg = profile?.weightKg
+        let heightCm = profile?.heightCm
 
         // Fetch exercises — use fallback if API fails
         let allBodyParts = Set(MuscleGroup.allCases.map(\.apiBodyPart))
@@ -123,6 +135,8 @@ final class TrainingPreferencesViewModel {
             preferences: preferences,
             exercises: exercises,
             previousLogs: previousLogs,
+            weightKg: weightKg,
+            heightCm: heightCm,
             restDays: restDays
         )
 
