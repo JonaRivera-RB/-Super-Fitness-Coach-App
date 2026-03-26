@@ -46,6 +46,8 @@ final class HomeViewModel {
     private(set) var coachSummaryAccessibilityLabel: String = ""
     /// VoiceOver corto para la interpretación rápida.
     private(set) var quickMeaningAccessibilityLabel: String = ""
+    /// Últimos días con recuperación guardada localmente (más antiguo → más reciente).
+    private(set) var recoveryHistoryDays: [RecoveryHistoryDay] = []
     private(set) var recoveryInsights: [MetricInsight] = []
     private(set) var activityInsights: [MetricInsight] = []
 
@@ -55,7 +57,14 @@ final class HomeViewModel {
     private let detoxManager: DetoxManager
     private let notificationService: NotificationService
     private let userProfileRepository: UserProfileRepository
+    private let recoverySnapshotRepository: RecoverySnapshotRepository
     private let userName: String
+
+    struct RecoveryHistoryDay: Identifiable, Equatable {
+        let id: Date
+        let weekdayShort: String
+        let recoveryScore: Int
+    }
 
     enum StatusIndicator: String {
         case red, yellow, green
@@ -86,6 +95,7 @@ final class HomeViewModel {
         detoxManager: DetoxManager,
         notificationService: NotificationService,
         userProfileRepository: UserProfileRepository,
+        recoverySnapshotRepository: RecoverySnapshotRepository,
         userName: String
     ) {
         self.healthKitManager = healthKitManager
@@ -94,6 +104,7 @@ final class HomeViewModel {
         self.detoxManager = detoxManager
         self.notificationService = notificationService
         self.userProfileRepository = userProfileRepository
+        self.recoverySnapshotRepository = recoverySnapshotRepository
         self.userName = userName
     }
 
@@ -155,11 +166,49 @@ final class HomeViewModel {
             detoxActive = false; detoxCurrentDay = 0
         }
 
+        if authorizationStatus == .authorized,
+           case .available(let r) = recoveryScore,
+           case .available(let a) = activityScore {
+            try? recoverySnapshotRepository.upsertToday(recovery: r, activity: a)
+        }
+        loadRecoveryHistory()
+
         await notificationService.scheduleDailyNotification(
             recoveryScore: recoveryValue,
             statusEmoji: statusIndicator.emoji,
-            recommendation: "\(todayMuscleLabel) is ready"
+            recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue)
         )
+    }
+
+    private func loadRecoveryHistory() {
+        do {
+            let rows = try recoverySnapshotRepository.fetchRecent(limit: 7)
+            let chronological = Array(rows.reversed())
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "es_ES")
+            df.setLocalizedDateFormatFromTemplate("EEE")
+            recoveryHistoryDays = chronological.map { snap in
+                let label = df.string(from: snap.dayStart).trimmingCharacters(in: .whitespaces)
+                return RecoveryHistoryDay(
+                    id: snap.dayStart,
+                    weekdayShort: label.replacingOccurrences(of: ".", with: ""),
+                    recoveryScore: snap.recoveryScore
+                )
+            }
+        } catch {
+            recoveryHistoryDays = []
+        }
+    }
+
+    private static func notificationRecommendationLine(recoveryScore: Int) -> String {
+        switch recoveryScore {
+        case ..<40:
+            return "Prioriza descanso y movilidad suave."
+        case 40..<70:
+            return "Intensidad moderada encaja bien con tu recuperación de hoy."
+        default:
+            return "Buena recuperación para entrenar según tu plan."
+        }
     }
 
     private func todayMusclesFromPlan() -> String {

@@ -41,7 +41,13 @@ struct WeeklyProgressionEngine {
     ) -> PlannedExercise {
         var adjusted = exercise
         adjusted.suggestedWeight = exercise.suggestedWeight * progression.weightMultiplier
+        if let maxW = exercise.targetWeightMax {
+            adjusted.targetWeightMax = maxW * progression.weightMultiplier
+        }
         adjusted.sets = max(1, Int((Double(exercise.sets) * progression.volumeMultiplier).rounded()))
+        if let per = adjusted.perSetRestSeconds {
+            adjusted.perSetRestSeconds = per.count == adjusted.sets ? per : Array(per.prefix(adjusted.sets))
+        }
         return adjusted
     }
 }

@@ -34,7 +34,7 @@ struct HomeView: View {
             .refreshable {
                 await viewModel.refresh()
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("Inicio")
             .task {
                 await viewModel.onAppear()
             }
@@ -232,13 +232,18 @@ struct HomeView: View {
                     .accessibilityLabel("Confianza del recovery: \(viewModel.recoveryConfidenceLabel)")
             }
 
+            if !viewModel.recoveryHistoryDays.isEmpty {
+                recoveryHistoryStrip(days: viewModel.recoveryHistoryDays)
+                    .padding(.top, 8)
+            }
+
             Button {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     showRecoveryBreakdown.toggle()
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text("Details")
+                    Text("Detalles")
                         .font(.subheadline)
                     Image(systemName: showRecoveryBreakdown ? "chevron.up" : "chevron.down")
                         .font(.caption)
@@ -379,7 +384,7 @@ struct HomeView: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text("Details")
+                    Text("Detalles")
                         .font(.subheadline)
                     Image(systemName: showActivityBreakdown ? "chevron.up" : "chevron.down")
                         .font(.caption)
@@ -532,7 +537,7 @@ struct HomeView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
                 .foregroundStyle(.orange)
-            Text("points")
+            Text("puntos")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -543,7 +548,7 @@ struct HomeView: View {
                 .fill(Color(.systemGray6))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(viewModel.totalPoints) points")
+        .accessibilityLabel("\(viewModel.totalPoints) puntos")
     }
 
     // MARK: - Detox Progress
@@ -578,6 +583,59 @@ struct HomeView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
+    }
+
+    // MARK: - Recovery history strip
+
+    @ViewBuilder
+    private func recoveryHistoryStrip(days: [HomeViewModel.RecoveryHistoryDay]) -> some View {
+        VStack(spacing: 10) {
+            Text("Historial reciente (recuperación)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+
+            if days.count == 1, let day = days.first {
+                HStack {
+                    Spacer(minLength: 0)
+                    recoveryHistoryChip(day: day)
+                        .frame(width: 80)
+                    Spacer(minLength: 0)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(days) { day in
+                        recoveryHistoryChip(day: day)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+    }
+
+    private func recoveryHistoryChip(day: HomeViewModel.RecoveryHistoryDay) -> some View {
+        VStack(spacing: 4) {
+            Text(day.weekdayShort)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text("\(day.recoveryScore)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.systemGray5))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(day.weekdayShort), recuperación \(day.recoveryScore)")
     }
 
     // MARK: - Helpers

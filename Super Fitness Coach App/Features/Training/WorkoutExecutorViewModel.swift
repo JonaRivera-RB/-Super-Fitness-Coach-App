@@ -27,15 +27,21 @@ final class WorkoutExecutorViewModel {
     /// Tracks completed sets per exercise.
     private(set) var completedSets: [[Bool]] = []
 
+    /// Tracks whether a completed set is a PR (estimated 1RM) vs the latest logged workout for that exercise.
+    private(set) var prSets: [[Bool]] = []
+
     /// True when every set of every exercise has been completed.
     private(set) var isWorkoutComplete: Bool = false
 
     /// WorkoutLogs collected during this session — available once isWorkoutComplete = true.
     private(set) var completedLogs: [WorkoutLog] = []
 
+    /// Micro-coaching en gimnasio (texto en español para la UI).
+    private(set) var gymCoachMessage: String = ""
+
     // MARK: - Private Properties
 
-    private let plan: TrainingPlan
+    private let currentWeek: Int
     private let plannedExercises: [PlannedExercise]
     private let setLogger: SetLogger
     private let healthKitManager: HealthKitManager
@@ -43,6 +49,12 @@ final class WorkoutExecutorViewModel {
 
     /// In-memory log buffer: exerciseId → accumulated SetLogs for this session.
     private var sessionSetBuffer: [String: (name: String, sets: [SetLog])] = [:]
+
+    /// Cached previous sets per exercise for autofill/PR UI.
+    private var previousSets: [String: [SetLog]] = [:]
+
+    /// Cached previous best estimated 1RM per exercise (from latest log).
+    private var previousBestE1RM: [String: Double] = [:]
 
     private var restTimer: Timer?
 
@@ -52,12 +64,12 @@ final class WorkoutExecutorViewModel {
     // MARK: - Init
 
     init(
-        plan: TrainingPlan,
+        currentWeek: Int,
         plannedExercises: [PlannedExercise],
         setLogger: SetLogger,
         healthKitManager: HealthKitManager
     ) {
-        self.plan = plan
+        self.currentWeek = currentWeek
         self.plannedExercises = plannedExercises
         self.setLogger = setLogger
         self.healthKitManager = healthKitManager
@@ -80,7 +92,7 @@ final class WorkoutExecutorViewModel {
         recoveryScore = healthKitManager.recoveryScore.value ?? 50
 
         // Step 1: Apply weekly progression (base intensity)
-        let progression = WeeklyProgressionEngine.progression(for: plan.currentWeek)
+        let progression = WeeklyProgressionEngine.progression(for: currentWeek)
         var adjusted = plannedExercises.map {
             WeeklyProgressionEngine.applyProgression(to: $0, progression: progression)
         }
@@ -94,12 +106,77 @@ final class WorkoutExecutorViewModel {
         self.exercises = adjusted
         self.currentExerciseIndex = 0
 
+        // Cache previous sets for autofill / "previous" column.
+        var prev: [String: [SetLog]] = [:]
+        var prevBest: [String: Double] = [:]
+        for ex in adjusted {
+            let catalogKey = ex.effectiveCatalogId
+            if let log = try? setLogger.latestLog(for: catalogKey) {
+                prev[catalogKey] = log.sets
+                prevBest[catalogKey] = log.sets
+                    .map { Self.estimate1RM(weight: $0.weight, reps: $0.reps) }
+                    .max()
+            }
+        }
+        self.previousSets = prev
+        self.previousBestE1RM = prevBest
+
         // Initialize completed sets tracking: array of Bool arrays per exercise
         self.completedSets = adjusted.map { exercise in
             Array(repeating: false, count: exercise.sets)
         }
+        self.prSets = adjusted.map { exercise in
+            Array(repeating: false, count: exercise.sets)
+        }
 
-        logger.info("Built daily exercises: \(adjusted.count) exercises, week \(self.plan.currentWeek), recovery \(self.recoveryScore)")
+        if let first = adjusted.first {
+            gymCoachMessage = GymCoach.sessionOpening(
+                recoveryScore: recoveryScore,
+                firstExerciseName: first.name
+            )
+        } else {
+            gymCoachMessage = ""
+        }
+
+        logger.info("Built daily exercises: \(adjusted.count) exercises, week \(self.currentWeek), recovery \(self.recoveryScore)")
+    }
+
+    func previousDisplay(catalogExerciseId: String, setIndex: Int) -> String {
+        guard let sets = previousSets[catalogExerciseId], sets.indices.contains(setIndex) else { return "—" }
+        let s = sets[setIndex]
+        return "\(String(format: "%.0f", s.weight)) × \(s.reps)"
+    }
+
+    func defaultWeight(exercise: PlannedExercise, setIndex: Int) -> Double {
+        let key = exercise.effectiveCatalogId
+        if let sets = previousSets[key], sets.indices.contains(setIndex) {
+            return sets[setIndex].weight
+        }
+        return exercise.suggestedWeight
+    }
+
+    func defaultReps(exercise: PlannedExercise, setIndex: Int) -> Int {
+        let key = exercise.effectiveCatalogId
+        if let sets = previousSets[key], sets.indices.contains(setIndex) {
+            return sets[setIndex].reps
+        }
+        return exercise.reps
+    }
+
+    func isPR(catalogExerciseId: String, weight: Double, reps: Int) -> Bool {
+        guard weight > 0, reps > 0 else { return false }
+        let e1rm = Self.estimate1RM(weight: weight, reps: reps)
+        guard let prevBest = previousBestE1RM[catalogExerciseId] else {
+            // No prior log: treat the first meaningful set as PR.
+            return true
+        }
+        return e1rm > prevBest + 0.01
+    }
+
+    private static func estimate1RM(weight: Double, reps: Int) -> Double {
+        // Epley: e1RM = w * (1 + reps/30)
+        let r = max(1, reps)
+        return weight * (1.0 + Double(r) / 30.0)
     }
 
     // MARK: - Complete Set (Req 7.2, 8.1)
@@ -111,10 +188,11 @@ final class WorkoutExecutorViewModel {
             return
         }
 
+        let exercise = exercises[exerciseIndex]
+        prSets[exerciseIndex][setIndex] = isPR(catalogExerciseId: exercise.effectiveCatalogId, weight: weight, reps: reps)
         completedSets[exerciseIndex][setIndex] = true
 
         // Accumulate set in session buffer (keyed by exerciseId)
-        let exercise = exercises[exerciseIndex]
         let setLog = SetLog(weight: weight, reps: reps)
         if sessionSetBuffer[exercise.id] == nil {
             sessionSetBuffer[exercise.id] = (name: exercise.name, sets: [])
@@ -128,22 +206,37 @@ final class WorkoutExecutorViewModel {
             logger.error("Failed to log set: \(error.localizedDescription)")
         }
 
-        startRestTimer()
-
         let allSetsCompleted = completedSets[exerciseIndex].allSatisfy { $0 }
+        if !allSetsCompleted {
+            let restSec = exercise.restSeconds(afterCompletingSet: setIndex)
+            gymCoachMessage = GymCoach.messageAfterSet(
+                wasPR: prSets[exerciseIndex][setIndex],
+                exercise: exercise,
+                completedSetIndex: setIndex,
+                totalSets: exercise.sets,
+                restSeconds: restSec
+            )
+            startRestTimer(exerciseIndex: exerciseIndex, completedSetIndex: setIndex)
+        }
         if allSetsCompleted {
+            stopRestTimer()
             advanceToNextExercise()
         }
     }
 
     // MARK: - Rest Timer (Req 7.3, 7.4)
 
-    /// Starts a 60-second rest timer. Not editable in MVP (Req 7.4).
-    func startRestTimer() {
+    /// Inicia el temporizador de descanso según el ejercicio (y opcionalmente por serie).
+    func startRestTimer(exerciseIndex: Int, completedSetIndex: Int) {
         stopRestTimer()
 
-        restTimerSeconds = 60
-        isRestTimerActive = true
+        guard exerciseIndex < exercises.count else { return }
+        let ex = exercises[exerciseIndex]
+        let seconds = ex.restSeconds(afterCompletingSet: completedSetIndex)
+        restTimerSeconds = seconds
+        isRestTimerActive = seconds > 0
+
+        guard seconds > 0 else { return }
 
         restTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self else {
@@ -171,7 +264,13 @@ final class WorkoutExecutorViewModel {
     private func advanceToNextExercise() {
         if currentExerciseIndex < exercises.count - 1 {
             currentExerciseIndex += 1
-            logger.info("Advanced to exercise \(self.currentExerciseIndex): \(self.exercises[self.currentExerciseIndex].name)")
+            let ex = exercises[currentExerciseIndex]
+            gymCoachMessage = GymCoach.exerciseIntro(
+                exercise: ex,
+                exerciseIndex: currentExerciseIndex,
+                totalExercises: exercises.count
+            )
+            logger.info("Advanced to exercise \(self.currentExerciseIndex): \(ex.name)")
         } else {
             finishWorkout()
         }

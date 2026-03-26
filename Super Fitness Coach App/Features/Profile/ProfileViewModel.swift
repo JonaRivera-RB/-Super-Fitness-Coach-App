@@ -71,6 +71,15 @@ final class ProfileViewModel {
             logger.error("Failed to load profile: \(error.localizedDescription)")
         }
         authorizationStatus = healthKitManager.authorizationStatus
+        Task { @MainActor in
+            notificationsEnabled = await notificationService.authorizationGranted()
+        }
+    }
+
+    /// Sincroniza HealthKit y notificaciones con el sistema (útil al abrir Perfil).
+    func refreshConnectionStatus() async {
+        authorizationStatus = healthKitManager.authorizationStatus
+        notificationsEnabled = await notificationService.authorizationGranted()
     }
 
     private func loadFitnessConfig(_ config: FitnessConfig) {

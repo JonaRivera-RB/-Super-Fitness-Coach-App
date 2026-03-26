@@ -129,4 +129,13 @@ final class TrainingPlanRepository {
         descriptor.fetchLimit = limit
         return try context.fetch(descriptor)
     }
+
+    /// Todos los registros recientes (para historial / PRs en estadísticas).
+    func fetchAllLogs(limit: Int) throws -> [WorkoutLog] {
+        var descriptor = FetchDescriptor<WorkoutLog>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        return try context.fetch(descriptor)
+    }
 }

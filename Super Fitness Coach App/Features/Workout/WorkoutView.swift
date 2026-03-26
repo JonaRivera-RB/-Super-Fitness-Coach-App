@@ -6,12 +6,17 @@
 import SwiftUI
 import SwiftData
 
+/// Entrenamiento unificado: **plan guiado** (metas, semanas, fases) y **mi rutina** (misma capa visual).
 struct WorkoutView: View {
     var trainingPlanVM: TrainingPlanViewModel?
     var onNewTrainingPlan: (() -> Void)?
     var onStartTrainingWorkout: ((Int) -> Void)?
+    var onEditRoutine: (() -> Void)?
+    /// Ejercicios del día y día de la semana (1...7) para marcar completado al cerrar el entreno.
+    var onStartRoutineWorkout: (([PlannedExercise], Int) -> Void)?
 
-    // @Query observes SwiftData directly — always hydrated, no timing issues
+    @AppStorage("workoutHomeSurface") private var storedSurface: String = WorkoutSurface.plan.rawValue
+
     @Query(
         filter: #Predicate<TrainingPlan> { $0.planStatusRaw == "active" },
         sort: \TrainingPlan.createdAt,
@@ -20,33 +25,169 @@ struct WorkoutView: View {
 
     private var activePlan: TrainingPlan? { activePlans.first }
 
+    @Query(
+        filter: #Predicate<UserRoutine> { $0.isActive == true },
+        sort: \UserRoutine.createdAt,
+        order: .reverse
+    ) private var activeRoutines: [UserRoutine]
+    private var activeRoutine: UserRoutine? { activeRoutines.first }
+
+    private var hasPlan: Bool { activePlan != nil }
+    private var hasRoutine: Bool { activeRoutine != nil }
+
+    private var surface: WorkoutSurface {
+        if hasPlan && !hasRoutine { return .plan }
+        if hasRoutine && !hasPlan { return .routine }
+        if hasPlan && hasRoutine {
+            return WorkoutSurface(rawValue: storedSurface) ?? .plan
+        }
+        return .plan
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    if let plan = activePlan {
-                        trainingPlanSection(plan: plan)
-                    } else {
+                    if hasPlan && hasRoutine {
+                        Picker("Vista", selection: $storedSurface) {
+                            Text("Plan guiado").tag(WorkoutSurface.plan.rawValue)
+                            Text("Mi rutina").tag(WorkoutSurface.routine.rawValue)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityLabel("Elegir entre plan guiado o mi rutina")
+                    }
+
+                    Group {
+                        switch surface {
+                        case .plan:
+                            if let plan = activePlan {
+                                trainingPlanSection(plan: plan)
+                            } else if let routine = activeRoutine {
+                                routineSection(routine: routine)
+                            } else {
+                                emptyTrainingState
+                            }
+                        case .routine:
+                            if let routine = activeRoutine {
+                                routineSection(routine: routine)
+                            } else if let plan = activePlan {
+                                trainingPlanSection(plan: plan)
+                            } else {
+                                emptyTrainingState
+                            }
+                        }
+                    }
+
+                    if surface == .plan, hasRoutine {
+                        routineHintBanner
+                    } else if surface == .routine, hasPlan {
+                        planHintBanner
+                    }
+
+                    if !hasPlan {
                         noPlanBanner
                     }
                 }
                 .padding()
             }
-            .navigationTitle("Workout")
+            .navigationTitle("Entrenamiento")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button { onNewTrainingPlan?() } label: {
-                            Label("New Training Plan", systemImage: "plus.circle")
+                    HStack(spacing: 12) {
+                        if hasRoutine {
+                            Button {
+                                onEditRoutine?()
+                            } label: {
+                                Label("Editar rutina", systemImage: "slider.horizontal.3")
+                            }
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .accessibilityLabel("Workout options")
+                        Menu {
+                            Button { onNewTrainingPlan?() } label: {
+                                Label("Nuevo plan", systemImage: "plus.circle")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .accessibilityLabel("Más opciones")
+                        }
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Empty
+
+    private var emptyTrainingState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "figure.run.circle")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("Sin contenido")
+                .font(.headline)
+            Text("Crea un plan o configura tu rutina.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+    }
+
+    // MARK: - Cross-hints (fusion UX)
+
+    private var routineHintBanner: some View {
+        Button {
+            storedSurface = WorkoutSurface.routine.rawValue
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.triangle.swap")
+                    .font(.title3)
+                    .foregroundStyle(.teal)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("También tienes Mi rutina")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text("Ejercicios, descansos y sustitutos bajo tu control.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.teal.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var planHintBanner: some View {
+        Button {
+            storedSurface = WorkoutSurface.plan.rawValue
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Volver al plan guiado")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text("Semanas, fases y días bloqueados como antes.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.blue.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - No Plan Banner
@@ -55,11 +196,11 @@ struct WorkoutView: View {
         VStack(spacing: 14) {
             Image(systemName: "calendar.badge.plus")
                 .font(.system(size: 36)).foregroundStyle(.blue)
-            Text("No training plan yet").font(.headline)
-            Text("Create a personalized plan based on your goals, available days, and priority muscles.")
+            Text("Plan opcional").font(.headline)
+            Text("Metas, prioridades y duración en semanas. Puedes entrenar solo con Mi rutina o combinar ambos.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Button { onNewTrainingPlan?() } label: {
-                Label("Create Training Plan", systemImage: "plus")
+                Label("Crear plan de entrenamiento", systemImage: "plus")
                     .fontWeight(.semibold).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large)
@@ -84,7 +225,261 @@ struct WorkoutView: View {
         .id("\(plan.id)-\(currentWeekDays.map(\.dayStatusRaw).joined())")
     }
 
-    // MARK: - Week Progress Header
+    // MARK: - Routine Section (misma jerarquía que el plan)
+
+    private func routineSection(routine: UserRoutine) -> some View {
+        let days = routine.days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+
+        return VStack(spacing: 14) {
+            routineWeekHeader(routine: routine, days: days)
+            routineTodayCard(days: days)
+            routineWeekOverview(days: days)
+        }
+        .id(routine.id)
+    }
+
+    private func routineWeekHeader(routine: UserRoutine, days: [UserRoutineDay]) -> some View {
+        let trainingDayCount = days.filter { !$0.isRestDay }.count
+        let totalMoves = days.reduce(0) { $0 + $1.exercises.count }
+        let fraction = min(1.0, Double(trainingDayCount) / 7.0)
+
+        return VStack(spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mi rutina")
+                        .font(.title3).fontWeight(.bold)
+                    Text("\(trainingDayCount) días de entreno · \(totalMoves) ejercicios en la semana")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title2)
+                    .foregroundStyle(.teal)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray4)).frame(height: 6)
+                    Capsule().fill(Color.teal)
+                        .frame(width: geo.size.width * fraction, height: 6)
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.teal.opacity(0.07)))
+    }
+
+    @ViewBuilder
+    private func routineTodayCard(days: [UserRoutineDay]) -> some View {
+        let today = todayDayOfWeek
+        if let day = days.first(where: { $0.dayOfWeek == today }) {
+            if routineDayCompletedToday(day) {
+                routineDayCompletedCard(day: day)
+            } else if day.isRestDay {
+                restDayCard
+            } else if day.exercises.isEmpty {
+                routineEmptyExercisesCard
+            } else {
+                routineWorkoutHeroCard(day: day)
+            }
+        } else {
+            routineEmptyDayCard
+        }
+    }
+
+    /// Ya hiciste Mi rutina hoy: no mostrar de nuevo el botón principal hasta mañana.
+    private func routineDayCompletedToday(_ day: UserRoutineDay) -> Bool {
+        guard let at = day.lastRoutineWorkoutCompletedAt else { return false }
+        return Calendar.current.isDate(at, inSameDayAs: Date())
+    }
+
+    private func routineDayCompletedCard(day: UserRoutineDay) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.green)
+            Text("Entreno de Mi rutina hecho")
+                .font(.headline)
+            Text("Hoy ya registraste este día. Mañana podrás volver a empezarlo.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if let at = day.lastRoutineWorkoutCompletedAt {
+                Text(at, format: .dateTime.hour().minute())
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.green.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.green.opacity(0.25), lineWidth: 1))
+    }
+
+    private var routineEmptyDayCard: some View {
+        VStack(spacing: 10) {
+            Text("No se encontró el día en la rutina.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
+    }
+
+    private var routineEmptyExercisesCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 36))
+                .foregroundStyle(.teal)
+            Text("Hoy toca entrenar")
+                .font(.headline)
+            Text("Este día no tiene ejercicios. Añádelos desde Editar rutina.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button { onEditRoutine?() } label: {
+                Label("Añadir ejercicios", systemImage: "pencil")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.teal)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.teal.opacity(0.06)))
+    }
+
+    private func routineWorkoutHeroCard(day: UserRoutineDay) -> some View {
+        let groups = uniqueMuscleLabels(from: day.exercises)
+
+        return VStack(spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hoy en tu rutina")
+                        .font(.headline)
+                    if !groups.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(groups.prefix(4), id: \.self) { g in
+                                Text(g)
+                                    .font(.caption).fontWeight(.medium)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Capsule().fill(Color.teal.opacity(0.15)))
+                                    .foregroundStyle(.teal)
+                            }
+                        }
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(day.exercises.count)").font(.title2).fontWeight(.bold)
+                    Text("ejercicios").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(spacing: 0) {
+                ForEach(Array(day.exercises.prefix(4).enumerated()), id: \.offset) { _, exercise in
+                    HStack {
+                        Circle()
+                            .fill(exercise.isCompound ? Color.orange : Color.teal.opacity(0.5))
+                            .frame(width: 6, height: 6)
+                        Text(exercise.name).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        Text("\(exercise.sets)×\(exercise.reps)")
+                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    .padding(.vertical, 6)
+                    if exercise.id != day.exercises.prefix(4).last?.id { Divider() }
+                }
+                if day.exercises.count > 4 {
+                    Text("+\(day.exercises.count - 4) más")
+                        .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                }
+            }
+
+            Button {
+                onStartRoutineWorkout?(day.exercises, day.dayOfWeek)
+            } label: {
+                Label("Empezar entreno", systemImage: "play.fill")
+                    .fontWeight(.semibold).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(.green)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))
+            .shadow(color: .green.opacity(0.15), radius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.green.opacity(0.3), lineWidth: 1))
+    }
+
+    private func uniqueMuscleLabels(from exercises: [PlannedExercise]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for ex in exercises {
+            let label = ex.muscleGroup.rawValue.capitalized
+            if !seen.contains(label) {
+                seen.insert(label)
+                out.append(label)
+            }
+        }
+        return out
+    }
+
+    private func routineWeekOverview(days: [UserRoutineDay]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Esta semana")
+                .font(.headline)
+            HStack(spacing: 4) {
+                ForEach(days, id: \.dayOfWeek) { day in
+                    routineDayPill(day: day)
+                }
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
+    }
+
+    private func routineDayPill(day: UserRoutineDay) -> some View {
+        let today = todayDayOfWeek
+        let isToday = day.dayOfWeek == today
+        let isRest = day.isRestDay
+        let n = day.exercises.count
+        let doneToday = routineDayCompletedToday(day)
+
+        return VStack(spacing: 4) {
+            Text(shortDayLabelEs(day.dayOfWeek))
+                .font(.system(size: 9)).fontWeight(.medium)
+                .foregroundStyle(isToday ? .primary : .secondary)
+
+            ZStack {
+                Circle()
+                    .fill(doneToday ? Color.green.opacity(0.55) : (isRest ? Color.purple.opacity(0.45) : (n > 0 ? Color.teal.opacity(0.45) : Color.gray.opacity(0.25))))
+                    .frame(width: 32, height: 32)
+                if doneToday {
+                    Image(systemName: "checkmark").font(.caption).fontWeight(.bold).foregroundStyle(.white)
+                } else if isRest {
+                    Image(systemName: "moon.fill").font(.caption2).foregroundStyle(.white.opacity(0.9))
+                } else if n > 0 {
+                    Text("\(min(n, 9))")
+                        .font(.caption2).fontWeight(.bold)
+                        .foregroundStyle(.white)
+                } else {
+                    Image(systemName: "ellipsis").font(.caption2).foregroundStyle(.white.opacity(0.8))
+                }
+            }
+
+            if !isRest && n > 0 && !doneToday {
+                Text("+\(n)")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 8).fill(isToday ? Color.teal.opacity(0.12) : Color.clear))
+    }
+
+    // MARK: - Week Progress Header (plan)
 
     private func weekProgressHeader(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
         let completed = days.filter { !$0.isRestDay && $0.dayStatus == .completed }.count
@@ -96,10 +491,10 @@ struct WorkoutView: View {
         let p = WeeklyProgressionEngine.progression(for: currentWeek)
         let phaseLabel: String
         switch p.weekInCycle {
-        case 1: phaseLabel = "Base week"
-        case 2: phaseLabel = "+5% weight week"
-        case 3: phaseLabel = "+10% volume week"
-        case 4: phaseLabel = "Deload week"
+        case 1: phaseLabel = "Semana base"
+        case 2: phaseLabel = "+5% peso"
+        case 3: phaseLabel = "+10% volumen"
+        case 4: phaseLabel = "Semana descarga"
         default: phaseLabel = ""
         }
 
@@ -126,7 +521,7 @@ struct WorkoutView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.blue.opacity(0.07)))
     }
 
-    // MARK: - Today Card
+    // MARK: - Today Card (plan)
 
     @ViewBuilder
     private func todayCard(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
@@ -169,7 +564,6 @@ struct WorkoutView: View {
             if day.dayStatus == .pending { return idx }
             if day.dayStatus == .completed { return idx }
         }
-        // Find next pending training day after today
         return days.indices.first { i in
             !days[i].isRestDay && days[i].dayStatus == .pending && days[i].dayOfWeek > today
         }
@@ -179,7 +573,7 @@ struct WorkoutView: View {
         VStack(spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isActuallyToday ? "Today's Workout" : "Next Workout — \(shortDayLabel(day.dayOfWeek))")
+                    Text(isActuallyToday ? "Entreno de hoy" : "Siguiente — \(shortDayLabelEs(day.dayOfWeek))")
                         .font(.headline)
                     HStack(spacing: 6) {
                         ForEach(day.muscleGroups, id: \.self) { group in
@@ -194,7 +588,7 @@ struct WorkoutView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(day.exercises.count)").font(.title2).fontWeight(.bold)
-                    Text("exercises").font(.caption2).foregroundStyle(.secondary)
+                    Text("ejercicios").font(.caption2).foregroundStyle(.secondary)
                 }
             }
 
@@ -213,13 +607,13 @@ struct WorkoutView: View {
                     if exercise.id != day.exercises.prefix(4).last?.id { Divider() }
                 }
                 if day.exercises.count > 4 {
-                    Text("+\(day.exercises.count - 4) more")
+                    Text("+\(day.exercises.count - 4) más")
                         .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                 }
             }
 
             Button { onStartTrainingWorkout?(dayIndex) } label: {
-                Label("Start Workout", systemImage: "play.fill")
+                Label("Empezar entreno", systemImage: "play.fill")
                     .fontWeight(.semibold).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(.green)
@@ -227,13 +621,13 @@ struct WorkoutView: View {
             if isActuallyToday {
                 HStack(spacing: 12) {
                     Button { trainingPlanVM?.skipDay(at: dayIndex) } label: {
-                        Label("Skip Today", systemImage: "forward.fill").font(.subheadline)
+                        Label("Saltar hoy", systemImage: "forward.fill").font(.subheadline)
                     }
                     .buttonStyle(.bordered).tint(.orange).controlSize(.small)
 
                     if trainingPlanVM?.canReschedule(at: dayIndex) == true {
                         Button { trainingPlanVM?.rescheduleDay(at: dayIndex) } label: {
-                            Label("Reschedule", systemImage: "arrow.uturn.right").font(.subheadline)
+                            Label("Reprogramar", systemImage: "arrow.uturn.right").font(.subheadline)
                         }
                         .buttonStyle(.bordered).tint(.blue).controlSize(.small)
                     }
@@ -250,8 +644,8 @@ struct WorkoutView: View {
     private var restDayCard: some View {
         VStack(spacing: 12) {
             Image(systemName: "moon.zzz.fill").font(.system(size: 36)).foregroundStyle(.purple)
-            Text("Rest Day").font(.title3).fontWeight(.bold)
-            Text("Your body recovers and grows stronger on rest days.")
+            Text("Día de descanso").font(.title3).fontWeight(.bold)
+            Text("Recupera bien; el crecimiento ocurre también fuera del gimnasio.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(20).frame(maxWidth: .infinity)
@@ -261,8 +655,8 @@ struct WorkoutView: View {
     private func dayCompletedCard(day: TrainingDayPlan) -> some View {
         VStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill").font(.system(size: 36)).foregroundStyle(.green)
-            Text("Today's workout done").font(.headline)
-            Text(day.muscleGroups.map { $0.rawValue.capitalized }.joined(separator: " & "))
+            Text("Entreno de hoy hecho").font(.headline)
+            Text(day.muscleGroups.map { $0.rawValue.capitalized }.joined(separator: " · "))
                 .font(.subheadline).foregroundStyle(.secondary)
         }
         .padding(20).frame(maxWidth: .infinity)
@@ -272,8 +666,8 @@ struct WorkoutView: View {
     private var noWorkoutTodayCard: some View {
         VStack(spacing: 10) {
             Image(systemName: "calendar").font(.system(size: 36)).foregroundStyle(.blue)
-            Text("No workout today").font(.headline)
-            Text("Your next training session is coming up. Check the week overview below.")
+            Text("Hoy no toca entreno").font(.headline)
+            Text("El siguiente día de entreno aparece abajo en la semana.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(20).frame(maxWidth: .infinity)
@@ -283,8 +677,8 @@ struct WorkoutView: View {
     private var skippedDayCard: some View {
         VStack(spacing: 12) {
             Image(systemName: "lock.fill").font(.system(size: 36)).foregroundStyle(.orange)
-            Text("Workout bloqueado").font(.title3).fontWeight(.bold)
-            Text("Saltaste el entrenamiento de hoy. Vuelve mañana para retomar tu plan.")
+            Text("Entreno bloqueado").font(.title3).fontWeight(.bold)
+            Text("Saltaste el entreno de hoy. Mañana podrás seguir con el plan.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(20).frame(maxWidth: .infinity)
@@ -292,7 +686,6 @@ struct WorkoutView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.orange.opacity(0.25), lineWidth: 1))
     }
 
-    /// Week is only "complete" when ALL training days are completed (skipped ≠ complete).
     private func weekCompleteCard(days: [TrainingDayPlan]) -> some View {
         let trainingDays = days.filter { !$0.isRestDay }
         guard !trainingDays.isEmpty else {
@@ -304,11 +697,11 @@ struct WorkoutView: View {
             Image(systemName: allCompleted ? "trophy.fill" : "checkmark.circle")
                 .font(.system(size: 36))
                 .foregroundStyle(allCompleted ? .yellow : .orange)
-            Text(allCompleted ? "Week complete! 🏆" : "No more workouts this week")
+            Text(allCompleted ? "¡Semana completada!" : "No quedan entrenos esta semana")
                 .font(.headline)
             Text(allCompleted
-                 ? "All workouts done. Great job!"
-                 : "Some sessions were skipped. Keep going next week.")
+                 ? "Buen trabajo con el plan."
+                 : "Aún puedes revisar la semana que viene.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .padding(20).frame(maxWidth: .infinity)
@@ -316,13 +709,13 @@ struct WorkoutView: View {
             .fill(allCompleted ? Color.yellow.opacity(0.07) : Color.orange.opacity(0.07))))
     }
 
-    // MARK: - Week Overview
+    // MARK: - Week Overview (plan)
 
     private func weekOverview(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("This Week").font(.headline)
+            Text("Esta semana").font(.headline)
             HStack(spacing: 4) {
-                ForEach(Array(days.enumerated()), id: \.offset) { idx, day in
+                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                     dayPill(day: day)
                 }
             }
@@ -338,7 +731,7 @@ struct WorkoutView: View {
         let isToday = day.dayOfWeek == today
 
         return VStack(spacing: 4) {
-            Text(shortDayLabel(day.dayOfWeek))
+            Text(shortDayLabelEs(day.dayOfWeek))
                 .font(.system(size: 9)).fontWeight(.medium)
                 .foregroundStyle(isToday ? .primary : .secondary)
 
@@ -392,9 +785,16 @@ struct WorkoutView: View {
 
     // MARK: - Helpers
 
-    private func shortDayLabel(_ dayOfWeek: Int) -> String {
-        ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][safe: dayOfWeek - 1] ?? "?"
+    private func shortDayLabelEs(_ dayOfWeek: Int) -> String {
+        ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][safe: dayOfWeek - 1] ?? "?"
     }
+}
+
+// MARK: - Surface
+
+private enum WorkoutSurface: String {
+    case plan
+    case routine
 }
 
 private extension Array {

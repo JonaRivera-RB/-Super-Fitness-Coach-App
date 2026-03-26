@@ -21,7 +21,10 @@ struct Super_Fitness_Coach_AppApp: App {
             TrainingPlan.self,
             TrainingWeek.self,
             TrainingDayPlan.self,
-            WorkoutLog.self
+            WorkoutLog.self,
+            RecoverySnapshot.self,
+            UserRoutine.self,
+            UserRoutineDay.self
         ])
     }
 }

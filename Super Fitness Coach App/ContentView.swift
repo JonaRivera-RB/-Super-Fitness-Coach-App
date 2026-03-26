@@ -38,6 +38,7 @@ struct ContentView: View {
 
     // Navigation state for workout
     @State private var showingWorkout = false
+    @State private var showingRoutineEditor = false
 
     // Navigation state for training plan flow
     @State private var showingTrainingPreferences = false
@@ -50,6 +51,8 @@ struct ContentView: View {
     struct ExecutorItem: Identifiable {
         let id = UUID()
         let viewModel: WorkoutExecutorViewModel
+        /// `nil` = entreno del plan; si no, día de la semana (1...7) de Mi rutina.
+        let routineDayOfWeek: Int?
     }
     @State private var executorItem: ExecutorItem?
 
@@ -131,7 +134,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Home", systemImage: "house.fill")
+            Label("Inicio", systemImage: "house.fill")
         }
         .tag(Tab.home)
     }
@@ -144,13 +147,23 @@ struct ContentView: View {
                 onStartTrainingWorkout: { dayIndex in
                     selectedDayIndex = dayIndex
                     if let vm = buildWorkoutExecutorViewModel(for: dayIndex) {
-                        executorItem = ExecutorItem(viewModel: vm)
+                        executorItem = ExecutorItem(viewModel: vm, routineDayOfWeek: nil)
+                    }
+                },
+                onEditRoutine: { showingRoutineEditor = true },
+                onStartRoutineWorkout: { planned, dayOfWeek in
+                    selectedDayIndex = nil
+                    if let vm = buildRoutineExecutorViewModel(plannedExercises: planned) {
+                        executorItem = ExecutorItem(viewModel: vm, routineDayOfWeek: dayOfWeek)
                     }
                 }
             )
             .task {
                 trainingPlanViewModel?.loadPlan()
             }
+        }
+        .sheet(isPresented: $showingRoutineEditor) {
+            RoutineEditorView()
         }
         .onChange(of: selectedTab) { _, tab in
             if tab == .workout {
@@ -175,9 +188,12 @@ struct ContentView: View {
                 viewModel: item.viewModel,
                 onWorkoutComplete: { logs in
                     feedbackLogs = logs
-                    if let idx = selectedDayIndex {
+                    if let dow = item.routineDayOfWeek {
+                        markRoutineDayCompleted(dayOfWeek: dow)
+                    } else if let idx = selectedDayIndex {
                         trainingPlanViewModel?.completeDay(at: idx)
                     }
+                    selectedDayIndex = nil
                     executorItem = nil
                     showingFeedback = true
                 }
@@ -194,9 +210,18 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Workout", systemImage: "figure.run")
+            Label("Entrenamiento", systemImage: "figure.run")
         }
         .tag(Tab.workout)
+    }
+
+    private func markRoutineDayCompleted(dayOfWeek: Int) {
+        do {
+            let repo = UserRoutineRepository(context: modelContext)
+            try repo.markRoutineDayCompleted(dayOfWeek: dayOfWeek)
+        } catch {
+            print("❌ markRoutineDayCompleted: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Build WorkoutExecutorViewModel
@@ -238,8 +263,19 @@ struct ContentView: View {
 
         let setLogger = SetLogger(repository: repo)
         return WorkoutExecutorViewModel(
-            plan: plan,
+            currentWeek: plan.currentWeek,
             plannedExercises: day.exercises,
+            setLogger: setLogger,
+            healthKitManager: healthKitManager
+        )
+    }
+
+    private func buildRoutineExecutorViewModel(plannedExercises: [PlannedExercise]) -> WorkoutExecutorViewModel? {
+        guard let repo = trainingPlanRepository else { return nil }
+        let setLogger = SetLogger(repository: repo)
+        return WorkoutExecutorViewModel(
+            currentWeek: 1,
+            plannedExercises: plannedExercises,
             setLogger: setLogger,
             healthKitManager: healthKitManager
         )
@@ -252,7 +288,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Stats", systemImage: "chart.bar.fill")
+            Label("Estadísticas", systemImage: "chart.bar.fill")
         }
         .tag(Tab.stats)
     }
@@ -264,7 +300,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Profile", systemImage: "person.fill")
+            Label("Perfil", systemImage: "person.fill")
         }
         .tag(Tab.profile)
     }
@@ -316,11 +352,16 @@ struct ContentView: View {
                 detoxManager: dm,
                 notificationService: notificationService,
                 userProfileRepository: UserProfileRepository(context: modelContext),
+                recoverySnapshotRepository: RecoverySnapshotRepository(context: modelContext),
                 userName: userProfile?.name ?? ""
             )
         }
         if statsViewModel == nil {
-            statsViewModel = StatsViewModel(gamificationEngine: ge)
+            statsViewModel = StatsViewModel(
+                gamificationEngine: ge,
+                trainingPlanRepository: repo,
+                exerciseService: es
+            )
         }
         if profileViewModel == nil {
             profileViewModel = ProfileViewModel(
@@ -355,6 +396,9 @@ struct ContentView: View {
             TrainingPlan.self,
             TrainingWeek.self,
             TrainingDayPlan.self,
-            WorkoutLog.self
+            WorkoutLog.self,
+            RecoverySnapshot.self,
+            UserRoutine.self,
+            UserRoutineDay.self
         ])
 }

@@ -17,6 +17,7 @@ struct ExerciseDetailView: View {
     private let imageLoader = ExerciseImageLoader(
         apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5"
     )
+    private let exerciseService = ExerciseService()
 
     var body: some View {
         NavigationStack {
@@ -160,9 +161,32 @@ struct ExerciseDetailView: View {
     // MARK: - Load GIF
 
     private func loadGif() async {
-        guard !exercise.id.isEmpty else { return }
+        let catalogId = exercise.effectiveCatalogId
+        guard !catalogId.isEmpty else { return }
         isLoadingGif = true
         defer { isLoadingGif = false }
-        gifData = await imageLoader.loadImageData(exerciseId: exercise.id)
+
+        if let data = await imageLoader.loadImageData(exerciseId: catalogId), !data.isEmpty {
+            gifData = data
+            return
+        }
+
+        let bundled = exerciseService.bundledExercise(withId: catalogId)
+        let urlString = exercise.gifUrl ?? bundled?.gifUrl
+        guard let urlString, let url = URL(string: urlString), url.scheme == "http" || url.scheme == "https" else {
+            gifData = nil
+            return
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 25
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode == 200, !data.isEmpty {
+                gifData = data
+            }
+        } catch {
+            gifData = nil
+        }
     }
 }

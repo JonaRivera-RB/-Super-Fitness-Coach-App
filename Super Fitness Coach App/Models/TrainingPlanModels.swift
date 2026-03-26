@@ -88,16 +88,129 @@ struct TrainingPreferences: Codable, Equatable {
 
 /// Ejercicio planificado dentro de un día.
 struct PlannedExercise: Codable, Equatable, Identifiable {
-    var id: String                        // exerciseId de Exercise
+    /// Identificador único de esta fila (puede ser UUID si es duplicado del mismo ejercicio).
+    var id: String
+    /// ID en el catálogo de ejercicios para GIF, sustitutos y comparar con logs previos. Si es nil, `id` es el ID de catálogo.
+    var catalogExerciseId: String?
     var name: String
     var muscleGroup: MuscleGroup
     var isCompound: Bool
     var sets: Int                          // default 3
     var reps: Int                          // default 8-12
-    var suggestedWeight: Double            // kg
+    /// Peso objetivo mínimo / principal (kg).
+    var suggestedWeight: Double
+    /// Rango opcional: peso máximo objetivo (kg). Si es nil, solo se usa `suggestedWeight`.
+    var targetWeightMax: Double?
     var equipment: String
     var gifUrl: String?
     var instructions: [String]
+    /// Descanso entre series (segundos). nil = 90 por defecto.
+    var restBetweenSetsSeconds: Int?
+    /// Descanso por serie: índice = tras completar esa serie (antes de la siguiente). Debe coincidir con `sets` si se usa.
+    var perSetRestSeconds: [Int]?
+    /// IDs de ejercicios sustitutos en el catálogo.
+    var alternateExerciseIds: [String]?
+
+    /// ID de catálogo para medios, logs históricos y PR vs sesiones anteriores.
+    var effectiveCatalogId: String { catalogExerciseId ?? id }
+
+    enum CodingKeys: String, CodingKey {
+        case id, catalogExerciseId, name, muscleGroup, isCompound, sets, reps
+        case suggestedWeight, targetWeightMax, equipment, gifUrl, instructions
+        case restBetweenSetsSeconds, perSetRestSeconds, alternateExerciseIds
+    }
+
+    init(
+        id: String,
+        catalogExerciseId: String? = nil,
+        name: String,
+        muscleGroup: MuscleGroup,
+        isCompound: Bool,
+        sets: Int,
+        reps: Int,
+        suggestedWeight: Double,
+        targetWeightMax: Double? = nil,
+        equipment: String,
+        gifUrl: String?,
+        instructions: [String],
+        restBetweenSetsSeconds: Int? = nil,
+        perSetRestSeconds: [Int]? = nil,
+        alternateExerciseIds: [String]? = nil
+    ) {
+        self.id = id
+        self.catalogExerciseId = catalogExerciseId
+        self.name = name
+        self.muscleGroup = muscleGroup
+        self.isCompound = isCompound
+        self.sets = sets
+        self.reps = reps
+        self.suggestedWeight = suggestedWeight
+        self.targetWeightMax = targetWeightMax
+        self.equipment = equipment
+        self.gifUrl = gifUrl
+        self.instructions = instructions
+        self.restBetweenSetsSeconds = restBetweenSetsSeconds
+        self.perSetRestSeconds = perSetRestSeconds
+        self.alternateExerciseIds = alternateExerciseIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        catalogExerciseId = try c.decodeIfPresent(String.self, forKey: .catalogExerciseId)
+        name = try c.decode(String.self, forKey: .name)
+        muscleGroup = try c.decode(MuscleGroup.self, forKey: .muscleGroup)
+        isCompound = try c.decode(Bool.self, forKey: .isCompound)
+        sets = try c.decode(Int.self, forKey: .sets)
+        reps = try c.decode(Int.self, forKey: .reps)
+        suggestedWeight = try c.decode(Double.self, forKey: .suggestedWeight)
+        targetWeightMax = try c.decodeIfPresent(Double.self, forKey: .targetWeightMax)
+        equipment = try c.decode(String.self, forKey: .equipment)
+        gifUrl = try c.decodeIfPresent(String.self, forKey: .gifUrl)
+        instructions = try c.decodeIfPresent([String].self, forKey: .instructions) ?? []
+        restBetweenSetsSeconds = try c.decodeIfPresent(Int.self, forKey: .restBetweenSetsSeconds)
+        perSetRestSeconds = try c.decodeIfPresent([Int].self, forKey: .perSetRestSeconds)
+        alternateExerciseIds = try c.decodeIfPresent([String].self, forKey: .alternateExerciseIds)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encodeIfPresent(catalogExerciseId, forKey: .catalogExerciseId)
+        try c.encode(name, forKey: .name)
+        try c.encode(muscleGroup, forKey: .muscleGroup)
+        try c.encode(isCompound, forKey: .isCompound)
+        try c.encode(sets, forKey: .sets)
+        try c.encode(reps, forKey: .reps)
+        try c.encode(suggestedWeight, forKey: .suggestedWeight)
+        try c.encodeIfPresent(targetWeightMax, forKey: .targetWeightMax)
+        try c.encode(equipment, forKey: .equipment)
+        try c.encodeIfPresent(gifUrl, forKey: .gifUrl)
+        try c.encode(instructions, forKey: .instructions)
+        try c.encodeIfPresent(restBetweenSetsSeconds, forKey: .restBetweenSetsSeconds)
+        try c.encodeIfPresent(perSetRestSeconds, forKey: .perSetRestSeconds)
+        try c.encodeIfPresent(alternateExerciseIds, forKey: .alternateExerciseIds)
+    }
+}
+
+extension PlannedExercise {
+    var effectiveRestBetweenSets: Int { restBetweenSetsSeconds ?? 90 }
+
+    /// Descanso tras completar la serie `setIndex` (0-based), antes de la siguiente.
+    func restSeconds(afterCompletingSet setIndex: Int) -> Int {
+        if let per = perSetRestSeconds, per.indices.contains(setIndex) {
+            return max(0, per[setIndex])
+        }
+        return max(0, effectiveRestBetweenSets)
+    }
+
+    /// Copia con nuevo `id` de instancia para poder repetir el mismo movimiento en el día.
+    func duplicatedInstance() -> PlannedExercise {
+        var copy = self
+        copy.catalogExerciseId = self.catalogExerciseId ?? self.id
+        copy.id = UUID().uuidString
+        return copy
+    }
 }
 
 /// Registro individual de un set.

@@ -115,6 +115,39 @@ final class ExerciseService {
         }
     }
 
+    /// Local search over the bundled fallback catalog (offline).
+    func searchBundledExercises(query: String, limit: Int = 50) -> [Exercise] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return Array(cachedFallbackExercises.prefix(limit)) }
+
+        let matches = cachedFallbackExercises.filter { ex in
+            ex.name.lowercased().contains(q) ||
+            ex.bodyPart.lowercased().contains(q) ||
+            ex.target.lowercased().contains(q) ||
+            ex.equipment.lowercased().contains(q)
+        }
+        return Array(matches.prefix(limit))
+    }
+
+    func bundledEquipments() -> [String] {
+        Array(Set(cachedFallbackExercises.map { $0.equipment }))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Resuelve un ejercicio del catálogo local por ID (para sustitutos guardados).
+    func bundledExercise(withId id: String) -> Exercise? {
+        cachedFallbackExercises.first { $0.id == id }
+    }
+
+    func bundledBodyParts() -> [String] {
+        Array(Set(cachedFallbackExercises.map { $0.bodyPart }))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     // MARK: - Private Helpers
 
     /// Load exercises from the bundled fallback_exercises.json file.

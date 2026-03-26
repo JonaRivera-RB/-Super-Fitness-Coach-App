@@ -32,7 +32,13 @@ struct RecoveryAdapter {
     ) -> PlannedExercise {
         var adjusted = exercise
         adjusted.suggestedWeight = exercise.suggestedWeight * adjustment.weightMultiplier
+        if let maxW = exercise.targetWeightMax {
+            adjusted.targetWeightMax = maxW * adjustment.weightMultiplier
+        }
         adjusted.sets = max(1, exercise.sets - adjustment.setsReduction)
+        if let per = adjusted.perSetRestSeconds {
+            adjusted.perSetRestSeconds = Array(per.prefix(adjusted.sets))
+        }
         return adjusted
     }
 }

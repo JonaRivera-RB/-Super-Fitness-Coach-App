@@ -48,8 +48,8 @@ final class NotificationService {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "Tu Coach Inteligente"
-        content.body = "Your score today is \(recoveryScore) \(statusEmoji) — \(recommendation)"
+        content.title = "Tu coach"
+        content.body = "Recuperación hoy: \(recoveryScore) \(statusEmoji). \(recommendation)"
         content.sound = .default
 
         var dateComponents = DateComponents()
@@ -77,5 +77,11 @@ final class NotificationService {
     /// Remove all pending notifications.
     func cancelAll() {
         center.removeAllPendingNotificationRequests()
+    }
+
+    /// Estado actual de autorización (para mostrar en Perfil sin pulsar de nuevo).
+    func authorizationGranted() async -> Bool {
+        let settings = await center.notificationSettings()
+        return settings.authorizationStatus == .authorized
     }
 }

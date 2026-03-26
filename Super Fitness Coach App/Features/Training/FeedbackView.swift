@@ -26,7 +26,7 @@ struct FeedbackView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Workout Summary")
+            .navigationTitle("Resumen del entreno")
             .onAppear {
                 viewModel.loadFeedback()
             }
@@ -88,12 +88,16 @@ struct FeedbackView: View {
 
     private var weightImprovementsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Weight Progress")
+            Text("Progreso de peso (máx. por ejercicio)")
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
 
+            Text("Comparado con tu último día de entreno anterior para ese mismo movimiento (no es el volumen total).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             if viewModel.weightImprovements.isEmpty {
-                Text("No exercise data available.")
+                Text("No hay datos de ejercicios.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -160,11 +164,11 @@ struct FeedbackView: View {
 
     private func deltaText(_ delta: Double) -> String {
         if delta > 0 {
-            return String(format: "+%.1f kg", delta)
+            return String(format: "+%.1f kg (máx.)", delta)
         } else if delta < 0 {
-            return String(format: "%.1f kg", delta)
+            return String(format: "%.1f kg (máx.)", delta)
         } else {
-            return "— kg"
+            return "Sin cambio (máx.)"
         }
     }
 

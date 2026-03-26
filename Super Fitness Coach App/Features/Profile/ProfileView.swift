@@ -36,7 +36,10 @@ struct ProfileView: View {
                 healthSection
                 notificationsSection
             }
-            .navigationTitle("Profile")
+            .navigationTitle("Perfil")
+            .task {
+                await viewModel.refreshConnectionStatus()
+            }
             .alert("Plan Updated", isPresented: $viewModel.showGoalChanged) {
                 Button("OK", role: .cancel) {
                     viewModel.dismissGoalChanged()
@@ -104,28 +107,29 @@ struct ProfileView: View {
                 Spacer()
                 switch viewModel.authorizationStatus {
                 case .authorized:
-                    Text("Connected")
+                    Text("Conectado")
                         .foregroundStyle(.green)
                         .font(.subheadline)
                 case .denied:
-                    Text("Denied")
+                    Text("Denegado")
                         .foregroundStyle(.orange)
                         .font(.subheadline)
                 case .unavailable:
-                    Text("Unavailable")
+                    Text("No disponible")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 case .notDetermined:
-                    Button("Connect") {
+                    Button("Conectar") {
                         Task {
                             await viewModel.requestHealthKitAuthorization()
+                            await viewModel.refreshConnectionStatus()
                         }
                     }
                     .font(.subheadline)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("HealthKit: \(viewModel.authorizationStatus == .authorized ? "Connected" : "Not connected")")
+            .accessibilityLabel("HealthKit: \(viewModel.authorizationStatus == .authorized ? "Conectado" : "No conectado")")
         }
     }
 
@@ -138,20 +142,21 @@ struct ProfileView: View {
                     .foregroundStyle(.orange)
                 Spacer()
                 if viewModel.notificationsEnabled {
-                    Text("Enabled")
+                    Text("Activadas")
                         .foregroundStyle(.green)
                         .font(.subheadline)
                 } else {
-                    Button("Enable") {
+                    Button("Activar") {
                         Task {
                             await viewModel.enableNotifications()
+                            await viewModel.refreshConnectionStatus()
                         }
                     }
                     .font(.subheadline)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Daily reminder: \(viewModel.notificationsEnabled ? "Enabled" : "Disabled")")
+            .accessibilityLabel("Recordatorio diario: \(viewModel.notificationsEnabled ? "Activado" : "Desactivado")")
         }
     }
 

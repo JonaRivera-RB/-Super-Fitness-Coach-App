@@ -26,6 +26,12 @@ struct WorkoutExecutorView: View {
             VStack(spacing: 0) {
                 exerciseProgressBar
 
+                if !viewModel.exercises.isEmpty && !viewModel.isWorkoutComplete {
+                    coachBanner
+                        .padding(.horizontal, 12)
+                        .padding(.top, 8)
+                }
+
                 if viewModel.isWorkoutComplete {
                     workoutCompleteScreen
                 } else if viewModel.exercises.isEmpty {
@@ -34,9 +40,9 @@ struct WorkoutExecutorView: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 36))
                             .foregroundStyle(.orange)
-                        Text("No exercises available")
+                        Text("No hay ejercicios")
                             .font(.headline)
-                        Text("The plan couldn't load exercises for today. Try regenerating your plan.")
+                        Text("No se pudieron cargar ejercicios para hoy. Revisa tu plan o rutina.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -54,11 +60,11 @@ struct WorkoutExecutorView: View {
                     }
                 }
             }
-            .navigationTitle("Workout")
+            .navigationTitle("Entreno")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") { dismiss() }
+                    Button("Cerrar") { dismiss() }
                 }
                 ToolbarItem(placement: .principal) {
                     Text("\(viewModel.currentExerciseIndex + 1) / \(viewModel.exercises.count)")
@@ -125,6 +131,55 @@ struct WorkoutExecutorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Coach (gym)
+
+    private func coachAccessibilitySummary(exercise: PlannedExercise?) -> String {
+        var parts: [String] = []
+        if !viewModel.gymCoachMessage.isEmpty {
+            parts.append(viewModel.gymCoachMessage)
+        }
+        if viewModel.isRestTimerActive, let ex = exercise {
+            parts.append(GymCoach.restFocus(exercise: ex, restSecondsRemaining: viewModel.restTimerSeconds))
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private var coachBanner: some View {
+        let idx = viewModel.currentExerciseIndex
+        let exercise = viewModel.exercises.indices.contains(idx) ? viewModel.exercises[idx] : nil
+
+        return Group {
+            if !viewModel.gymCoachMessage.isEmpty || viewModel.isRestTimerActive {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.title3)
+                        .foregroundStyle(.teal)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        if !viewModel.gymCoachMessage.isEmpty {
+                            Text(viewModel.gymCoachMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if viewModel.isRestTimerActive, let ex = exercise {
+                            Text(GymCoach.restFocus(exercise: ex, restSecondsRemaining: viewModel.restTimerSeconds))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 14).fill(Color.teal.opacity(0.1)))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(coachAccessibilitySummary(exercise: exercise))
+            }
+        }
+    }
+
     // MARK: - Progress Bar
 
     private var exerciseProgressBar: some View {
@@ -174,6 +229,12 @@ struct WorkoutExecutorView: View {
             .buttonStyle(.plain)
             .sheet(isPresented: $showExerciseDetail) {
                 ExerciseDetailView(exercise: exercise)
+            }
+
+            if let cap = targetWeightCaption(exercise) {
+                Text(cap)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 10) {
@@ -254,7 +315,7 @@ struct WorkoutExecutorView: View {
                 .frame(width: 36, alignment: .leading)
 
             // Previous (suggested weight × reps)
-            Text("\(String(format: "%.0f", exercise.suggestedWeight)) × \(exercise.reps)")
+            Text(viewModel.previousDisplay(catalogExerciseId: exercise.effectiveCatalogId, setIndex: setIndex))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -287,9 +348,20 @@ struct WorkoutExecutorView: View {
             Button {
                 completeSetAction(exerciseIndex: exerciseIndex, setIndex: setIndex)
             } label: {
-                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isCompleted ? .green : .gray.opacity(0.4))
+                HStack(spacing: 6) {
+                    if isCompleted && (viewModel.prSets[safe: exerciseIndex]?[safe: setIndex] ?? false) {
+                        Text("PR")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.purple))
+                    }
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isCompleted ? .green : .gray.opacity(0.4))
+                }
             }
             .disabled(isCompleted)
             .frame(width: 40)
@@ -308,7 +380,7 @@ struct WorkoutExecutorView: View {
             HStack {
                 Image(systemName: "timer")
                     .foregroundStyle(.blue)
-                Text("Rest")
+                Text("Descanso")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -321,8 +393,19 @@ struct WorkoutExecutorView: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.08)))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Rest timer, \(viewModel.restTimerSeconds) seconds")
+            .accessibilityLabel("Descanso, \(viewModel.restTimerSeconds) segundos")
         }
+    }
+
+    private func targetWeightCaption(_ exercise: PlannedExercise) -> String? {
+        let minW = exercise.suggestedWeight
+        if let maxW = exercise.targetWeightMax, maxW > minW + 0.01 {
+            return String(format: "Objetivo: %.0f–%.0f kg", minW, maxW)
+        }
+        if minW > 0 {
+            return String(format: "Objetivo: %.0f kg", minW)
+        }
+        return nil
     }
 
     // MARK: - Actions
@@ -337,10 +420,14 @@ struct WorkoutExecutorView: View {
 
     private func buildInputs() {
         weightInputs = viewModel.exercises.map { ex in
-            Array(repeating: String(format: "%.0f", ex.suggestedWeight), count: ex.sets)
+            (0..<ex.sets).map { idx in
+                String(format: "%.0f", viewModel.defaultWeight(exercise: ex, setIndex: idx))
+            }
         }
         repsInputs = viewModel.exercises.map { ex in
-            Array(repeating: "\(ex.reps)", count: ex.sets)
+            (0..<ex.sets).map { idx in
+                "\(viewModel.defaultReps(exercise: ex, setIndex: idx))"
+            }
         }
     }
 

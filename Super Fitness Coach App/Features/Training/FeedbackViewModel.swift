@@ -62,43 +62,51 @@ final class FeedbackViewModel {
     // MARK: - Weight Improvements (Req 12.1)
 
     /// For each exercise in the just-completed workout, computes the weight delta
-    /// vs the previous workout of the same exerciseId.
+    /// vs el **último entreno previo en otro día** (evita comparar con guardados parciales del mismo día).
     private func computeWeightImprovements() {
+        hasImproving = false
         var improvements: [(exerciseName: String, delta: Double)] = []
-        var hasPreviousData = false
+        var anyPreviousDayLog = false
 
         for log in workoutLogs {
             let currentMax = ProgressTracker.maxWeight(from: log)
+            let displayName = log.notes ?? log.exerciseId
 
             do {
-                // Fetch the two most recent logs for this exercise.
-                // The first one is the current workout (just saved), so we need the second.
-                let recentLogs = try repository.fetchLogs(exerciseId: log.exerciseId, limit: 2)
-                let previousLog = recentLogs.count >= 2 ? recentLogs[1] : nil
-
-                if let previousLog {
-                    hasPreviousData = true
-                    let previousMax = ProgressTracker.maxWeight(from: previousLog)
-                    let delta = currentMax - previousMax
-                    let displayName = log.notes ?? log.exerciseId
-                    improvements.append((exerciseName: displayName, delta: delta))
-
-                    let status = ProgressTracker.compareProgress(current: log, previous: previousLog)
-                    if status == .improving { hasImproving = true }
-                } else {
-                    let displayName = log.notes ?? log.exerciseId
+                guard let previousLog = try bestLogFromPreviousDays(exerciseId: log.exerciseId, sessionDate: log.date) else {
                     improvements.append((exerciseName: displayName, delta: 0.0))
+                    continue
                 }
+
+                anyPreviousDayLog = true
+                let previousMax = ProgressTracker.maxWeight(from: previousLog)
+                let delta = currentMax - previousMax
+                improvements.append((exerciseName: displayName, delta: delta))
+
+                let status = ProgressTracker.compareProgress(current: log, previous: previousLog)
+                if status == .improving { hasImproving = true }
             } catch {
                 logger.error("Failed to fetch previous logs for \(log.exerciseId): \(error.localizedDescription)")
-                improvements.append((exerciseName: log.exerciseId, delta: 0.0))
+                improvements.append((exerciseName: displayName, delta: 0.0))
             }
         }
 
         weightImprovements = improvements
+        isFirstWorkout = !anyPreviousDayLog
+    }
 
-        // Req 12.4: If no previous data exists at all, mark as first workout
-        isFirstWorkout = !hasPreviousData
+    /// Mejor registro de un día **anterior** al día del entreno (no incluye el mismo día).
+    private func bestLogFromPreviousDays(exerciseId: String, sessionDate: Date) throws -> WorkoutLog? {
+        let all = try repository.fetchLogs(exerciseId: exerciseId, limit: 120)
+        let sessionDay = Calendar.current.startOfDay(for: sessionDate)
+        let older = all.filter { Calendar.current.startOfDay(for: $0.date) < sessionDay }
+        guard !older.isEmpty else { return nil }
+
+        let byDay = Dictionary(grouping: older) { Calendar.current.startOfDay(for: $0.date) }
+        let bestPerDay: [WorkoutLog] = byDay.values.compactMap { logs in
+            logs.max(by: { $0.sets.count < $1.sets.count })
+        }
+        return bestPerDay.max(by: { $0.date < $1.date })
     }
 
     // MARK: - Consecutive Days (Req 12.2)
