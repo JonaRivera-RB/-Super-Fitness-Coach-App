@@ -10,14 +10,12 @@ import SwiftUI
 struct ExerciseDetailView: View {
     let exercise: PlannedExercise
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @State private var gifData: Data? = nil
     @State private var isLoadingGif = false
     @State private var gifErrorMessage: String? = nil
 
-    private let imageLoader = ExerciseImageLoader(
-        apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5"
-    )
     private let exerciseService = ExerciseService()
 
     var body: some View {
@@ -71,6 +69,21 @@ struct ExerciseDetailView: View {
                     Text("Sin imagen disponible")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        Button {
+                            openGoogleSearch(mode: .video)
+                        } label: {
+                            Label("Buscar video", systemImage: "play.circle")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            openGoogleSearch(mode: .images)
+                        } label: {
+                            Label("Buscar imágenes", systemImage: "photo")
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     if let msg = gifErrorMessage {
                         Text(msg)
                             .font(.caption2)
@@ -81,6 +94,30 @@ struct ExerciseDetailView: View {
                 }
             }
         }
+    }
+
+    private enum GoogleSearchMode {
+        case video
+        case images
+        case web
+    }
+
+    private func openGoogleSearch(mode: GoogleSearchMode) {
+        let base: String
+        switch mode {
+        case .video:
+            base = "https://www.google.com/search?tbm=vid"
+        case .images:
+            base = "https://www.google.com/search?tbm=isch"
+        case .web:
+            base = "https://www.google.com/search"
+        }
+
+        let q = "\(exercise.name) exercise"
+        guard var comps = URLComponents(string: base) else { return }
+        comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "q", value: q)]
+        guard let url = comps.url else { return }
+        openURL(url)
     }
 
     // MARK: - Meta chips
@@ -175,18 +212,6 @@ struct ExerciseDetailView: View {
         gifErrorMessage = nil
         defer { isLoadingGif = false }
 
-        if let data = await imageLoader.loadImageData(exerciseId: catalogId), !data.isEmpty {
-            gifData = data
-            return
-        }
-
-        // Direct fallback to the documented endpoint (query-param auth).
-        // This also lets us surface HTTP status in the UI.
-        if let data = await fetchGifDirect(exerciseId: catalogId) {
-            gifData = data
-            return
-        }
-
         let bundled = exerciseService.bundledExercise(withId: catalogId)
         let urlString = exercise.gifUrl ?? bundled?.gifUrl
         guard let urlString, let url = URL(string: urlString), url.scheme == "http" || url.scheme == "https" else {
@@ -210,51 +235,5 @@ struct ExerciseDetailView: View {
             gifData = nil
             gifErrorMessage = "No se pudo cargar la animación (\(error.localizedDescription))."
         }
-    }
-
-    private func fetchGifDirect(exerciseId: String) async -> Data? {
-        let apiHost = "exercisedb.p.rapidapi.com"
-        let apiKey = "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5"
-
-        // Try from lowest resolution up — BASIC tier often only supports 180.
-        let resolutions = [180, 360, 720, 1080]
-        for res in resolutions {
-            guard var comps = URLComponents(string: "https://\(apiHost)/image") else { continue }
-            comps.queryItems = [
-                URLQueryItem(name: "exerciseId", value: exerciseId),
-                URLQueryItem(name: "resolution", value: "\(res)"),
-                URLQueryItem(name: "rapidapi-key", value: apiKey),
-            ]
-            guard let url = comps.url else { continue }
-
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 25
-            request.setValue(apiKey, forHTTPHeaderField: "X-RapidAPI-Key")
-            request.setValue(apiHost, forHTTPHeaderField: "X-RapidAPI-Host")
-
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse else { continue }
-                if http.statusCode == 200, !data.isEmpty {
-                    return data
-                }
-                // Surface the most useful error once.
-                if gifErrorMessage == nil {
-                    if http.statusCode == 401 || http.statusCode == 403 {
-                        gifErrorMessage = "GIF bloqueado por autenticación/plan (HTTP \(http.statusCode))."
-                    } else if http.statusCode == 422 {
-                        gifErrorMessage = "GIF no disponible para ese ejercicio o resolución (HTTP 422)."
-                    } else {
-                        gifErrorMessage = "No se pudo cargar GIF desde ExerciseDB (HTTP \(http.statusCode))."
-                    }
-                }
-            } catch {
-                if gifErrorMessage == nil {
-                    gifErrorMessage = "Error de red cargando GIF (\(error.localizedDescription))."
-                }
-                continue
-            }
-        }
-        return nil
     }
 }

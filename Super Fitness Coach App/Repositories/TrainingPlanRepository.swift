@@ -18,9 +18,11 @@ final class TrainingPlanRepository {
     // MARK: - TrainingPlan
 
     func savePlan(_ plan: TrainingPlan) throws {
-        // Only insert if not already tracked by this context
-        // (avoid deleting existing plan when just updating day status)
-        context.insert(plan)
+        // Only insert if not already tracked by this context.
+        // Re-inserting managed @Model objects can lead to inconsistent persistence behavior.
+        if plan.modelContext == nil {
+            context.insert(plan)
+        }
         do {
             try context.save()
         } catch {
@@ -79,15 +81,15 @@ final class TrainingPlanRepository {
             },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
-        // Prefetch nested relationships eagerly — prevents lazy-load empty array bug
         descriptor.relationshipKeyPathsForPrefetching = [\.weeks]
         guard let plan = try context.fetch(descriptor).first else { return nil }
 
-        // Also touch days to ensure they're hydrated
-        for week in plan.weeks {
-            _ = week.days.count
+        // Always re-fetch by id so weeks/days/exercises are fully materialized. After
+        // `replaceActivePlan`, the first fetch can intermittently expose empty
+        // `week.days` until relationships settle — completing a day then no-ops.
+        if let hydrated = try? fetchPlan(id: plan.id) {
+            return hydrated
         }
-
         return plan
     }
 
@@ -117,6 +119,60 @@ final class TrainingPlanRepository {
         )
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
+    }
+
+    /// Upserts a single "daily" WorkoutLog for an exercise.
+    /// This prevents the resume logic from regressing when the in-memory set buffer resets.
+    func upsertDailyWorkoutLog(exerciseId: String, date: Date, sets: [SetLog], notes: String?) throws {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: date)
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return }
+
+        let descriptor = FetchDescriptor<WorkoutLog>(
+            predicate: #Predicate<WorkoutLog> { log in
+                log.exerciseId == exerciseId && log.date >= start && log.date < end
+            },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        let existing = (try? context.fetch(descriptor)) ?? []
+        for e in existing {
+            context.delete(e)
+        }
+        if !existing.isEmpty {
+            try context.save()
+        }
+
+        let merged = WorkoutLog(exerciseId: exerciseId, date: date, sets: sets, notes: notes)
+        context.insert(merged)
+        try context.save()
+    }
+
+    // MARK: - Session-scoped logs (for safe resume)
+
+    func fetchLatestLog(exerciseId: String, sessionId: String) throws -> WorkoutLog? {
+        var descriptor = FetchDescriptor<WorkoutLog>(
+            predicate: #Predicate<WorkoutLog> { log in
+                log.exerciseId == exerciseId && log.sessionId == sessionId
+            },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    func upsertSessionWorkoutLog(exerciseId: String, sessionId: String, date: Date, sets: [SetLog], notes: String?) throws {
+        let descriptor = FetchDescriptor<WorkoutLog>(
+            predicate: #Predicate<WorkoutLog> { log in
+                log.exerciseId == exerciseId && log.sessionId == sessionId
+            }
+        )
+        let existing = (try? context.fetch(descriptor)) ?? []
+        for e in existing { context.delete(e) }
+        if !existing.isEmpty { try context.save() }
+
+        let merged = WorkoutLog(exerciseId: exerciseId, sessionId: sessionId, date: date, sets: sets, notes: notes)
+        context.insert(merged)
+        try context.save()
     }
 
     func fetchLogs(exerciseId: String, limit: Int) throws -> [WorkoutLog] {
@@ -227,5 +283,23 @@ final class TrainingPlanRepository {
         if didChange {
             try savePlan(plan)
         }
+    }
+
+    // MARK: - Plan week advance
+
+    /// Si todos los días de entreno (no descanso) de la semana **actual** del plan están completados,
+    /// pasa a la siguiente entrada en `weeks` (plantilla con estados pendientes de nuevo).
+    /// Evita que «Esta semana» quede eternamente en verde al cambiar la semana calendario.
+    func advanceToNextTrainingWeekIfNeeded(plan: TrainingPlan) throws {
+        let wi = plan.currentWeek - 1
+        guard wi >= 0, wi < plan.weeks.count else { return }
+        let week = plan.weeks[wi]
+        let trainingDays = week.days.filter { !$0.isRestDay }
+        guard !trainingDays.isEmpty else { return }
+        guard trainingDays.allSatisfy({ $0.dayStatus == .completed }) else { return }
+        guard plan.currentWeek < plan.weeks.count else { return }
+        plan.currentWeek += 1
+        try savePlan(plan)
+        logger.info("Advanced active plan to training week index \(plan.currentWeek) (1-based)")
     }
 }

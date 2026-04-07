@@ -45,6 +45,7 @@ struct ContentView: View {
     @State private var showingFeedback = false
     @State private var feedbackLogs: [WorkoutLog] = []
     @State private var selectedDayIndex: Int?
+    @State private var selectedDayOfWeek: Int?
     @State private var cachedExecutorViewModel: WorkoutExecutorViewModel?
 
     // Wrapper to make WorkoutExecutorViewModel identifiable for sheet(item:)
@@ -53,6 +54,8 @@ struct ContentView: View {
         let viewModel: WorkoutExecutorViewModel
         /// `nil` = entreno del plan; si no, día de la semana (1...7) de Mi rutina.
         let routineDayOfWeek: Int?
+        /// Clave en UserDefaults donde está el `sessionId` de Mi rutina (limpiar al completar).
+        let routineSessionDefaultsKey: String?
     }
     @State private var executorItem: ExecutorItem?
 
@@ -147,14 +150,18 @@ struct ContentView: View {
                 onStartTrainingWorkout: { dayIndex in
                     selectedDayIndex = dayIndex
                     if let vm = buildWorkoutExecutorViewModel(for: dayIndex) {
-                        executorItem = ExecutorItem(viewModel: vm, routineDayOfWeek: nil)
+                        executorItem = ExecutorItem(viewModel: vm, routineDayOfWeek: nil, routineSessionDefaultsKey: nil)
                     }
                 },
                 onEditRoutine: { showingRoutineEditor = true },
                 onStartRoutineWorkout: { planned, dayOfWeek in
                     selectedDayIndex = nil
-                    if let vm = buildRoutineExecutorViewModel(plannedExercises: planned) {
-                        executorItem = ExecutorItem(viewModel: vm, routineDayOfWeek: dayOfWeek)
+                    if let (vm, sessionKey) = buildRoutineExecutorViewModel(plannedExercises: planned) {
+                        executorItem = ExecutorItem(
+                            viewModel: vm,
+                            routineDayOfWeek: dayOfWeek,
+                            routineSessionDefaultsKey: sessionKey
+                        )
                     }
                 }
             )
@@ -174,6 +181,8 @@ struct ContentView: View {
         .sheet(isPresented: $showingTrainingPreferences, onDismiss: {
             if let generated = trainingPreferencesViewModel?.generatedPlan {
                 trainingPlanViewModel?.setPlan(generated)
+                // Ensure the VM is synced to the active, managed plan after replacement.
+                trainingPlanViewModel?.loadPlan()
             } else {
                 trainingPlanViewModel?.loadPlan()
             }
@@ -190,14 +199,36 @@ struct ContentView: View {
                     feedbackLogs = logs
                     if let dow = item.routineDayOfWeek {
                         markRoutineDayCompleted(dayOfWeek: dow)
+                        if let key = item.routineSessionDefaultsKey {
+                            UserDefaults.standard.removeObject(forKey: key)
+                        }
+                        // Force refresh so WorkoutView @Query reflects the change immediately.
+                        trainingPlanViewModel?.loadPlan()
                     } else if let idx = selectedDayIndex {
                         // Apply performance-based updates before completing the day
                         if let repo = trainingPlanRepository {
                             try? repo.applyPerformanceUpdates(workoutLogs: logs)
                         }
-                        trainingPlanViewModel?.completeDay(at: idx)
+                        // Clear session id so a new workout starts fresh next time.
+                        if let repo = trainingPlanRepository, let plan = try? repo.fetchActivePlan() {
+                            let weekIndex = plan.currentWeek - 1
+                            if weekIndex >= 0, weekIndex < plan.weeks.count {
+                                let sorted = plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+                                if idx >= 0, idx < sorted.count {
+                                    clearSessionId(plan: plan, dayOfWeek: sorted[idx].dayOfWeek)
+                                }
+                            }
+                        }
+                        if let dow = selectedDayOfWeek {
+                            trainingPlanViewModel?.completeDay(dayOfWeek: dow)
+                        } else {
+                            trainingPlanViewModel?.completeDay(at: idx)
+                        }
+                        // Reload to keep WorkoutView's @Query + VM snapshots in sync.
+                        trainingPlanViewModel?.loadPlan()
                     }
                     selectedDayIndex = nil
+                    selectedDayOfWeek = nil
                     executorItem = nil
                     showingFeedback = true
                 }
@@ -230,6 +261,35 @@ struct ContentView: View {
 
     // MARK: - Build WorkoutExecutorViewModel
 
+    private func sessionDefaultsKey(planId: UUID, week: Int, dayOfWeek: Int) -> String {
+        "trainingSession|\(planId.uuidString)|w\(week)|d\(dayOfWeek)"
+    }
+
+    private func loadOrCreateSessionId(plan: TrainingPlan, dayOfWeek: Int) -> String {
+        let key = sessionDefaultsKey(planId: plan.id, week: plan.currentWeek, dayOfWeek: dayOfWeek)
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let newId = UUID().uuidString
+        UserDefaults.standard.set(newId, forKey: key)
+        return newId
+    }
+
+    private func clearSessionId(plan: TrainingPlan, dayOfWeek: Int) {
+        let key = sessionDefaultsKey(planId: plan.id, week: plan.currentWeek, dayOfWeek: dayOfWeek)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    private func loadOrCreateRoutineSessionId(routineId: UUID) -> (sessionId: String, defaultsKey: String) {
+        let pair = RoutineSessionStore.loadOrCreateSessionId(
+            routineId: routineId,
+            referenceDate: Date(),
+            calendar: .current,
+            defaults: .standard
+        )
+        return (pair.sessionId, pair.storageKey)
+    }
+
     private func buildWorkoutExecutorViewModel(for dayIndex: Int) -> WorkoutExecutorViewModel? {
         guard let repo = trainingPlanRepository else {
             print("❌ buildExecutorVM: no repository")
@@ -258,6 +318,7 @@ struct ContentView: View {
         }
 
         let day = sortedDays[dayIndex]
+        selectedDayOfWeek = day.dayOfWeek
         print("✅ buildExecutorVM: day dow=\(day.dayOfWeek), exercises=\(day.exercises.count), isRest=\(day.isRestDay)")
 
         guard !day.exercises.isEmpty else {
@@ -265,26 +326,41 @@ struct ContentView: View {
             return nil
         }
 
-        let setLogger = SetLogger(repository: repo)
+        // Ensure a stable session id exists (UserDefaults-backed) so resume doesn't regress.
+        let sessionId = loadOrCreateSessionId(plan: plan, dayOfWeek: day.dayOfWeek)
+        if day.activeSessionId == nil || day.activeSessionId?.isEmpty == true || day.activeSessionId != sessionId {
+            day.activeSessionId = sessionId
+            if day.activeSessionStartedAt == nil { day.activeSessionStartedAt = Date() }
+            try? modelContext.save()
+        }
+
+        let setLogger = SetLogger(repository: repo, sessionId: sessionId)
         return WorkoutExecutorViewModel(
             currentWeek: plan.currentWeek,
             plannedExercises: day.exercises,
             setLogger: setLogger,
             healthKitManager: healthKitManager,
-            goal: plan.preferences.goal
+            goal: plan.preferences.goal,
+            sessionId: sessionId
         )
     }
 
-    private func buildRoutineExecutorViewModel(plannedExercises: [PlannedExercise]) -> WorkoutExecutorViewModel? {
+    private func buildRoutineExecutorViewModel(
+        plannedExercises: [PlannedExercise]
+    ) -> (WorkoutExecutorViewModel, String)? {
         guard let repo = trainingPlanRepository else { return nil }
-        let setLogger = SetLogger(repository: repo)
-        return WorkoutExecutorViewModel(
+        guard let routine = try? UserRoutineRepository(context: modelContext).fetchActive() else { return nil }
+        let (sessionId, defaultsKey) = loadOrCreateRoutineSessionId(routineId: routine.id)
+        let setLogger = SetLogger(repository: repo, sessionId: sessionId)
+        let vm = WorkoutExecutorViewModel(
             currentWeek: 1,
             plannedExercises: plannedExercises,
             setLogger: setLogger,
             healthKitManager: healthKitManager,
-            goal: .beHealthy
+            goal: .beHealthy,
+            sessionId: sessionId
         )
+        return (vm, defaultsKey)
     }
 
     private var statsTab: some View {
@@ -332,13 +408,11 @@ struct ContentView: View {
         let detoxRepo = DetoxRepository(context: modelContext)
 
         let ge = GamificationEngine(repository: gamificationRepo)
-        let es = ExerciseService(apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5")
-        let eil = ExerciseImageLoader(apiKey: "655b0c38d3msh1d4ac5d7c628530p1eda67jsn147154d940a5")
+        let es = ExerciseService()
         let dm = DetoxManager(repository: detoxRepo, gamificationEngine: ge)
 
         gamificationEngine = ge
         exerciseService = es
-        exerciseImageLoader = eil
         detoxManager = dm
         trainingPlanRepository = TrainingPlanRepository(context: modelContext)
         servicesReady = true

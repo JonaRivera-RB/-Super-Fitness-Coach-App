@@ -80,7 +80,7 @@ enum WorkoutHistoryAnalyzer {
                 exerciseName: name,
                 date: log.date,
                 setsCount: log.sets.count,
-                volumeText: String(format: "Volumen total · %.0f (suma peso×reps)", vol),
+                volumeText: String(format: "Carga total · %.0f (peso×reps)", vol),
                 bestSetText: bestLine
             )
         }

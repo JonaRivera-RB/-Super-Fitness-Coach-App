@@ -455,14 +455,22 @@ struct HomeView: View {
             Divider()
                 .padding(.horizontal)
 
-            if insights.isEmpty, let breakdown = breakdown {
-                // Fallback: show raw breakdown if no insights available
-                VStack(spacing: 10) {
-                    ForEach(breakdown.components, id: \.name) { component in
-                        fallbackComponentRow(component: component)
+            if insights.isEmpty {
+                if let breakdown = breakdown, !breakdown.components.isEmpty {
+                    // Fallback: show raw breakdown if no insights available
+                    VStack(spacing: 10) {
+                        ForEach(breakdown.components, id: \.name) { component in
+                            fallbackComponentRow(component: component)
+                        }
                     }
+                    .padding(.horizontal)
+                } else {
+                    Text("Aún no hay detalles disponibles para Recovery. Con más datos (especialmente sueño) esta sección se completa automáticamente.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 18)
                 }
-                .padding(.horizontal)
             } else {
                 VStack(spacing: 10) {
                     ForEach(Array(insights.enumerated()), id: \.offset) { _, insight in

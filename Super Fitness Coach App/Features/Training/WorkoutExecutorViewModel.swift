@@ -46,6 +46,7 @@ final class WorkoutExecutorViewModel {
     private let setLogger: SetLogger
     private let healthKitManager: HealthKitManager
     private let goal: FitnessGoal
+    private let sessionId: String
     private var recoveryScore: Int = 50
 
     /// In-memory log buffer: exerciseId → accumulated SetLogs for this session.
@@ -69,13 +70,15 @@ final class WorkoutExecutorViewModel {
         plannedExercises: [PlannedExercise],
         setLogger: SetLogger,
         healthKitManager: HealthKitManager,
-        goal: FitnessGoal
+        goal: FitnessGoal,
+        sessionId: String
     ) {
         self.currentWeek = currentWeek
         self.plannedExercises = plannedExercises
         self.setLogger = setLogger
         self.healthKitManager = healthKitManager
         self.goal = goal
+        self.sessionId = sessionId
 
         // Read recovery score from HealthKitManager; default 50 if unavailable (Req 6.1)
         self.recoveryScore = healthKitManager.recoveryScore.value ?? 50
@@ -148,6 +151,51 @@ final class WorkoutExecutorViewModel {
         }
         self.prSets = adjusted.map { exercise in
             Array(repeating: false, count: exercise.sets)
+        }
+
+        // Step 4: Resume in-progress workout (same calendar day) from the latest persisted log.
+        // This is why stats can show sets even if you close the screen: we log each set immediately.
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        for (idx, ex) in adjusted.enumerated() {
+            guard let log = try? setLogger.latestLog(for: ex.effectiveCatalogId) else { continue }
+            // With session-scoped logs, latestLog already corresponds to the session.
+            guard sessionId.isEmpty || log.sessionId == sessionId else { continue }
+            // Daily / "Mi rutina" path uses empty sessionId; latestLog is global per exercise.
+            // Without this, yesterday's completed sets were applied to today → instant "workout complete".
+            if sessionId.isEmpty {
+                guard cal.startOfDay(for: log.date) == today else { continue }
+            }
+            let doneCount = min(ex.sets, log.sets.count)
+            if doneCount > 0 {
+                for s in 0..<doneCount {
+                    completedSets[idx][s] = true
+                    let setLog = log.sets[s]
+                    prSets[idx][s] = isPR(catalogExerciseId: ex.effectiveCatalogId, weight: setLog.weight, reps: setLog.reps)
+                }
+            }
+        }
+
+        // Advance to the first exercise that still has incomplete sets.
+        if let firstIncomplete = completedSets.firstIndex(where: { !$0.allSatisfy { $0 } }) {
+            currentExerciseIndex = firstIncomplete
+        }
+
+        // If everything is already completed today (e.g., user closed the screen after logging sets),
+        // mark the workout complete so the caller can complete the training day.
+        let allDone = completedSets.allSatisfy { $0.allSatisfy { $0 } }
+        if allDone, !adjusted.isEmpty {
+            // Build completedLogs from today's latest logs per exercise.
+            var logs: [WorkoutLog] = []
+            for ex in adjusted {
+                if let log = try? setLogger.latestLog(for: ex.effectiveCatalogId),
+                   (sessionId.isEmpty || log.sessionId == sessionId),
+                   cal.startOfDay(for: log.date) == today {
+                    logs.append(log)
+                }
+            }
+            completedLogs = logs
+            isWorkoutComplete = true
         }
 
         if let first = adjusted.first {
@@ -287,7 +335,7 @@ final class WorkoutExecutorViewModel {
         // Persist immediately via SetLogger (Req 8.1)
         do {
             // IMPORTANT: persist by catalog id so history, PRs, and plan updates match.
-            try setLogger.logSet(exerciseId: catalogId, date: Date(), set: setLog)
+            try setLogger.logSet(exerciseId: catalogId, date: Date(), set: setLog, notes: exercise.name)
         } catch {
             logger.error("Failed to log set: \(error.localizedDescription)")
         }

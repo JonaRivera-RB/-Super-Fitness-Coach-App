@@ -230,7 +230,7 @@ struct WorkoutView: View {
         return VStack(spacing: 14) {
             weekProgressHeader(plan: plan, days: currentWeekDays)
             todayCard(plan: plan, days: currentWeekDays)
-            weekOverview(plan: plan, days: currentWeekDays)
+            weekOverview(days: currentWeekDays)
         }
         .id("\(plan.id)-\(currentWeekDays.map(\.dayStatusRaw).joined())")
     }
@@ -301,6 +301,14 @@ struct WorkoutView: View {
     private func routineDayCompletedToday(_ day: UserRoutineDay) -> Bool {
         guard let at = day.lastRoutineWorkoutCompletedAt else { return false }
         return Calendar.current.isDate(at, inSameDayAs: Date())
+    }
+
+    /// Último entreno de este día de rutina cayó en la **misma semana calendario** que hoy (para la fila «Esta semana»).
+    private func routineDayCompletedThisCalendarWeek(_ day: UserRoutineDay) -> Bool {
+        guard let at = day.lastRoutineWorkoutCompletedAt else { return false }
+        let cal = Calendar.current
+        return cal.component(.yearForWeekOfYear, from: at) == cal.component(.yearForWeekOfYear, from: Date())
+            && cal.component(.weekOfYear, from: at) == cal.component(.weekOfYear, from: Date())
     }
 
     private func routineDayCompletedCard(day: UserRoutineDay) -> some View {
@@ -454,7 +462,7 @@ struct WorkoutView: View {
         let isToday = day.dayOfWeek == today
         let isRest = day.isRestDay
         let n = day.exercises.count
-        let doneToday = routineDayCompletedToday(day)
+        let doneThisWeek = routineDayCompletedThisCalendarWeek(day)
 
         return VStack(spacing: 4) {
             Text(shortDayLabelEs(day.dayOfWeek))
@@ -463,9 +471,9 @@ struct WorkoutView: View {
 
             ZStack {
                 Circle()
-                    .fill(doneToday ? Color.green.opacity(0.55) : (isRest ? Color.purple.opacity(0.45) : (n > 0 ? Color.teal.opacity(0.45) : Color.gray.opacity(0.25))))
+                    .fill(doneThisWeek ? Color.green.opacity(0.55) : (isRest ? Color.purple.opacity(0.45) : (n > 0 ? Color.teal.opacity(0.45) : Color.gray.opacity(0.25))))
                     .frame(width: 32, height: 32)
-                if doneToday {
+                if doneThisWeek {
                     Image(systemName: "checkmark").font(.caption).fontWeight(.bold).foregroundStyle(.white)
                 } else if isRest {
                     Image(systemName: "moon.fill").font(.caption2).foregroundStyle(.white.opacity(0.9))
@@ -478,7 +486,7 @@ struct WorkoutView: View {
                 }
             }
 
-            if !isRest && n > 0 && !doneToday {
+            if !isRest && n > 0 && !doneThisWeek {
                 Text("+\(n)")
                     .font(.system(size: 8))
                     .foregroundStyle(.secondary)
@@ -721,12 +729,14 @@ struct WorkoutView: View {
 
     // MARK: - Week Overview (plan)
 
-    private func weekOverview(plan: TrainingPlan, days: [TrainingDayPlan]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func weekOverview(days: [TrainingDayPlan]) -> some View {
+        let training = days.filter { !$0.isRestDay }
+        let weekAllTrainingDone = !training.isEmpty && training.allSatisfy { $0.dayStatus == .completed }
+        return VStack(alignment: .leading, spacing: 10) {
             Text("Esta semana").font(.headline)
             HStack(spacing: 4) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                    dayPill(day: day)
+                    dayPill(day: day, maskFutureCompleted: !weekAllTrainingDone)
                 }
             }
         }
@@ -734,9 +744,13 @@ struct WorkoutView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
     }
 
-    private func dayPill(day: TrainingDayPlan) -> some View {
+    private func dayPill(day: TrainingDayPlan, maskFutureCompleted: Bool) -> some View {
         let today = todayDayOfWeek
-        let status = day.dayStatus
+        let rawStatus = day.dayStatus
+        // Si la semana aún no está toda hecha, no mostrar como completados días futuros (datos viejos / plan sin avanzar).
+        let status: DayStatus = (maskFutureCompleted && !day.isRestDay && rawStatus == .completed && day.dayOfWeek > today)
+            ? .pending
+            : rawStatus
         let isPast = day.dayOfWeek < today && status == .pending
         let isToday = day.dayOfWeek == today
 

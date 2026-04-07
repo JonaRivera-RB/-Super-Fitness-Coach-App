@@ -46,6 +46,32 @@ struct DayManagerTests {
         return TrainingPlan(preferences: .default, weeks: [week])
     }
 
+    /// Dos semanas de plantilla; solo Lun–Mar son entreno (el resto descanso). Avance de semana rápido de testear.
+    private func makeMinimalTwoWeekPlan() -> TrainingPlan {
+        let sampleExercise = PlannedExercise(
+            id: "ex1", name: "Bench Press", muscleGroup: .chest,
+            isCompound: true, sets: 3, reps: 10, suggestedWeight: 60.0,
+            equipment: "barbell", gifUrl: nil, instructions: []
+        )
+        let weekDays: [TrainingDayPlan] = (1...7).map { dow in
+            if dow <= 2 {
+                TrainingDayPlan(dayOfWeek: dow, muscleGroups: [.chest], exercises: [sampleExercise])
+            } else {
+                TrainingDayPlan(dayOfWeek: dow, muscleGroups: [], exercises: [], isRestDay: true)
+            }
+        }
+        let w1 = TrainingWeek(weekIndex: 1, days: weekDays)
+        let w2 = TrainingWeek(weekIndex: 2, days: weekDays.map {
+            TrainingDayPlan(
+                dayOfWeek: $0.dayOfWeek,
+                muscleGroups: $0.muscleGroups,
+                exercises: $0.exercises,
+                isRestDay: $0.isRestDay
+            )
+        })
+        return TrainingPlan(preferences: .default, weeks: [w1, w2])
+    }
+
     // MARK: - Complete Day (Req 10.7)
 
     @Test func completeDaySetsStatusToCompleted() throws {
@@ -78,6 +104,67 @@ struct DayManagerTests {
         for i in 1..<fetched.weeks[0].days.count {
             #expect(fetched.weeks[0].days[i].dayStatus == .pending)
         }
+    }
+
+    /// Regression: segundo (y siguientes) planes generados — `completeDay` debe persistir tras `replaceActivePlan`.
+    /// Cubre el caso donde `fetchActivePlan` devolvía relaciones aún no materializadas y el complete era no-op.
+    @Test func completeDayAfterReplaceActivePlanPersists() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let repo = TrainingPlanRepository(context: context)
+        let manager = DayManager(repository: repo)
+
+        let firstPlan = makeSamplePlan()
+        try repo.savePlan(firstPlan)
+
+        let secondPlan = makeSamplePlan()
+        try repo.replaceActivePlan(with: secondPlan)
+
+        let active = try repo.fetchActivePlan()!
+        #expect(active.id == secondPlan.id)
+
+        try manager.completeDay(plan: active, dayIndex: 0)
+
+        let verified = try repo.fetchActivePlan()!
+        let sortedDays = verified.weeks[0].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+        #expect(sortedDays.first?.dayStatus == .completed)
+    }
+
+    @Test func completingAllTrainingDaysAdvancesPlanWeek() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let repo = TrainingPlanRepository(context: context)
+        let manager = DayManager(repository: repo)
+
+        let plan = makeMinimalTwoWeekPlan()
+        try repo.savePlan(plan)
+        #expect(plan.currentWeek == 1)
+
+        try manager.completeDay(plan: plan, dayIndex: 0)
+        try manager.completeDay(plan: plan, dayIndex: 1)
+
+        let fetched = try repo.fetchActivePlan()!
+        #expect(fetched.currentWeek == 2)
+        let sortedNext = fetched.weeks[1].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
+        let trainingNext = sortedNext.filter { !$0.isRestDay }
+        #expect(trainingNext.allSatisfy { $0.dayStatus == .pending })
+    }
+
+    @Test func completingLastPlanWeekDoesNotAdvancePastEnd() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let repo = TrainingPlanRepository(context: context)
+        let manager = DayManager(repository: repo)
+
+        let plan = makeMinimalTwoWeekPlan()
+        plan.currentWeek = 2
+        try repo.savePlan(plan)
+
+        try manager.completeDay(plan: plan, dayIndex: 0)
+        try manager.completeDay(plan: plan, dayIndex: 1)
+
+        let fetched = try repo.fetchActivePlan()!
+        #expect(fetched.currentWeek == 2)
     }
 
     // MARK: - Skip Day (Req 10.2)

@@ -278,6 +278,7 @@ struct StatsView: View {
 
 private struct WorkoutSessionDetailView: View {
     let row: WorkoutHistoryRow
+    @State private var showVolumeInfo = false
 
     var body: some View {
         List {
@@ -298,7 +299,18 @@ private struct WorkoutSessionDetailView: View {
                 }
             }
             Section {
-                Text(row.volumeText)
+                HStack {
+                    Text(row.volumeText)
+                    Spacer()
+                    Button {
+                        showVolumeInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("¿Qué significa carga total?")
+                }
                 Text(row.bestSetText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -306,6 +318,11 @@ private struct WorkoutSessionDetailView: View {
         }
         .navigationTitle("Detalle")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("¿Qué es “carga total”?", isPresented: $showVolumeInfo) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Es la suma de (kg × reps) de cada serie.\n\nEjemplo: 20×10 + 20×8 = 360.\n\nSirve para comparar el volumen de trabajo entre sesiones.")
+        }
     }
 }
 

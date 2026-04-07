@@ -116,7 +116,7 @@ final class HomeViewModel {
         defer { if showLoading { isLoading = false } }
 
         let config: FitnessConfig
-        if let profile = try? userProfileRepository.fetch() {
+        if let profile = try? userProfileRepository.fetchCompleted() {
             config = profile.effectiveFitnessConfig
         } else {
             config = .default

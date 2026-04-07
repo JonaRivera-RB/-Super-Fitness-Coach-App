@@ -185,6 +185,7 @@ struct TrainingPlanGenerator {
         return compoundKeywords.contains { lowerName.contains($0) }
     }
 
+
     /// Default weight (kg) by muscle group when no previous log exists.
     private static func defaultWeight(for muscleGroup: MuscleGroup) -> Double {
         switch muscleGroup {

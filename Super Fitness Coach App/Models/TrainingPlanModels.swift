@@ -246,6 +246,9 @@ final class TrainingDayPlan {
     var dayStatusRaw: String
     var isRestDay: Bool
     var wasRescheduled: Bool
+    /// Session id for an in-progress workout (used to resume safely).
+    var activeSessionId: String?
+    var activeSessionStartedAt: Date?
 
     var muscleGroups: [MuscleGroup] {
         get { muscleGroupsRaw.compactMap { MuscleGroup(rawValue: $0) } }
@@ -264,6 +267,8 @@ final class TrainingDayPlan {
         self.dayStatusRaw = DayStatus.pending.rawValue
         self.isRestDay = isRestDay
         self.wasRescheduled = false
+        self.activeSessionId = nil
+        self.activeSessionStartedAt = nil
     }
 }
 
@@ -309,13 +314,16 @@ final class TrainingPlan {
 final class WorkoutLog {
     @Attribute(.unique) var id: UUID
     var exerciseId: String
+    /// Groups per-set saves into a single workout session (prevents resume regression).
+    var sessionId: String
     var date: Date
     var sets: [SetLog]
     var notes: String?
 
-    init(exerciseId: String, date: Date, sets: [SetLog], notes: String? = nil) {
+    init(exerciseId: String, sessionId: String = "", date: Date, sets: [SetLog], notes: String? = nil) {
         self.id = UUID()
         self.exerciseId = exerciseId
+        self.sessionId = sessionId
         self.date = date
         self.sets = sets
         self.notes = notes

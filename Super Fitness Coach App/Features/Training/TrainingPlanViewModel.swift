@@ -124,15 +124,35 @@ final class TrainingPlanViewModel {
     }
 
     func completeDay(at dayIndex: Int) {
-        guard let plan else { return }
         do {
-            try dayManager.completeDay(plan: plan, dayIndex: dayIndex)
+            // Always operate on a freshly fetched active plan to avoid stale/unmanaged
+            // plan references after generating/replacing a plan.
+            guard let activePlan = try repository.fetchActivePlan() else { return }
+            try dayManager.completeDay(plan: activePlan, dayIndex: dayIndex)
+            self.plan = activePlan
+            refreshState()
             if dayIndex < dayStatuses.count {
                 dayStatuses[dayIndex] = .completed
             }
             weekVersion += 1
         } catch {
             logger.error("Failed to complete day \(dayIndex): \(error.localizedDescription)")
+            errorMessage = "No se pudo completar el día."
+        }
+    }
+
+    func completeDay(dayOfWeek: Int) {
+        do {
+            guard let activePlan = try repository.fetchActivePlan() else { return }
+            try dayManager.completeDay(plan: activePlan, dayOfWeek: dayOfWeek)
+            self.plan = activePlan
+            refreshState()
+            if let idx = currentWeekDays.firstIndex(where: { $0.dayOfWeek == dayOfWeek }), idx < dayStatuses.count {
+                dayStatuses[idx] = .completed
+            }
+            weekVersion += 1
+        } catch {
+            logger.error("Failed to complete day dow=\(dayOfWeek): \(error.localizedDescription)")
             errorMessage = "No se pudo completar el día."
         }
     }
@@ -218,6 +238,12 @@ final class TrainingPlanViewModel {
             return
         }
 
+        do {
+            try repository.advanceToNextTrainingWeekIfNeeded(plan: plan)
+        } catch {
+            logger.error("advanceToNextTrainingWeekIfNeeded: \(error.localizedDescription)")
+        }
+
         currentWeek = plan.currentWeek
         totalWeeks = plan.preferences.planDurationWeeks
 
@@ -235,7 +261,6 @@ final class TrainingPlanViewModel {
         weekVersion += 1
 
         // Debug: log all day statuses after refresh
-        let logger = Logger(subsystem: "com.superfitnesscoach", category: "TrainingPlanVM")
         logger.info("refreshState: weekVersion=\(self.weekVersion), days=\(self.currentWeekDays.count)")
         for (i, day) in currentWeekDays.enumerated() {
             let s = i < dayStatuses.count ? dayStatuses[i].rawValue : "?"

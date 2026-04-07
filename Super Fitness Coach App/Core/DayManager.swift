@@ -34,9 +34,33 @@ final class DayManager {
     // MARK: - Complete Day
 
     func completeDay(plan: TrainingPlan, dayIndex: Int) throws {
-        guard let day = resolveDay(plan: plan, sortedDayIndex: dayIndex) else { return }
+        guard let day = resolveDay(plan: plan, sortedDayIndex: dayIndex) else {
+            logger.warning("completeDay(index): could not resolve sortedIndex=\(dayIndex) planId=\(plan.id.uuidString) currentWeek=\(plan.currentWeek) weekCount=\(plan.weeks.count)")
+            return
+        }
         day.dayStatus = .completed
+        day.activeSessionId = nil
+        day.activeSessionStartedAt = nil
         try repository.savePlan(plan)
+        try repository.advanceToNextTrainingWeekIfNeeded(plan: plan)
+    }
+
+    func completeDay(plan: TrainingPlan, dayOfWeek: Int) throws {
+        let weekIndex = plan.currentWeek - 1
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else {
+            logger.warning("completeDay(dow): invalid weekIndex=\(weekIndex) planId=\(plan.id.uuidString)")
+            return
+        }
+        let week = plan.weeks[weekIndex]
+        guard let day = week.days.first(where: { $0.dayOfWeek == dayOfWeek }) else {
+            logger.warning("completeDay(dow): no day dow=\(dayOfWeek) planId=\(plan.id.uuidString) daysInWeek=\(week.days.count)")
+            return
+        }
+        day.dayStatus = .completed
+        day.activeSessionId = nil
+        day.activeSessionStartedAt = nil
+        try repository.savePlan(plan)
+        try repository.advanceToNextTrainingWeekIfNeeded(plan: plan)
     }
 
     // MARK: - Skip Day

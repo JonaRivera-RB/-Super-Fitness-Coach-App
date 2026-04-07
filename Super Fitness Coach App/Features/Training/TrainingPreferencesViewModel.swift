@@ -122,13 +122,8 @@ final class TrainingPreferencesViewModel {
             return
         }
 
-        // Fetch previous logs for weight suggestions
-        var previousLogs: [WorkoutLog] = []
-        for exercise in exercises {
-            if let log = try? repository.fetchLatestLog(exerciseId: exercise.id) {
-                previousLogs.append(log)
-            }
-        }
+        // Fetch recent logs once (much faster than per-exercise queries).
+        let previousLogs = (try? repository.fetchAllLogs(limit: 600)) ?? []
 
         // Generate the plan with user-selected rest days
         let plan = TrainingPlanGenerator.generatePlan(

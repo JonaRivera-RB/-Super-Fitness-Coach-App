@@ -342,6 +342,7 @@ private struct RoutineExerciseRow: View {
     @State private var weightMinText: String
     @State private var weightMaxText: String
     @State private var showingAlternatives = false
+    @State private var showingDetail = false
 
     private let exerciseService = ExerciseService()
 
@@ -360,9 +361,24 @@ private struct RoutineExerciseRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(exercise.name)
-                .font(.headline)
-                .lineLimit(2)
+            Button {
+                showingDetail = true
+            } label: {
+                HStack(spacing: 8) {
+                    Text(exercise.name)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                }
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showingDetail) {
+                ExerciseDetailView(exercise: exercise)
+            }
 
             HStack(spacing: 10) {
                 Stepper("Sets \(sets)", value: $sets, in: 1...12, step: 1)
@@ -628,13 +644,22 @@ private struct ExercisePickerSheet: View {
     @State private var results: [Exercise] = []
     @State private var selectedEquipment: String = "Todos"
     @State private var selectedBodyPart: String = "Todos"
+    @State private var isLoading: Bool = false
+    @State private var lastLoadedKey: String = ""
+    @State private var cachedPool: [Exercise] = []
+    // Wrapper for sheet(item:) since Exercise isn't Identifiable in this context
+    struct PreviewItem: Identifiable {
+        let id = UUID()
+        let exercise: Exercise
+    }
+    @State private var previewItem: PreviewItem? = nil
 
     let dayOfWeek: Int
     let onPick: (PlannedExercise) -> Void
 
-    private let exerciseService = ExerciseService() // uses bundled fallback without API key
-    private var equipments: [String] { ["Todos"] + exerciseService.bundledEquipments() }
-    private var bodyParts: [String] { ["Todos"] + exerciseService.bundledBodyParts() }
+    private let exerciseService = ExerciseService.shared // shared cache across openings
+    // Keep these bodyPart keys aligned with the rest of the app (MuscleGroup.apiBodyPart).
+    private let bodyPartOptions: [String] = ["Todos", "chest", "back", "shoulders", "upper arms", "waist", "upper legs", "lower legs"]
 
     var body: some View {
         NavigationStack {
@@ -647,7 +672,7 @@ private struct ExercisePickerSheet: View {
                     HStack {
                         Menu {
                             Picker("Equipo", selection: $selectedEquipment) {
-                                ForEach(equipments, id: \.self) { e in
+                                ForEach(["Todos", "none (bodyweight exercise)", "barbell", "dumbbell", "machine", "cable"], id: \.self) { e in
                                     Text(e).tag(e)
                                 }
                             }
@@ -660,7 +685,7 @@ private struct ExercisePickerSheet: View {
 
                         Menu {
                             Picker("Zona", selection: $selectedBodyPart) {
-                                ForEach(bodyParts, id: \.self) { b in
+                                ForEach(bodyPartOptions, id: \.self) { b in
                                     Text(b).tag(b)
                                 }
                             }
@@ -672,18 +697,40 @@ private struct ExercisePickerSheet: View {
                 }
 
                 Section("Resultados") {
+                    if isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                    }
                     ForEach(results, id: \.id) { ex in
-                        Button {
-                            onPick(Self.toPlannedExercise(ex))
-                            dismiss()
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(ex.name)
-                                    .font(.body)
-                                Text("\(ex.bodyPart) · \(ex.equipment)")
-                                    .font(.caption)
+                        HStack(spacing: 10) {
+                            Button {
+                                onPick(Self.toPlannedExercise(ex))
+                                dismiss()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(ex.name)
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                    Text("\(ex.bodyPart) · \(ex.equipment)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+
+                            Button {
+                                previewItem = PreviewItem(exercise: ex)
+                            } label: {
+                                Image(systemName: "info.circle")
                                     .foregroundStyle(.secondary)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Ver detalle")
                         }
                     }
                 }
@@ -709,17 +756,60 @@ private struct ExercisePickerSheet: View {
         .onChange(of: selectedBodyPart) { _, _ in
             refreshResults()
         }
+        .sheet(item: $previewItem) { item in
+            ExerciseDetailView(exercise: Self.toPlannedExercise(item.exercise))
+        }
     }
 
     private func refreshResults() {
-        var items = exerciseService.searchBundledExercises(query: query, limit: 200)
+        let key = "\(selectedBodyPart)|\(selectedEquipment)"
+        if key != lastLoadedKey {
+            lastLoadedKey = key
+            cachedPool = []
+            isLoading = true
+
+            Task { @MainActor in
+                var pool: [Exercise] = []
+                if selectedBodyPart == "Todos" {
+                    // Load a reasonable cross-section (keeps UI fast).
+                    async let chest = try? await exerciseService.fetchExercises(bodyPart: "chest", equipment: nil)
+                    async let back = try? await exerciseService.fetchExercises(bodyPart: "back", equipment: nil)
+                    async let legs = try? await exerciseService.fetchExercises(bodyPart: "upper legs", equipment: nil)
+                    async let shoulders = try? await exerciseService.fetchExercises(bodyPart: "shoulders", equipment: nil)
+                    async let core = try? await exerciseService.fetchExercises(bodyPart: "waist", equipment: nil)
+                    let lists = [await chest, await back, await legs, await shoulders, await core].compactMap { $0 }
+                    pool = Array(lists.flatMap { $0 }.prefix(400))
+                } else {
+                    pool = (try? await exerciseService.fetchExercises(bodyPart: selectedBodyPart, equipment: nil)) ?? []
+                }
+
+                cachedPool = pool
+                isLoading = false
+                applyFilters()
+            }
+            return
+        }
+
+        applyFilters()
+    }
+
+    private func applyFilters() {
+        var items = cachedPool
         if selectedEquipment != "Todos" {
-            items = items.filter { $0.equipment.caseInsensitiveCompare(selectedEquipment) == .orderedSame }
+            items = items.filter { $0.equipment.localizedCaseInsensitiveContains(selectedEquipment) }
         }
-        if selectedBodyPart != "Todos" {
-            items = items.filter { $0.bodyPart.caseInsensitiveCompare(selectedBodyPart) == .orderedSame }
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !q.isEmpty {
+            items = items.filter { ex in
+                ex.name.lowercased().contains(q) ||
+                ex.bodyPart.lowercased().contains(q) ||
+                ex.target.lowercased().contains(q) ||
+                ex.equipment.lowercased().contains(q) ||
+                (ex.description?.lowercased().contains(q) ?? false)
+            }
         }
-        results = Array(items.prefix(60))
+        // Show more than 20; keep it performant.
+        results = Array(items.prefix(200))
     }
 
     private static func toPlannedExercise(_ ex: Exercise) -> PlannedExercise {
