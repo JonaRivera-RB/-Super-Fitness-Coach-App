@@ -238,6 +238,7 @@ final class OnboardingViewModel {
                     calorieGoal: base.calorieGoal,
                     baselineRestingHR: base.baselineRestingHR,
                     fitnessLevel: base.fitnessLevel,
+                    liftingWeightUnit: base.liftingWeightUnit,
                     sleepGoal: nil,
                     bufferMinutes: base.bufferMinutes
                 )
@@ -250,6 +251,7 @@ final class OnboardingViewModel {
                 calorieGoal: base.calorieGoal,
                 baselineRestingHR: base.baselineRestingHR,
                 fitnessLevel: base.fitnessLevel,
+                liftingWeightUnit: base.liftingWeightUnit,
                 sleepGoal: goal,
                 bufferMinutes: clampedBuffer
             )
@@ -260,6 +262,7 @@ final class OnboardingViewModel {
                 calorieGoal: base.calorieGoal,
                 baselineRestingHR: base.baselineRestingHR,
                 fitnessLevel: base.fitnessLevel,
+                liftingWeightUnit: base.liftingWeightUnit,
                 sleepGoal: nil,
                 bufferMinutes: base.bufferMinutes
             )

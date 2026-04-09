@@ -58,7 +58,8 @@ final class HomeViewModel {
     private let notificationService: NotificationService
     private let userProfileRepository: UserProfileRepository
     private let recoverySnapshotRepository: RecoverySnapshotRepository
-    private let userName: String
+    /// Nombre para saludo en Inicio (solo lectura desde la vista).
+    private(set) var userName: String
 
     struct RecoveryHistoryDay: Identifiable, Equatable {
         let id: Date
@@ -105,7 +106,7 @@ final class HomeViewModel {
         self.notificationService = notificationService
         self.userProfileRepository = userProfileRepository
         self.recoverySnapshotRepository = recoverySnapshotRepository
-        self.userName = userName
+        self.userName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func onAppear() async { await refreshData(showLoading: true) }
@@ -128,7 +129,8 @@ final class HomeViewModel {
         recoveryBreakdown = healthKitManager.recoveryBreakdown
         activityBreakdown = healthKitManager.activityBreakdown
         authorizationStatus = healthKitManager.authorizationStatus
-        recoveryConfidenceLabel = healthKitManager.recoveryConfidence.labelEs
+        let lang = AppLanguage.current
+        recoveryConfidenceLabel = healthKitManager.recoveryConfidence.localizedLabel(lang)
         populateRecoveryContextLines(config: config)
 
         let recoveryValue = recoveryScore.value ?? 50
@@ -144,16 +146,21 @@ final class HomeViewModel {
             recoveryBreakdown: recoveryBreakdown,
             streakDays: gamificationEngine.currentStreak,
             recentWorkoutCount: gamificationEngine.workoutsCompleted,
-            recoveryConfidence: healthKitManager.recoveryConfidence
+            recoveryConfidence: healthKitManager.recoveryConfidence,
+            language: lang
         )
 
         coachSummary = recommendationText
-        recoveryLabel = generateRecoveryLabel(score: recoveryValue)
-        activityLabel = generateActivityLabel(score: activityValue)
-        coachSummaryAccessibilityLabel = "Recuperación \(recoveryValue) de 100. \(recoveryLabel). \(recoveryConfidenceLabel)."
+        recoveryLabel = generateRecoveryLabel(score: recoveryValue, language: lang)
+        activityLabel = generateActivityLabel(score: activityValue, language: lang)
+        coachSummaryAccessibilityLabel = lang == .spanish
+            ? "Recuperación \(recoveryValue) de 100. \(recoveryLabel). \(recoveryConfidenceLabel)."
+            : "Recovery \(recoveryValue) of 100. \(recoveryLabel). \(recoveryConfidenceLabel)."
         coachEmoji = recoveryValue < 40 ? "🔴" : recoveryValue < 70 ? "🟡" : "🟢"
-        dashboardHeroLine = "Recuperación \(recoveryValue)/100 · \(recoveryConfidenceLabel)"
-        generateActionCard(recoveryScore: recoveryValue, muscleLabel: todayMuscleLabel)
+        dashboardHeroLine = lang == .spanish
+            ? "Recuperación \(recoveryValue)/100 · \(recoveryConfidenceLabel)"
+            : "Recovery \(recoveryValue)/100 · \(recoveryConfidenceLabel)"
+        generateActionCard(recoveryScore: recoveryValue, muscleLabel: todayMuscleLabel, language: lang)
 
         recoveryInsights = recoveryBreakdown.map { MetricInsightGenerator.generateInsights(from: $0, config: config) } ?? []
         activityInsights = activityBreakdown.map { MetricInsightGenerator.generateInsights(from: $0, config: config) } ?? []
@@ -176,7 +183,7 @@ final class HomeViewModel {
         await notificationService.scheduleDailyNotification(
             recoveryScore: recoveryValue,
             statusEmoji: statusIndicator.emoji,
-            recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue)
+            recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue, language: AppLanguage.current)
         )
     }
 
@@ -185,7 +192,7 @@ final class HomeViewModel {
             let rows = try recoverySnapshotRepository.fetchRecent(limit: 7)
             let chronological = Array(rows.reversed())
             let df = DateFormatter()
-            df.locale = Locale(identifier: "es_ES")
+            df.locale = Locale(identifier: AppLanguage.current == .spanish ? "es_ES" : "en_US")
             df.setLocalizedDateFormatFromTemplate("EEE")
             recoveryHistoryDays = chronological.map { snap in
                 let label = df.string(from: snap.dayStart).trimmingCharacters(in: .whitespaces)
@@ -200,48 +207,84 @@ final class HomeViewModel {
         }
     }
 
-    private static func notificationRecommendationLine(recoveryScore: Int) -> String {
-        switch recoveryScore {
-        case ..<40:
-            return "Prioriza descanso y movilidad suave."
-        case 40..<70:
-            return "Intensidad moderada encaja bien con tu recuperación de hoy."
-        default:
-            return "Buena recuperación para entrenar según tu plan."
+    private static func notificationRecommendationLine(recoveryScore: Int, language: AppLanguage) -> String {
+        switch language {
+        case .spanish:
+            switch recoveryScore {
+            case ..<40: return "Prioriza descanso y movilidad suave."
+            case 40..<70: return "Intensidad moderada encaja bien con tu recuperación de hoy."
+            default: return "Buena recuperación para entrenar según tu plan."
+            }
+        case .english:
+            switch recoveryScore {
+            case ..<40: return "Prioritize rest and light mobility."
+            case 40..<70: return "Moderate intensity fits today’s recovery."
+            default: return "Good recovery—train as planned."
+            }
         }
     }
 
     private func todayMusclesFromPlan() -> String {
-        guard let plan = try? trainingPlanRepository.fetchActivePlan() else { return "Entrenamiento" }
+        let lang = AppLanguage.current
+        let fallback = lang == .spanish ? "Entrenamiento" : "Training"
+        guard let plan = try? trainingPlanRepository.fetchActivePlan() else { return fallback }
         let weekIndex = plan.currentWeek - 1
-        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return "Descanso" }
+        let rest = lang == .spanish ? "Descanso" : "Rest"
+        guard weekIndex >= 0, weekIndex < plan.weeks.count else { return rest }
         let weekday = Calendar.current.component(.weekday, from: Date())
         let todayDow = weekday == 1 ? 7 : weekday - 1
-        guard let day = plan.weeks[weekIndex].days.first(where: { $0.dayOfWeek == todayDow }) else { return "Descanso" }
-        if day.isRestDay { return "Descanso" }
-        let muscles = day.muscleGroups.map { $0.rawValue.capitalized }.joined(separator: " & ")
-        return muscles.isEmpty ? "Entrenamiento" : muscles
+        guard let day = plan.weeks[weekIndex].days.first(where: { $0.dayOfWeek == todayDow }) else { return rest }
+        if day.isRestDay { return rest }
+        let muscles = day.muscleGroups.map { $0.displayName(lang) }.joined(separator: lang == .spanish ? " y " : " & ")
+        return muscles.isEmpty ? fallback : muscles
     }
 
-    private func generateRecoveryLabel(score: Int) -> String {
-        switch score {
-        case 0...39: return "Necesitas descanso"
-        case 40...69: return "Recuperación moderada"
-        case 70...84: return "Buena recuperación"
-        default: return "Recuperación óptima"
+    private func generateRecoveryLabel(score: Int, language: AppLanguage) -> String {
+        switch language {
+        case .spanish:
+            switch score {
+            case 0...39: return "Necesitas descanso"
+            case 40...69: return "Recuperación moderada"
+            case 70...84: return "Buena recuperación"
+            default: return "Recuperación óptima"
+            }
+        case .english:
+            switch score {
+            case 0...39: return "You need rest"
+            case 40...69: return "Moderate recovery"
+            case 70...84: return "Good recovery"
+            default: return "Optimal recovery"
+            }
         }
     }
 
-    private func generateActivityLabel(score: Int) -> String {
-        switch score {
-        case 0...39: return "Día tranquilo"
-        case 40...69: return "En progreso"
-        case 70...84: return "Muy activo"
-        default: return "Excelente actividad"
+    private func generateActivityLabel(score: Int, language: AppLanguage) -> String {
+        switch language {
+        case .spanish:
+            switch score {
+            case 0...39: return "Día tranquilo"
+            case 40...69: return "En progreso"
+            case 70...84: return "Muy activo"
+            default: return "Excelente actividad"
+            }
+        case .english:
+            switch score {
+            case 0...39: return "Quiet day"
+            case 40...69: return "In progress"
+            case 70...84: return "Very active"
+            default: return "Excellent activity"
+            }
         }
     }
 
     private func populateRecoveryContextLines(config: FitnessConfig) {
+        switch AppLanguage.current {
+        case .spanish: populateRecoveryContextLinesES(config: config)
+        case .english: populateRecoveryContextLinesEN(config: config)
+        }
+    }
+
+    private func populateRecoveryContextLinesES(config: FitnessConfig) {
         let hk = healthKitManager
         var sleepDiff: Double?
         var hrvPct: Double?
@@ -388,6 +431,149 @@ final class HomeViewModel {
         quickMeaningAccessibilityLabel = "Interpretación rápida. \(recoveryConfidenceLabel)."
     }
 
+    private func populateRecoveryContextLinesEN(config: FitnessConfig) {
+        let hk = healthKitManager
+        var sleepDiff: Double?
+        var hrvPct: Double?
+        var rhrDelta: Double?
+
+        switch hk.sleepHours {
+        case .available(let hours):
+            lastNightSleepSummary = String(format: "You slept ~%.1f h", hours)
+        default:
+            lastNightSleepSummary = "No sleep data for last night"
+        }
+
+        if let start = hk.sleepSessionStart, let end = hk.sleepSessionEnd {
+            lastNightSleepWindow = "\(Self.formatLocalTimeOnly(start)) → \(Self.formatLocalTimeOnly(end))"
+        } else {
+            lastNightSleepWindow = ""
+        }
+
+        if config.sleepGoalHours > 0, case .available(let hours) = hk.sleepHours {
+            let goal = config.sleepGoalHours
+            let diff = hours - goal
+            sleepDiff = diff
+            if diff >= -0.05 {
+                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (at or above goal)", goal, hours)
+            } else {
+                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (%.1f h below goal)", goal, hours, -diff)
+            }
+        } else {
+            sleepGoalComparisonLine = ""
+        }
+
+        if let actual = hk.hrv.value, let baseline = hk.hrvBaselineUsed, baseline > 0 {
+            let pct = (actual - baseline) / baseline * 100.0
+            hrvPct = pct
+            let dir: String
+            if abs(pct) < 3 {
+                dir = "similar to your 14‑day average"
+            } else if pct > 0 {
+                dir = String(format: "%.0f%% above your 14‑day average", pct)
+            } else {
+                dir = String(format: "%.0f%% below your 14‑day average", abs(pct))
+            }
+            hrvVsBaselineLine = String(format: "HRV %.0f ms · %@ (avg ~%.0f ms)", actual, dir, baseline)
+        } else {
+            hrvVsBaselineLine = ""
+        }
+
+        if let actual = hk.restingHR.value, let baseline = hk.restingHRBaselineUsed, baseline > 0 {
+            let delta = baseline - actual
+            rhrDelta = delta
+            let note: String
+            if abs(delta) < 1 {
+                note = "similar to your 14‑day average"
+            } else if delta > 0 {
+                note = String(format: "%.0f bpm below your average (%.0f)", delta, baseline)
+            } else {
+                note = String(format: "%.0f bpm above your average (%.0f)", -delta, baseline)
+            }
+            var line = String(format: "Resting HR %.0f bpm · %@", actual, note)
+            if hk.lastRHRMatchMode == .relaxedWindow {
+                line += " · sample aligned with wider window (daily HR range in Health)"
+            }
+            rhrVsBaselineLine = line
+        } else {
+            rhrVsBaselineLine = ""
+        }
+
+        let sleepPhrase: String
+        if let diff = sleepDiff {
+            sleepPhrase = diff >= 0 ? "sleep at/above goal" : "sleep below goal"
+        } else {
+            sleepPhrase = "unclear sleep data"
+        }
+
+        let hrvPhrase: String
+        if let pct = hrvPct {
+            if abs(pct) < 3 { hrvPhrase = "HRV near your average" }
+            else if pct > 0 { hrvPhrase = "HRV above (good recovery)" }
+            else { hrvPhrase = "HRV below (more load/fatigue)" }
+        } else {
+            hrvPhrase = "no HRV data"
+        }
+
+        let rhrPhrase: String
+        if let delta = rhrDelta {
+            if abs(delta) < 1 { rhrPhrase = "resting HR near your average" }
+            else if delta > 0 { rhrPhrase = "resting HR better than your average" }
+            else { rhrPhrase = "resting HR higher than your average" }
+        } else {
+            rhrPhrase = "no resting HR data"
+        }
+
+        switch hk.recoveryConfidence {
+        case .high:
+            quickMeaningLine = "Quick read: favorable signals. (Signals: \(sleepPhrase), \(hrvPhrase), \(rhrPhrase))"
+        case .medium:
+            quickMeaningLine = "Quick read: mixed signals. (Signals: \(sleepPhrase), \(hrvPhrase), \(rhrPhrase))"
+        case .low:
+            quickMeaningLine = "Quick read: unclear signals. (Signals: \(sleepPhrase), \(hrvPhrase), \(rhrPhrase))"
+        case .insufficient:
+            quickMeaningLine = "Quick read: missing key data for a reliable read."
+        }
+
+        if config.sleepGoal == nil {
+            sleepConsistencyLine = ""
+        } else {
+            let score = hk.sleepConsistencyScore
+            let label: String
+            switch score {
+            case 70...100: label = "high"
+            case 40..<70: label = "medium"
+            default: label = "low"
+            }
+            if case .available = hk.sleepHours {
+                sleepConsistencyLine = String(format: "Regularity vs your schedule: %d/100 (%@)", score, label)
+            } else {
+                sleepConsistencyLine = String(format: "Regularity vs your schedule: %d/100 (%@) — no sleep in window", score, label)
+            }
+        }
+
+        if case .available(let lastNightH) = hk.sleepHours {
+            if let avg = hk.sleepHours14DayAverage, hk.sleepHistoryNightsCount >= 3 {
+                let diff = lastNightH - avg
+                if abs(diff) < 0.15 {
+                    sleepTrendLine = String(format: "Trend: last night ~same as recent average (~%.1f h, %d nights).", avg, hk.sleepHistoryNightsCount)
+                } else if diff > 0 {
+                    sleepTrendLine = String(format: "Trend: last night +%.1f h vs ~%.1f h avg (%d nights).", diff, avg, hk.sleepHistoryNightsCount)
+                } else {
+                    sleepTrendLine = String(format: "Trend: last night %.1f h vs ~%.1f h avg (%d nights).", lastNightH, avg, hk.sleepHistoryNightsCount)
+                }
+            } else if hk.sleepHistoryNightsCount < 3 {
+                sleepTrendLine = "Trend: we need at least 3 nights with logged sleep to compute the average."
+            } else {
+                sleepTrendLine = ""
+            }
+        } else {
+            sleepTrendLine = ""
+        }
+
+        quickMeaningAccessibilityLabel = "Quick read. \(recoveryConfidenceLabel)."
+    }
+
     private static func formatLocalTimeOnly(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = .current
@@ -397,13 +583,37 @@ final class HomeViewModel {
         return f.string(from: date)
     }
 
-    private func generateActionCard(recoveryScore: Int, muscleLabel: String) {
-        if recoveryScore < 40 {
-            actionCardTitle = "Hoy: Descanso activo"; actionCardIntensity = .low
-        } else if recoveryScore < 70 {
-            actionCardTitle = "Hoy: \(muscleLabel) moderado"; actionCardIntensity = .medium
-        } else {
-            actionCardTitle = "Hoy: \(muscleLabel)"; actionCardIntensity = .high
+    private func generateActionCard(recoveryScore: Int, muscleLabel: String, language: AppLanguage) {
+        switch language {
+        case .spanish:
+            if recoveryScore < 40 {
+                actionCardTitle = "Hoy: Descanso activo"; actionCardIntensity = .low
+            } else if recoveryScore < 70 {
+                actionCardTitle = "Hoy: \(muscleLabel) moderado"; actionCardIntensity = .medium
+            } else {
+                actionCardTitle = "Hoy: \(muscleLabel)"; actionCardIntensity = .high
+            }
+        case .english:
+            if recoveryScore < 40 {
+                actionCardTitle = "Today: Active recovery"; actionCardIntensity = .low
+            } else if recoveryScore < 70 {
+                actionCardTitle = "Today: \(muscleLabel) moderate"; actionCardIntensity = .medium
+            } else {
+                actionCardTitle = "Today: \(muscleLabel)"; actionCardIntensity = .high
+            }
+        }
+    }
+}
+
+extension HomeViewModel.ActionIntensity {
+    func localizedLabel(_ language: AppLanguage) -> String {
+        switch (self, language) {
+        case (.low, .spanish): return "Baja"
+        case (.low, .english): return "Low"
+        case (.medium, .spanish): return "Media"
+        case (.medium, .english): return "Medium"
+        case (.high, .spanish): return "Alta"
+        case (.high, .english): return "High"
         }
     }
 }

@@ -29,6 +29,8 @@ final class ProfileViewModel {
     var calorieGoalText: String = ""
     var baselineRestingHRText: String = ""
     var fitnessLevel: FitnessLevel = FitnessConfig.default.fitnessLevel
+    /// Unidad para pesas en gimnasio (plan/logs siguen en kg).
+    var liftingWeightUnit: LiftingWeightUnit = .kilograms
     var isEditingFitnessConfig: Bool = false
     var fitnessConfigValidationError: String?
 
@@ -88,6 +90,7 @@ final class ProfileViewModel {
         calorieGoalText = String(format: "%.0f", config.calorieGoal)
         baselineRestingHRText = String(format: "%.0f", config.baselineRestingHR)
         fitnessLevel = config.fitnessLevel
+        liftingWeightUnit = config.liftingWeightUnit
 
         sleepGoal = config.sleepGoal
         bufferMinutes = config.bufferMinutes
@@ -179,26 +182,28 @@ final class ProfileViewModel {
 
         switch unitPreference {
         case .metric:
+            let L = AppLanguage.current
             guard let w = Double(weightInput.trimmingCharacters(in: .whitespaces)), w > 0 else {
-                bodyMetricsValidationError = "Please enter a valid weight in kg."
+                bodyMetricsValidationError = L.validationWeightKg
                 return
             }
             guard let h = Double(heightInput.trimmingCharacters(in: .whitespaces)), h > 0 else {
-                bodyMetricsValidationError = "Please enter a valid height in cm."
+                bodyMetricsValidationError = L.validationHeightCm
                 return
             }
             weightKg = w
             heightCm = h
 
         case .imperial:
+            let L = AppLanguage.current
             guard let w = Double(weightInput.trimmingCharacters(in: .whitespaces)), w > 0 else {
-                bodyMetricsValidationError = "Please enter a valid weight in lbs."
+                bodyMetricsValidationError = L.validationWeightLbs
                 return
             }
             let feet = Int(heightFeetInput?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
             let inches = Double(heightInchesInput?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
             guard feet > 0 || inches > 0 else {
-                bodyMetricsValidationError = "Please enter a valid height in feet/inches."
+                bodyMetricsValidationError = L.validationHeightImperial
                 return
             }
             weightKg = UnitConverter.lbsToKg(w)
@@ -215,7 +220,7 @@ final class ProfileViewModel {
             }
         } catch {
             logger.error("Failed to save body metrics: \(error.localizedDescription)")
-            bodyMetricsValidationError = "Failed to save. Please try again."
+            bodyMetricsValidationError = AppLanguage.current.validationSaveFailed
             return
         }
 
@@ -260,16 +265,16 @@ final class ProfileViewModel {
     // MARK: - Fitness Config Editing
 
     /// Save fitness config from explicit string values passed from the view's @State fields.
-    func saveFitnessConfigFrom(sleep: String, steps: String, calories: String, hr: String, level: FitnessLevel) async {
+    func saveFitnessConfigFrom(sleep: String, steps: String, calories: String, hr: String, level: FitnessLevel, liftingUnit: LiftingWeightUnit) async {
         fitnessConfigValidationError = nil
 
-        logger.info("saveFitnessConfigFrom — sleep='\(sleep)', steps='\(steps)', cal='\(calories)', hr='\(hr)'")
+        logger.info("saveFitnessConfigFrom — sleep='\(sleep)', steps='\(steps)', cal='\(calories)', hr='\(hr)', lift=\(liftingUnit.rawValue)")
 
         guard let sleepVal = Double(sleep.trimmingCharacters(in: .whitespaces)),
               let stepsVal = Double(steps.trimmingCharacters(in: .whitespaces)),
               let calVal = Double(calories.trimmingCharacters(in: .whitespaces)),
               let hrVal = Double(hr.trimmingCharacters(in: .whitespaces)) else {
-            fitnessConfigValidationError = "Please enter valid numbers for all fields."
+            fitnessConfigValidationError = AppLanguage.current.validationFitnessNumbers
             return
         }
 
@@ -282,12 +287,13 @@ final class ProfileViewModel {
             calorieGoal: calVal,
             baselineRestingHR: hrVal,
             fitnessLevel: level,
+            liftingWeightUnit: liftingUnit,
             sleepGoal: existingSchedule.0,
             bufferMinutes: existingSchedule.1
         )
 
         guard config.isValid else {
-            fitnessConfigValidationError = "Please check your values: sleep 4-12h, steps 1k-50k, calories 100-2000, resting HR 35-120 bpm."
+            fitnessConfigValidationError = AppLanguage.current.validationFitnessRanges
             return
         }
 
@@ -297,7 +303,7 @@ final class ProfileViewModel {
             logger.info("Saved fitness config: sleep=\(config.sleepGoalHours), steps=\(config.stepsGoal), cal=\(config.calorieGoal), hr=\(config.baselineRestingHR)")
         } catch {
             logger.error("Failed to save fitness config: \(error.localizedDescription)")
-            fitnessConfigValidationError = "Failed to save. Please try again."
+            fitnessConfigValidationError = AppLanguage.current.validationSaveFailed
             return
         }
 
@@ -350,10 +356,11 @@ final class ProfileViewModel {
         let goal = SleepGoal(targetSleepTime: bedComps, targetWakeTime: wakeComps)
 
         guard goal.isValid else {
+            let L = AppLanguage.current
             if (bedComps.hour == wakeComps.hour) && (bedComps.minute == wakeComps.minute) {
-                sleepScheduleValidationError = "Bedtime and wake time cannot be the same."
+                sleepScheduleValidationError = L.validationBedtimeWakeSame
             } else {
-                sleepScheduleValidationError = "Sleep window must be at least 4 hours."
+                sleepScheduleValidationError = L.validationSleepWindowShort
             }
             return
         }
@@ -374,6 +381,7 @@ final class ProfileViewModel {
             calorieGoal: existing.calorieGoal,
             baselineRestingHR: existing.baselineRestingHR,
             fitnessLevel: existing.fitnessLevel,
+            liftingWeightUnit: existing.liftingWeightUnit,
             sleepGoal: goal,
             bufferMinutes: clampedBuffer
         )
@@ -384,7 +392,7 @@ final class ProfileViewModel {
             logger.info("Saved sleep schedule: bed=\(goal.targetSleepTime.hour):\(goal.targetSleepTime.minute) wake=\(goal.targetWakeTime.hour):\(goal.targetWakeTime.minute) buffer=\(clampedBuffer)m")
         } catch {
             logger.error("Failed to save sleep schedule: \(error.localizedDescription)")
-            sleepScheduleValidationError = "Failed to save. Please try again."
+            sleepScheduleValidationError = AppLanguage.current.validationSaveFailed
             return
         }
 

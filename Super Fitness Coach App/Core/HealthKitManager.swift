@@ -1016,3 +1016,18 @@ final class HealthKitManager {
         }
     }
 }
+
+extension HealthKitManager.DataConfidenceLevel {
+    func localizedLabel(_ language: AppLanguage) -> String {
+        switch (self, language) {
+        case (.insufficient, .spanish): return "Datos insuficientes"
+        case (.insufficient, .english): return "Insufficient data"
+        case (.high, .spanish): return "Altamente confiable"
+        case (.high, .english): return "Highly reliable"
+        case (.medium, .spanish): return "Confiabilidad media"
+        case (.medium, .english): return "Medium reliability"
+        case (.low, .spanish): return "Poco confiable"
+        case (.low, .english): return "Low reliability"
+        }
+    }
+}

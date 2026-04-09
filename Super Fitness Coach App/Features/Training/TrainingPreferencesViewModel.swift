@@ -95,18 +95,25 @@ final class TrainingPreferencesViewModel {
         let weightKg = profile?.weightKg
         let heightCm = profile?.heightCm
 
-        // Fetch exercises — use fallback if API fails
+        // Fetch exercises — wger: primero índice de imágenes (varias páginas), luego categorías en paralelo.
+        // Antes era todo en serie (~7 partes × red + índice repetido) y “Generating…” se sentía eterno.
         let allBodyParts = Set(MuscleGroup.allCases.map(\.apiBodyPart))
         var exercises: [Exercise] = []
 
-        for bodyPart in allBodyParts {
-            do {
-                let fetched = try await exerciseService.fetchExercises(bodyPart: bodyPart, equipment: nil)
-                exercises.append(contentsOf: fetched)
-            } catch {
-                logger.warning("Failed to fetch exercises for \(bodyPart), using fallback")
-                let fallback = exerciseService.fallbackExercises(bodyPart: bodyPart)
-                exercises.append(contentsOf: fallback)
+        await exerciseService.warmCacheForPlanGeneration()
+
+        await withTaskGroup(of: [Exercise].self) { group in
+            for bodyPart in allBodyParts {
+                group.addTask { [exerciseService] in
+                    do {
+                        return try await exerciseService.fetchExercises(bodyPart: bodyPart, equipment: nil)
+                    } catch {
+                        return exerciseService.fallbackExercises(bodyPart: bodyPart)
+                    }
+                }
+            }
+            for await partList in group {
+                exercises.append(contentsOf: partList)
             }
         }
 

@@ -25,12 +25,28 @@ final class UserRoutineRepository {
 
     @discardableResult
     func getOrCreateActiveDefault() throws -> UserRoutine {
-        if let existing = try fetchActive() { return existing }
+        if let existing = try fetchActive() {
+            if repairRoutineRestDayConsistency(existing) {
+                try context.save()
+            }
+            return existing
+        }
         let created = UserRoutine.emptyDefault()
         context.insert(created)
         try context.save()
         logger.info("Created default UserRoutine")
         return created
+    }
+
+    /// Si hay ejercicios, el día no puede seguir marcado como descanso (corrige datos viejos / bugs de copia).
+    private func repairRoutineRestDayConsistency(_ routine: UserRoutine) -> Bool {
+        var changed = false
+        for day in routine.days where day.isRestDay && !day.exercises.isEmpty {
+            day.isRestDay = false
+            changed = true
+        }
+        if changed { logger.info("Repaired isRestDay for routine days with exercises") }
+        return changed
     }
 
     func save() throws {

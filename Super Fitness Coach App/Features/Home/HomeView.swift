@@ -11,30 +11,44 @@ struct HomeView: View {
     @State private var showRecoveryBreakdown = false
     @State private var showActivityBreakdown = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appLanguage) private var lang
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    authorizationBanner
-                    dashboardHeroSection
-                    coachSummarySection
-                    actionCardSection
-                    recoveryScoreSection
-                    lastNightContextSection
-                    activityScoreSection
-                    pointsSection
-                    if viewModel.detoxActive {
-                        detoxProgressSection
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(spacing: 22) {
+                        authorizationBanner
+                        homeGreetingBlock
+                        recoveryHeroCard
+                        quickActionsRow(proxy: scroll)
+                        coachSummarySection
+                        actionCardSection
+                        dailySummaryRow
+                        recoveryScoreSection
+                            .id("recovery")
+                        lastNightContextSection
+                            .id("sleep")
+                        activityScoreSection
+                            .id("activity")
+                        pointsSection
+                        if viewModel.detoxActive {
+                            detoxProgressSection
+                        }
+                        startRoutineButton
                     }
-                    startRoutineButton
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
                 }
-                .padding()
+                .scrollContentBackground(.hidden)
+                .background(homeScreenBackground)
             }
             .refreshable {
                 await viewModel.refresh()
             }
-            .navigationTitle("Inicio")
+            .navigationTitle(lang.tabHome)
+            .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.onAppear()
             }
@@ -46,6 +60,260 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Shell (saludo, héroe, acciones)
+
+    private var homeScreenBackground: Color {
+        Color(.systemGroupedBackground)
+    }
+
+    private var greetingHeadline: String {
+        let n = viewModel.userName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.isEmpty { return lang.homeGreetingDefault }
+        return lang.homeGreeting(name: n)
+    }
+
+    private var homeGreetingBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(greetingHeadline)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+            Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var recoveryHeroCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(lang.homeHeroYourDay)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(lang.homeHeroRecoveryEnergy)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+                Spacer(minLength: 0)
+                ZStack {
+                    Circle()
+                        .fill(Color.homeAccent.opacity(colorScheme == .dark ? 0.22 : 0.14))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: recoveryHeroBoltIcon)
+                        .font(.title2)
+                        .foregroundStyle(Color.homeAccent)
+                }
+                .accessibilityHidden(true)
+            }
+
+            if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else if case .available(let v) = viewModel.recoveryScore {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(v)%")
+                            .font(.system(size: 34, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.homeAccent)
+                        Text(lang.homeWellbeingGoalLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Text("\(v)/100")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color(.systemGray5))
+                                .frame(height: 11)
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.homeAccent.opacity(0.95), Color.homeAccent],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(10, geo.size.width * CGFloat(min(max(v, 0), 100)) / 100), height: 11)
+                        }
+                    }
+                    .frame(height: 11)
+                    if !viewModel.recoveryConfidenceLabel.isEmpty {
+                        Text(viewModel.recoveryConfidenceLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            } else {
+                Text(lang.homeNoRecoveryData)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .modifier(SoftHomeSurface(cornerRadius: 22))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(heroAccessibilityLabel)
+    }
+
+    private var recoveryHeroBoltIcon: String {
+        guard case .available(let v) = viewModel.recoveryScore else { return "heart.fill" }
+        if v >= 70 { return "bolt.fill" }
+        if v >= 40 { return "heart.fill" }
+        return "moon.zzz.fill"
+    }
+
+    private var heroAccessibilityLabel: String {
+        if case .available(let v) = viewModel.recoveryScore {
+            return lang.homeHeroAccessibility(score: v, confidence: viewModel.recoveryConfidenceLabel)
+        }
+        return lang.homeHeroLoading
+    }
+
+    private func quickActionsRow(proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 0) {
+            quickActionButton(icon: "figure.run", title: lang.homeQuickTrain, hint: lang.homeQuickTrainHint) {
+                onStartRoutine()
+            }
+            quickActionButton(icon: "moon.zzz.fill", title: lang.homeQuickLastNight, hint: lang.homeQuickLastNightHint) {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo("sleep", anchor: .center)
+                }
+            }
+            quickActionButton(icon: "bed.double.fill", title: lang.homeQuickRecoveryShort, hint: lang.homeQuickRecoveryHint) {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo("recovery", anchor: .top)
+                }
+            }
+            quickActionButton(icon: "figure.walk", title: lang.homeQuickMovement, hint: lang.homeQuickMovementHint) {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo("activity", anchor: .top)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func quickActionButton(icon: String, title: String, hint: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(Color(.secondarySystemGroupedBackground))
+                        .frame(width: 56, height: 56)
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 5, y: 2)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.5), lineWidth: 0.5)
+                        }
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundStyle(Color.primary.opacity(0.88))
+                }
+                Text(title)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+    }
+
+    @ViewBuilder
+    private var dailySummaryRow: some View {
+        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(lang.homeDailySummary)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                HStack(spacing: 12) {
+                    dailyRingSummaryCard(
+                        title: lang.homeLabelRecovery,
+                        icon: "bed.double.fill",
+                        status: viewModel.recoveryScore,
+                        tint: recoveryColor
+                    )
+                    dailyRingSummaryCard(
+                        title: lang.homeLabelActivity,
+                        icon: "figure.run",
+                        status: viewModel.activityScore,
+                        tint: activityColor
+                    )
+                }
+            }
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    @ViewBuilder
+    private func dailyRingSummaryCard(
+        title: String,
+        icon: String,
+        status: HealthDataStatus<Int>,
+        tint: Color
+    ) -> some View {
+        let progress: Double = {
+            if case .available(let v) = status { return Double(min(max(v, 0), 100)) / 100.0 }
+            return 0
+        }()
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .stroke(Color(.systemGray5), lineWidth: 5)
+                    .frame(width: 68, height: 68)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .frame(width: 68, height: 68)
+                    .rotationEffect(.degrees(-90))
+                Group {
+                    switch status {
+                    case .loading:
+                        ProgressView()
+                    case .unavailable:
+                        Text("—")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.secondary)
+                    case .available(let v):
+                        Text("\(v)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(tint)
+                            .monospacedDigit()
+                    }
+                }
+            }
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .modifier(SoftHomeSurface(cornerRadius: 18))
+    }
+
     // MARK: - Authorization Banner
 
     @ViewBuilder
@@ -55,7 +323,7 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Salud no compartió datos. Abre Configuración → Privacidad y seguridad → Salud para permitirlo.")
+                Text(lang.healthDeniedBanner)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -63,12 +331,12 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Salud no compartió datos. Abre Configuración, Privacidad y seguridad, Salud, para permitir el acceso.")
+            .accessibilityLabel(lang.healthDeniedBannerA11y)
         case .unavailable:
             HStack(spacing: 8) {
                 Image(systemName: "heart.slash")
                     .foregroundStyle(.secondary)
-                Text("Salud no está disponible en este dispositivo.")
+                Text(lang.healthUnavailableBanner)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -76,24 +344,9 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray5)))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Salud no está disponible en este dispositivo.")
+            .accessibilityLabel(lang.healthUnavailableBanner)
         default:
             EmptyView()
-        }
-    }
-
-    // MARK: - Dashboard hero
-
-    @ViewBuilder
-    private var dashboardHeroSection: some View {
-        if viewModel.isLoading || viewModel.recoveryScore.isLoading {
-            EmptyView()
-        } else if !viewModel.dashboardHeroLine.isEmpty {
-            Text(viewModel.dashboardHeroLine)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel(viewModel.dashboardHeroLine)
         }
     }
 
@@ -118,19 +371,24 @@ struct HomeView: View {
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(coachSummaryColor.opacity(0.12))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(coachSummaryColor.opacity(colorScheme == .dark ? 0.18 : 0.12))
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(coachSummaryColor.opacity(0.2), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 10, y: 4)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(viewModel.coachSummaryAccessibilityLabel)
-            .accessibilityHint("Mensaje largo en pantalla; usa el rotor para leer línea por línea si lo necesitas.")
+            .accessibilityHint(lang.coachHintLongMessage)
         }
     }
 
     private var coachSummaryPlaceholder: some View {
         VStack(spacing: 12) {
             ProgressView()
-            Text("Analizando tus datos...")
+            Text(lang.coachAnalyzing)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -142,7 +400,7 @@ struct HomeView: View {
                 .fill(Color(.systemGray5))
         )
         .redacted(reason: .placeholder)
-        .accessibilityLabel("Coach summary loading")
+        .accessibilityLabel(lang.coachLoadingA11y)
     }
 
     // MARK: - Action Card Section
@@ -158,7 +416,7 @@ struct HomeView: View {
                     .fontWeight(.bold)
 
                 HStack(spacing: 8) {
-                    Text("Intensidad: \(viewModel.actionCardIntensity.label)")
+                    Text("\(lang.intensityPrefix) \(viewModel.actionCardIntensity.localizedLabel(lang))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
@@ -175,24 +433,29 @@ struct HomeView: View {
                     .frame(height: 8)
                 }
             }
-            .padding()
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemGray6))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.homeAccent.opacity(0.12), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.28 : 0.07), radius: 10, y: 4)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(viewModel.actionCardTitle), intensidad \(viewModel.actionCardIntensity.label)")
+            .accessibilityLabel("\(viewModel.actionCardTitle), \(lang.intensityPrefix) \(viewModel.actionCardIntensity.localizedLabel(lang))")
         }
     }
 
     private var actionCardPlaceholder: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Cargando plan del día...")
+            Text(lang.actionCardLoading)
                 .font(.title2)
                 .fontWeight(.bold)
             HStack(spacing: 8) {
-                Text("Intensidad: --")
+                Text("\(lang.intensityPrefix) --")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Capsule()
@@ -207,29 +470,29 @@ struct HomeView: View {
                 .fill(Color(.systemGray6))
         )
         .redacted(reason: .placeholder)
-        .accessibilityLabel("Action card loading")
+        .accessibilityLabel(lang.actionCardLoadingA11y)
     }
 
     // MARK: - Recovery Score Section
 
     private var recoveryScoreSection: some View {
         VStack(spacing: 8) {
-            Label("Recovery", systemImage: "bed.double.fill")
+            Label(lang.recoverySectionTitle, systemImage: "bed.double.fill")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             compactScoreView(
                 status: viewModel.recoveryScore,
                 color: recoveryColor,
-                label: "Recovery score",
+                label: lang.recoveryScoreLabel,
                 descriptiveLabel: viewModel.recoveryLabel
             )
 
             if !(viewModel.isLoading || viewModel.recoveryScore.isLoading) {
-                Text("Confianza: \(viewModel.recoveryConfidenceLabel)")
+                Text(lang.confidenceLine(viewModel.recoveryConfidenceLabel))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("Confianza del recovery: \(viewModel.recoveryConfidenceLabel)")
+                    .accessibilityLabel(lang.confidenceA11y(viewModel.recoveryConfidenceLabel))
             }
 
             if !viewModel.recoveryHistoryDays.isEmpty {
@@ -243,7 +506,7 @@ struct HomeView: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text("Detalles")
+                    Text(lang.details)
                         .font(.subheadline)
                     Image(systemName: showRecoveryBreakdown ? "chevron.up" : "chevron.down")
                         .font(.caption)
@@ -280,7 +543,7 @@ struct HomeView: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Anoche", systemImage: "moon.zzz.fill")
+                Label(lang.lastNightSection, systemImage: "moon.zzz.fill")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -313,7 +576,7 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                DisclosureGroup("Ver detalles (Apple Health)") {
+                DisclosureGroup(lang.sleepDetailsDisclosure) {
                     VStack(alignment: .leading, spacing: 8) {
                         if !viewModel.sleepGoalComparisonLine.isEmpty {
                             Text(viewModel.sleepGoalComparisonLine)
@@ -333,19 +596,19 @@ struct HomeView: View {
                                 .foregroundStyle(.primary)
                         }
 
-                        Text("La FC y el HRV se comparan con tu media de 14 días. No sustituye consejo médico.")
+                        Text(lang.sleepMedicalDisclaimer)
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Glosario rápido")
+                            Text(lang.glossaryTitle)
                                 .font(.caption2)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
-                            Text("Sueño (intervalo): tramo fusionado de Apple Health; puede no coincidir con tu hora de acostarte.")
-                            Text("HRV: variabilidad entre latidos; suele subir con mejor recuperación.")
-                            Text("FC en reposo: valor del día; a veces se alinea con una ventana algo más amplia que el sueño.")
-                            Text("Regularidad: qué tan cerca quedaron el inicio y el fin de tu sueño del horario guardado en Perfil (promedio de desviación vs acostarte/despertar).")
+                            Text(lang.glossarySleep)
+                            Text(lang.glossaryHRV)
+                            Text(lang.glossaryRHR)
+                            Text(lang.glossaryRegularity)
                         }
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -367,14 +630,14 @@ struct HomeView: View {
 
     private var activityScoreSection: some View {
         VStack(spacing: 8) {
-            Label("Activity", systemImage: "figure.run")
+            Label(lang.homeLabelActivity, systemImage: "figure.run")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             compactScoreView(
                 status: viewModel.activityScore,
                 color: activityColor,
-                label: "Activity score",
+                label: lang.activityScoreLabel,
                 descriptiveLabel: viewModel.activityLabel
             )
 
@@ -384,7 +647,7 @@ struct HomeView: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text("Detalles")
+                    Text(lang.details)
                         .font(.subheadline)
                     Image(systemName: showActivityBreakdown ? "chevron.up" : "chevron.down")
                         .font(.caption)
@@ -465,7 +728,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal)
                 } else {
-                    Text("Aún no hay detalles disponibles para Recovery. Con más datos (especialmente sueño) esta sección se completa automáticamente.")
+                    Text(lang.recoveryEmptyDetails)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -499,7 +762,7 @@ struct HomeView: View {
                 activityProgressBar(
                     progress: score / 100.0,
                     normalizedScore: score,
-                    accessibilityLabel: "Progreso de \(insight.metricName): \(Int(min(score, 100))) por ciento"
+                    accessibilityLabel: lang.insightProgressA11y(metric: insight.metricName, percent: Int(min(score, 100)))
                 )
                 .padding(.leading, 16)
             }
@@ -545,29 +808,34 @@ struct HomeView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
                 .foregroundStyle(.orange)
-            Text("puntos")
+            Text(lang.pointsWord)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding()
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: 8, y: 3)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(viewModel.totalPoints) puntos")
+        .accessibilityLabel(lang.pointsA11y(viewModel.totalPoints))
     }
 
     // MARK: - Detox Progress
 
     private var detoxProgressSection: some View {
         HStack {
-            Label("Detox Mode", systemImage: "drop.fill")
+            Label(lang.detoxMode, systemImage: "drop.fill")
                 .font(.subheadline)
                 .foregroundStyle(.purple)
             Spacer()
-            Text("Day \(viewModel.detoxCurrentDay) of 7")
+            Text(lang.detoxDay(viewModel.detoxCurrentDay))
                 .font(.subheadline)
                 .fontWeight(.medium)
         }
@@ -577,19 +845,21 @@ struct HomeView: View {
                 .fill(Color.purple.opacity(0.08))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Detox mode, day \(viewModel.detoxCurrentDay) of 7")
+        .accessibilityLabel(lang.detoxA11y(day: viewModel.detoxCurrentDay))
     }
 
     // MARK: - Start Routine
 
     private var startRoutineButton: some View {
         Button(action: onStartRoutine) {
-            Label("Start Routine", systemImage: "play.fill")
+            Label(lang.goToWorkout, systemImage: "play.fill")
                 .font(.headline)
+                .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
+                .padding(.vertical, 6)
         }
         .buttonStyle(.borderedProminent)
+        .tint(Color.homeAccent)
         .controlSize(.large)
     }
 
@@ -598,7 +868,7 @@ struct HomeView: View {
     @ViewBuilder
     private func recoveryHistoryStrip(days: [HomeViewModel.RecoveryHistoryDay]) -> some View {
         VStack(spacing: 10) {
-            Text("Historial reciente (recuperación)")
+            Text(lang.recoveryHistoryTitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
@@ -643,7 +913,7 @@ struct HomeView: View {
                 .fill(Color(.systemGray5))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(day.weekdayShort), recuperación \(day.recoveryScore)")
+        .accessibilityLabel(lang.recoveryHistoryChipA11y(weekday: day.weekdayShort, score: day.recoveryScore))
     }
 
     // MARK: - Helpers
@@ -657,9 +927,9 @@ struct HomeView: View {
     }
 
     private var activityColor: Color {
-        guard let value = viewModel.activityScore.value else { return .blue }
+        guard let value = viewModel.activityScore.value else { return AppSemanticPalette.systemBlue }
         if value >= 70 { return .green }
-        if value >= 40 { return .blue }
+        if value >= 40 { return AppSemanticPalette.systemBlue }
         return .orange
     }
 
@@ -712,7 +982,27 @@ struct HomeView: View {
 
     private func progressBarColor(for normalizedScore: Double) -> Color {
         if normalizedScore >= 100 { return .green }
-        if normalizedScore >= 40 { return .blue }
+        if normalizedScore >= 40 { return AppSemanticPalette.systemBlue }
         return .orange
+    }
+}
+
+// MARK: - Home shell styling
+
+private extension Color {
+    /// Acento principal del tablero (similar a dashboards tipo “fitness” naranja).
+    static let homeAccent = Color(red: 1.0, green: 122 / 255, blue: 38 / 255)
+}
+
+private struct SoftHomeSurface: ViewModifier {
+    var cornerRadius: CGFloat = 20
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+                    .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 5)
+            )
     }
 }

@@ -7,6 +7,7 @@ import SwiftUI
 
 struct StatsView: View {
     @Bindable var viewModel: StatsViewModel
+    @Environment(\.appLanguage) private var lang
 
     var body: some View {
         NavigationStack {
@@ -20,7 +21,7 @@ struct StatsView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Estadísticas")
+            .navigationTitle(lang.statsNavTitle)
             .refreshable {
                 viewModel.refresh()
             }
@@ -34,19 +35,19 @@ struct StatsView: View {
 
     private var levelSection: some View {
         VStack(spacing: 12) {
-            Text("Nivel \(viewModel.currentLevel)")
+            Text(lang.statsLevel(viewModel.currentLevel))
                 .font(.system(size: 48, weight: .bold, design: .rounded))
-                .accessibilityLabel("Nivel \(viewModel.currentLevel)")
+                .accessibilityLabel(lang.statsLevel(viewModel.currentLevel))
 
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
                     .foregroundStyle(.orange)
-                Text("\(viewModel.totalPoints) puntos")
+                Text("\(viewModel.totalPoints) \(lang.pointsWord)")
                     .fontWeight(.medium)
             }
             .font(.title3)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(viewModel.totalPoints) puntos")
+            .accessibilityLabel(lang.pointsA11y(viewModel.totalPoints))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -61,13 +62,13 @@ struct StatsView: View {
     private var streakSection: some View {
         HStack(spacing: 16) {
             streakCard(
-                title: "Racha actual",
+                title: lang.statsStreakCurrent,
                 value: viewModel.currentStreak,
                 icon: "flame.fill",
                 color: .red
             )
             streakCard(
-                title: "Mejor racha",
+                title: lang.statsStreakBest,
                 value: viewModel.personalBestStreak,
                 icon: "trophy.fill",
                 color: .yellow
@@ -93,18 +94,18 @@ struct StatsView: View {
                 .fill(Color(.systemGray6))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value) días")
+        .accessibilityLabel(lang.statsStreakA11y(title: title, value: value))
     }
 
     // MARK: - PRs
 
     private var prSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Récords personales (PR)", systemImage: "crown.fill")
+            Label(lang.statsPRSection, systemImage: "crown.fill")
                 .font(.headline)
 
             if viewModel.prRecords.isEmpty {
-                Text("Cuando mejores tu mejor e1RM estimado en un ejercicio, aparecerá aquí.")
+                Text(lang.statsPREmpty)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,11 +161,11 @@ struct StatsView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Historial de sesiones", systemImage: "clock.arrow.circlepath")
+            Label(lang.statsHistorySection, systemImage: "clock.arrow.circlepath")
                 .font(.headline)
 
             if viewModel.recentHistory.isEmpty {
-                Text("Aún no hay entrenos registrados. Completa series desde Entrenamiento.")
+                Text(lang.statsHistoryEmpty)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,7 +203,7 @@ struct StatsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("\(row.setsCount) series · \(row.volumeText)")
+            Text(lang.statsSetsVolumeLine(sets: row.setsCount, volume: row.volumeText))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -217,11 +218,11 @@ struct StatsView: View {
 
     private var badgesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Insignias", systemImage: "medal.fill")
+            Label(lang.statsBadges, systemImage: "medal.fill")
                 .font(.headline)
 
             if viewModel.badges.isEmpty {
-                Text("Aún no tienes insignias. ¡Sigue entrenando!")
+                Text(lang.statsBadgesEmpty)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -259,7 +260,7 @@ struct StatsView: View {
                 .fill(Color.purple.opacity(0.08))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Badge: \(badge.name)")
+        .accessibilityLabel(lang.badgeA11y(badge.name))
     }
 
     private func badgeIcon(for milestoneId: String) -> String {
@@ -279,19 +280,20 @@ struct StatsView: View {
 private struct WorkoutSessionDetailView: View {
     let row: WorkoutHistoryRow
     @State private var showVolumeInfo = false
+    @Environment(\.appLanguage) private var lang
 
     var body: some View {
         List {
             Section {
-                LabeledContent("Ejercicio", value: row.exerciseName)
-                LabeledContent("Fecha") {
+                LabeledContent(lang.sessionExercise, value: row.exerciseName)
+                LabeledContent(lang.sessionDate) {
                     Text(row.date, format: .dateTime.day().month(.wide).year().hour().minute())
                 }
             }
-            Section("Series") {
+            Section(lang.sessionSetsSection) {
                 ForEach(Array(row.log.sets.enumerated()), id: \.offset) { index, s in
                     HStack {
-                        Text("Serie \(index + 1)")
+                        Text(lang.sessionSetRow(index + 1))
                         Spacer()
                         Text(String(format: "%.1f kg × %d", s.weight, s.reps))
                             .foregroundStyle(.secondary)
@@ -309,42 +311,43 @@ private struct WorkoutSessionDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("¿Qué significa carga total?")
+                    .accessibilityLabel(lang.volumeInfoA11y)
                 }
                 Text(row.bestSetText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Detalle")
+        .navigationTitle(lang.sessionDetailTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .alert("¿Qué es “carga total”?", isPresented: $showVolumeInfo) {
-            Button("OK", role: .cancel) {}
+        .alert(lang.volumeInfoTitle, isPresented: $showVolumeInfo) {
+            Button(lang.ok, role: .cancel) {}
         } message: {
-            Text("Es la suma de (kg × reps) de cada serie.\n\nEjemplo: 20×10 + 20×8 = 360.\n\nSirve para comparar el volumen de trabajo entre sesiones.")
+            Text(lang.volumeInfoBody)
         }
     }
 }
 
 private struct PRRecordDetailView: View {
     let record: PRRecordRow
+    @Environment(\.appLanguage) private var lang
 
     var body: some View {
         List {
             Section {
-                LabeledContent("Ejercicio", value: record.exerciseName)
-                LabeledContent("Fecha") {
+                LabeledContent(lang.sessionExercise, value: record.exerciseName)
+                LabeledContent(lang.sessionDate) {
                     Text(record.date, format: .dateTime.day().month(.wide).year().hour().minute())
                 }
             }
-            Section("Serie destacada") {
+            Section(lang.prFeaturedSet) {
                 Text(record.headline)
                 Text(record.subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("PR")
+        .navigationTitle(lang.prDetailTitle)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

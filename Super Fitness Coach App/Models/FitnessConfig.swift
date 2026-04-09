@@ -1,5 +1,20 @@
 import Foundation
 
+/// Unidad en la que el usuario introduce y ve el peso de las pesas (gimnasio). Los datos internos siguen en kg.
+enum LiftingWeightUnit: String, Codable, CaseIterable, Identifiable {
+    case kilograms
+    case pounds
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .kilograms: return "kg"
+        case .pounds: return "lb"
+        }
+    }
+}
+
 /// Nivel de fitness del usuario, usado para ajustar intensidad de entrenamientos.
 enum FitnessLevel: String, Codable, CaseIterable {
     case beginner
@@ -76,6 +91,8 @@ struct FitnessConfig: Codable, Equatable {
     var calorieGoal: Double       // 100...2000, default 500
     var baselineRestingHR: Double // 35...120, default 70
     var fitnessLevel: FitnessLevel // default .beginner
+    /// Peso de entreno: unidad de la máquina / barra (kg o lb). Almacenamiento del plan y logs en kg.
+    var liftingWeightUnit: LiftingWeightUnit
     var sleepGoal: SleepGoal?      // nil -> use fallback window
     var bufferMinutes: Int         // default 60, clamped to [0, 180]
 
@@ -85,6 +102,7 @@ struct FitnessConfig: Codable, Equatable {
         calorieGoal: 500,
         baselineRestingHR: 70,
         fitnessLevel: .beginner,
+        liftingWeightUnit: .kilograms,
         sleepGoal: nil,
         bufferMinutes: 60
     )
@@ -103,6 +121,7 @@ struct FitnessConfig: Codable, Equatable {
         calorieGoal: Double,
         baselineRestingHR: Double,
         fitnessLevel: FitnessLevel,
+        liftingWeightUnit: LiftingWeightUnit = .kilograms,
         sleepGoal: SleepGoal? = nil,
         bufferMinutes: Int = 60
     ) {
@@ -111,6 +130,7 @@ struct FitnessConfig: Codable, Equatable {
         self.calorieGoal = calorieGoal
         self.baselineRestingHR = baselineRestingHR
         self.fitnessLevel = fitnessLevel
+        self.liftingWeightUnit = liftingWeightUnit
         self.sleepGoal = sleepGoal
         self.bufferMinutes = Self.clampBufferMinutes(bufferMinutes)
     }
@@ -127,6 +147,7 @@ struct FitnessConfig: Codable, Equatable {
         case calorieGoal
         case baselineRestingHR
         case fitnessLevel
+        case liftingWeightUnit
         case sleepGoal
         case bufferMinutes
     }
@@ -138,6 +159,7 @@ struct FitnessConfig: Codable, Equatable {
         self.calorieGoal = try c.decode(Double.self, forKey: .calorieGoal)
         self.baselineRestingHR = try c.decode(Double.self, forKey: .baselineRestingHR)
         self.fitnessLevel = try c.decodeIfPresent(FitnessLevel.self, forKey: .fitnessLevel) ?? FitnessConfig.default.fitnessLevel
+        self.liftingWeightUnit = try c.decodeIfPresent(LiftingWeightUnit.self, forKey: .liftingWeightUnit) ?? .kilograms
         self.sleepGoal = try c.decodeIfPresent(SleepGoal.self, forKey: .sleepGoal)
         self.bufferMinutes = Self.clampBufferMinutes(try c.decodeIfPresent(Int.self, forKey: .bufferMinutes) ?? 60)
     }
@@ -149,6 +171,7 @@ struct FitnessConfig: Codable, Equatable {
         try c.encode(calorieGoal, forKey: .calorieGoal)
         try c.encode(baselineRestingHR, forKey: .baselineRestingHR)
         try c.encode(fitnessLevel, forKey: .fitnessLevel)
+        try c.encode(liftingWeightUnit, forKey: .liftingWeightUnit)
         try c.encodeIfPresent(sleepGoal, forKey: .sleepGoal)
         try c.encode(bufferMinutes, forKey: .bufferMinutes)
     }

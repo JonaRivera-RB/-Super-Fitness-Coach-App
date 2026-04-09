@@ -6,6 +6,9 @@
 import Foundation
 import Observation
 import os
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Observable
 final class WorkoutExecutorViewModel {
@@ -47,6 +50,7 @@ final class WorkoutExecutorViewModel {
     private let healthKitManager: HealthKitManager
     private let goal: FitnessGoal
     private let sessionId: String
+    private let appLanguage: AppLanguage
     private var recoveryScore: Int = 50
 
     /// In-memory log buffer: exerciseId → accumulated SetLogs for this session.
@@ -60,6 +64,12 @@ final class WorkoutExecutorViewModel {
 
     private var restTimer: Timer?
 
+    /// Fin absoluto del descanso (reloj del sistema); permite seguir el tiempo al volver de segundo plano.
+    private var restTimerDeadline: Date?
+
+    /// `true` para «Mi rutina»: no se reduce el número de series por progresión ni recuperación.
+    private let preservePrescribedVolume: Bool
+
     @ObservationIgnored
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "WorkoutExecutorVM")
 
@@ -71,7 +81,9 @@ final class WorkoutExecutorViewModel {
         setLogger: SetLogger,
         healthKitManager: HealthKitManager,
         goal: FitnessGoal,
-        sessionId: String
+        sessionId: String,
+        appLanguage: AppLanguage = .current,
+        preservePrescribedVolume: Bool = false
     ) {
         self.currentWeek = currentWeek
         self.plannedExercises = plannedExercises
@@ -79,6 +91,8 @@ final class WorkoutExecutorViewModel {
         self.healthKitManager = healthKitManager
         self.goal = goal
         self.sessionId = sessionId
+        self.appLanguage = appLanguage
+        self.preservePrescribedVolume = preservePrescribedVolume
 
         // Read recovery score from HealthKitManager; default 50 if unavailable (Req 6.1)
         self.recoveryScore = healthKitManager.recoveryScore.value ?? 50
@@ -142,6 +156,21 @@ final class WorkoutExecutorViewModel {
         let adjustment = RecoveryAdapter.dailyAdjustment(recoveryScore: recoveryScore)
         adjusted = adjusted.map { RecoveryAdapter.applyAdjustment(to: $0, adjustment: adjustment) }
 
+        // Mi rutina: respeta series y descansos por serie tal como los guardó el usuario (la progresión/deload
+        // y la recuperación baja pueden bajar 4→3 series o recortar perSetRest).
+        if preservePrescribedVolume {
+            adjusted = zip(adjusted, plannedExercises).map { adj, orig in
+                var x = adj
+                x.sets = max(1, orig.sets)
+                if let per = orig.perSetRestSeconds, per.count == orig.sets {
+                    x.perSetRestSeconds = per
+                } else if let per = orig.perSetRestSeconds {
+                    x.perSetRestSeconds = per.count >= orig.sets ? Array(per.prefix(orig.sets)) : nil
+                }
+                return x
+            }
+        }
+
         self.exercises = adjusted
         self.currentExerciseIndex = 0
 
@@ -201,7 +230,8 @@ final class WorkoutExecutorViewModel {
         if let first = adjusted.first {
             gymCoachMessage = GymCoach.sessionOpening(
                 recoveryScore: recoveryScore,
-                firstExerciseName: first.name
+                firstExerciseName: first.name,
+                language: appLanguage
             )
         } else {
             gymCoachMessage = ""
@@ -210,10 +240,11 @@ final class WorkoutExecutorViewModel {
         logger.info("Built daily exercises: \(adjusted.count) exercises, week \(self.currentWeek), recovery \(self.recoveryScore)")
     }
 
-    func previousDisplay(catalogExerciseId: String, setIndex: Int) -> String {
+    func previousDisplay(catalogExerciseId: String, setIndex: Int, unit: LiftingWeightUnit) -> String {
         guard let sets = previousSets[catalogExerciseId], sets.indices.contains(setIndex) else { return "—" }
         let s = sets[setIndex]
-        return "\(String(format: "%.0f", s.weight)) × \(s.reps)"
+        let w = UnitConverter.formatLiftKgForDisplay(s.weight, unit: unit)
+        return "\(w) × \(s.reps)"
     }
 
     func defaultWeight(exercise: PlannedExercise, setIndex: Int) -> Double {
@@ -348,13 +379,16 @@ final class WorkoutExecutorViewModel {
                 exercise: exercise,
                 completedSetIndex: setIndex,
                 totalSets: exercise.sets,
-                restSeconds: restSec
+                restSeconds: restSec,
+                language: appLanguage
             )
             startRestTimer(exerciseIndex: exerciseIndex, completedSetIndex: setIndex)
         }
         if allSetsCompleted {
             stopRestTimer()
-            advanceToNextExercise()
+            // Avanza relativo al ejercicio que realmente se acaba de completar
+            // (evita desajustes si el índice visible cambia durante un rerender).
+            advanceToNextExercise(fromSkip: false, fromExerciseIndex: exerciseIndex)
         }
     }
 
@@ -369,44 +403,139 @@ final class WorkoutExecutorViewModel {
         let seconds = ex.restSeconds(afterCompletingSet: completedSetIndex)
         restTimerSeconds = seconds
         isRestTimerActive = seconds > 0
+        restTimerDeadline = seconds > 0 ? Date().addingTimeInterval(TimeInterval(seconds)) : nil
 
         guard seconds > 0 else { return }
 
-        restTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self else {
-                timer.invalidate()
-                return
-            }
-            if self.restTimerSeconds > 0 {
-                self.restTimerSeconds -= 1
-            } else {
-                self.stopRestTimer()
-            }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.tickRestTimer()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        restTimer = timer
+    }
+
+    /// Sincroniza el contador con el reloj del sistema (p. ej. al volver de segundo plano).
+    func syncRestTimerFromDeadline() {
+        guard isRestTimerActive, let deadline = restTimerDeadline else { return }
+        let remaining = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+        let previous = restTimerSeconds
+        restTimerSeconds = remaining
+        if remaining <= 0, previous > 0 {
+            restTimerFinishedNaturally()
+        }
+    }
+
+    private func tickRestTimer() {
+        syncRestTimerFromDeadline()
+    }
+
+    private func restTimerFinishedNaturally() {
+        restTimer?.invalidate()
+        restTimer = nil
+        restTimerDeadline = nil
+        isRestTimerActive = false
+        restTimerSeconds = 0
+        #if canImport(UIKit)
+        DispatchQueue.main.async {
+            let gen = UINotificationFeedbackGenerator()
+            gen.notificationOccurred(.success)
+        }
+        #endif
     }
 
     /// Stops the rest timer. Called when user navigates away (Req 7.6).
     func stopRestTimer() {
         restTimer?.invalidate()
         restTimer = nil
+        restTimerDeadline = nil
         isRestTimerActive = false
         restTimerSeconds = 0
     }
 
+    /// Pasa al siguiente ejercicio sin completar series (descanso, teclado, etc.).
+    func skipCurrentExercise() {
+        guard !exercises.isEmpty, !isWorkoutComplete else { return }
+        stopRestTimer()
+        let skipped = currentExerciseIndex
+        advanceToNextExercise(fromSkip: true, fromExerciseIndex: skipped)
+        logger.info("User skipped exercise at index \(skipped)")
+    }
+
+    /// Texto bajo «Tus series»: aclara Mi rutina vs plan guiado cuando el número de series difiere.
+    enum SetsFooterInfo: Equatable {
+        case none
+        case miRutinaNote
+        case planAdjusted(original: Int, current: Int)
+    }
+
+    func setsFooterInfo(for exerciseIndex: Int) -> SetsFooterInfo {
+        guard exercises.indices.contains(exerciseIndex) else { return .none }
+        if preservePrescribedVolume {
+            return exerciseIndex == 0 ? .miRutinaNote : .none
+        }
+        guard plannedExercises.indices.contains(exerciseIndex) else { return .none }
+        let original = plannedExercises[exerciseIndex].sets
+        let current = exercises[exerciseIndex].sets
+        if original != current { return .planAdjusted(original: original, current: current) }
+        return .none
+    }
+
+    /// Ir a cualquier ejercicio del entreno (orden libre en gimnasio).
+    func jumpToExercise(at index: Int) {
+        guard exercises.indices.contains(index), !isWorkoutComplete else { return }
+        stopRestTimer()
+        currentExerciseIndex = index
+        let ex = exercises[index]
+        gymCoachMessage = GymCoach.exerciseIntro(
+            exercise: ex,
+            exerciseIndex: index,
+            totalExercises: exercises.count,
+            language: appLanguage
+        )
+        logger.info("Jumped to exercise at index \(index): \(ex.name)")
+    }
+
     // MARK: - Private Helpers
 
-    private func advanceToNextExercise() {
-        if currentExerciseIndex < exercises.count - 1 {
-            currentExerciseIndex += 1
-            let ex = exercises[currentExerciseIndex]
-            gymCoachMessage = GymCoach.exerciseIntro(
-                exercise: ex,
-                exerciseIndex: currentExerciseIndex,
-                totalExercises: exercises.count
-            )
-            logger.info("Advanced to exercise \(self.currentExerciseIndex): \(ex.name)")
-        } else {
+    private func applyExerciseIntro(at index: Int) {
+        let ex = exercises[index]
+        gymCoachMessage = GymCoach.exerciseIntro(
+            exercise: ex,
+            exerciseIndex: index,
+            totalExercises: exercises.count,
+            language: appLanguage
+        )
+    }
+
+    /// Tras completar todas las series del ejercicio actual o al pulsar «siguiente»:
+    /// 1) Si ya no queda ninguna serie pendiente en ningún ejercicio → termina el entreno (vale desde cualquier posición 1…n).
+    /// 2) Si el **siguiente** en orden tiene series sin hacer (no empezado o a medias) → va ahí.
+    /// 3) Si el siguiente ya está **terminado** → va al **primer** ejercicio con series pendientes.
+    /// 4) Si estás en el último de la lista y aún falta algo → primer pendiente.
+    private func advanceToNextExercise(fromSkip: Bool, fromExerciseIndex: Int) {
+        if completedSets.allSatisfy({ $0.allSatisfy { $0 } }) {
             finishWorkout()
+            return
+        }
+
+        let i = fromExerciseIndex
+
+        if i < exercises.count - 1 {
+            let next = i + 1
+            let nextNeedsWork = !completedSets[next].allSatisfy { $0 }
+            if nextNeedsWork {
+                currentExerciseIndex = next
+                applyExerciseIntro(at: next)
+                logger.info("Moved to next exercise in order at \(next) (fromSkip=\(fromSkip))")
+            } else if let firstPending = completedSets.firstIndex(where: { !$0.allSatisfy { $0 } }) {
+                currentExerciseIndex = firstPending
+                applyExerciseIntro(at: firstPending)
+                logger.info("Next in order already complete; moved to first pending at \(firstPending) (fromSkip=\(fromSkip))")
+            }
+        } else if let firstPending = completedSets.firstIndex(where: { !$0.allSatisfy { $0 } }) {
+            currentExerciseIndex = firstPending
+            applyExerciseIntro(at: firstPending)
+            logger.info("At last exercise in list; moved to first pending at \(firstPending) (fromSkip=\(fromSkip))")
         }
     }
 

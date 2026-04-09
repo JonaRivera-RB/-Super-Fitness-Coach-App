@@ -36,6 +36,12 @@ struct ContentView: View {
     // Tab selection
     @State private var selectedTab: Tab = .home
 
+    /// Idioma de la app (Perfil); inyectado en el entorno para vistas hijas.
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.spanish.rawValue
+    private var resolvedAppLanguage: AppLanguage {
+        AppLanguage(rawValue: languageCode) ?? .spanish
+    }
+
     // Navigation state for workout
     @State private var showingWorkout = false
     @State private var showingRoutineEditor = false
@@ -117,6 +123,7 @@ struct ContentView: View {
             statsTab
             profileTab
         }
+        .environment(\.appLanguage, resolvedAppLanguage)
         .onChange(of: trainingPlanViewModel == nil) { _, isNil in
             if !isNil {
                 // ViewModel just became available — load plan
@@ -137,7 +144,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Inicio", systemImage: "house.fill")
+            Label(resolvedAppLanguage.tabHome, systemImage: "house.fill")
         }
         .tag(Tab.home)
     }
@@ -245,7 +252,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Entrenamiento", systemImage: "figure.run")
+            Label(resolvedAppLanguage.tabWorkout, systemImage: "figure.run")
         }
         .tag(Tab.workout)
     }
@@ -341,7 +348,8 @@ struct ContentView: View {
             setLogger: setLogger,
             healthKitManager: healthKitManager,
             goal: plan.preferences.goal,
-            sessionId: sessionId
+            sessionId: sessionId,
+            appLanguage: resolvedAppLanguage
         )
     }
 
@@ -358,7 +366,9 @@ struct ContentView: View {
             setLogger: setLogger,
             healthKitManager: healthKitManager,
             goal: .beHealthy,
-            sessionId: sessionId
+            sessionId: sessionId,
+            appLanguage: resolvedAppLanguage,
+            preservePrescribedVolume: true
         )
         return (vm, defaultsKey)
     }
@@ -370,7 +380,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Estadísticas", systemImage: "chart.bar.fill")
+            Label(resolvedAppLanguage.tabStats, systemImage: "chart.bar.fill")
         }
         .tag(Tab.stats)
     }
@@ -382,7 +392,7 @@ struct ContentView: View {
             }
         }
         .tabItem {
-            Label("Perfil", systemImage: "person.fill")
+            Label(resolvedAppLanguage.tabProfile, systemImage: "person.fill")
         }
         .tag(Tab.profile)
     }

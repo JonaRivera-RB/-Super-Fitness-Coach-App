@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Sheet con información completa de un ejercicio:
 /// GIF animado, para qué sirve, cómo ejecutarlo, equipamiento y tipo.
@@ -11,6 +12,7 @@ struct ExerciseDetailView: View {
     let exercise: PlannedExercise
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var gifData: Data? = nil
     @State private var isLoadingGif = false
@@ -125,7 +127,9 @@ struct ExerciseDetailView: View {
     private var metaSection: some View {
         HStack(spacing: 8) {
             metaChip(icon: "figure.strengthtraining.traditional",
-                     text: exercise.muscleGroup.rawValue.capitalized, color: .blue)
+                     text: exercise.muscleGroup.rawValue.capitalized,
+                     color: AppSemanticPalette.systemBlue,
+                     systemTint: .systemBlue)
             if exercise.isCompound {
                 metaChip(icon: "bolt.fill", text: "Compuesto", color: .orange)
             } else {
@@ -138,12 +142,21 @@ struct ExerciseDetailView: View {
         }
     }
 
-    private func metaChip(icon: String, text: String, color: Color) -> some View {
+    private func metaChip(icon: String, text: String, color: Color, systemTint: UIColor? = nil) -> some View {
         Label(text, systemImage: icon)
             .font(.caption).fontWeight(.medium)
-            .foregroundStyle(color)
+            .foregroundStyle(
+                systemTint.map { AppSemanticPalette.accentOrPrimaryLabel($0, colorScheme) } ?? color
+            )
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Capsule().fill(color.opacity(0.12)))
+            .background(Capsule().fill(metaChipFill(color: color, systemTint: systemTint)))
+    }
+
+    private func metaChipFill(color: Color, systemTint: UIColor?) -> Color {
+        if let ui = systemTint {
+            return AppSemanticPalette.tintedFill(ui, colorScheme, light: 0.12, dark: 0.28)
+        }
+        return color.opacity(colorScheme == .dark ? 0.22 : 0.12)
     }
 
     // MARK: - Para qué sirve
@@ -188,7 +201,7 @@ struct ExerciseDetailView: View {
                                 .font(.caption).fontWeight(.bold)
                                 .foregroundStyle(.white)
                                 .frame(width: 22, height: 22)
-                                .background(Circle().fill(Color.blue))
+                                .background(Circle().fill(AppSemanticPalette.systemBlue))
 
                             Text(step)
                                 .font(.subheadline)

@@ -7,6 +7,8 @@ import SwiftUI
 
 struct ProfileView: View {
     @Bindable var viewModel: ProfileViewModel
+    @Environment(\.appLanguage) private var lang
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.spanish.rawValue
 
     // Local @State for fitness config editing (immune to viewModel re-renders)
     @State private var editSleep: String = ""
@@ -14,6 +16,7 @@ struct ProfileView: View {
     @State private var editCalories: String = ""
     @State private var editHR: String = ""
     @State private var editFitnessLevel: FitnessLevel = .beginner
+    @State private var editLiftingWeightUnit: LiftingWeightUnit = .kilograms
 
     // Local @State for body metrics editing
     @State private var editWeight: String = ""
@@ -29,6 +32,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             List {
+                languageSection
                 userSection
                 bodyMetricsSection
                 fitnessGoalsSection
@@ -36,16 +40,28 @@ struct ProfileView: View {
                 healthSection
                 notificationsSection
             }
-            .navigationTitle("Perfil")
+            .navigationTitle(lang.profileTitle)
             .task {
                 await viewModel.refreshConnectionStatus()
             }
-            .alert("Plan Updated", isPresented: $viewModel.showGoalChanged) {
-                Button("OK", role: .cancel) {
+            .alert(lang.alertPlanUpdatedTitle, isPresented: $viewModel.showGoalChanged) {
+                Button(lang.ok, role: .cancel) {
                     viewModel.dismissGoalChanged()
                 }
             } message: {
-                Text("Your weekly plan has been regenerated.")
+                Text(lang.alertPlanUpdatedMessage)
+            }
+        }
+    }
+
+    // MARK: - Language
+
+    private var languageSection: some View {
+        Section(lang.sectionLanguage) {
+            Picker(lang.sectionLanguage, selection: $languageCode) {
+                ForEach(AppLanguage.allCases, id: \.rawValue) { code in
+                    Text(code.nativePickerLabel).tag(code.rawValue)
+                }
             }
         }
     }
@@ -57,42 +73,42 @@ struct ProfileView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(AppSemanticPalette.systemBlue)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.userName)
                         .font(.title3)
                         .fontWeight(.semibold)
-                    Text(viewModel.selectedGoal.rawValue)
+                    Text(viewModel.selectedGoal.displayName(lang))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(viewModel.userName), goal: \(viewModel.selectedGoal.rawValue)")
+            .accessibilityLabel("\(viewModel.userName), goal: \(viewModel.selectedGoal.displayName(lang))")
         }
     }
 
     // MARK: - Fitness Goal
 
     private var fitnessGoalSection: some View {
-        Section("Fitness Goal") {
+        Section(lang.sectionFitnessGoal) {
             ForEach(FitnessGoal.allCases, id: \.self) { goal in
                 Button {
                     viewModel.updateFitnessGoal(goal)
                 } label: {
                     HStack {
-                        Label(goal.rawValue, systemImage: goalIcon(for: goal))
+                        Label(goal.displayName(lang), systemImage: goalIcon(for: goal))
                             .foregroundStyle(.primary)
                         Spacer()
                         if goal == viewModel.selectedGoal {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(AppSemanticPalette.systemBlue)
                                 .fontWeight(.semibold)
                         }
                     }
                 }
-                .accessibilityLabel("\(goal.rawValue)\(goal == viewModel.selectedGoal ? ", selected" : "")")
+                .accessibilityLabel(goal.displayName(lang))
             }
         }
     }
@@ -100,26 +116,26 @@ struct ProfileView: View {
     // MARK: - Health
 
     private var healthSection: some View {
-        Section("Apple Health") {
+        Section(lang.sectionAppleHealth) {
             HStack {
-                Label("HealthKit", systemImage: "heart.fill")
+                Label(lang.labelHealthKit, systemImage: "heart.fill")
                     .foregroundStyle(.red)
                 Spacer()
                 switch viewModel.authorizationStatus {
                 case .authorized:
-                    Text("Conectado")
+                    Text(lang.healthConnected)
                         .foregroundStyle(.green)
                         .font(.subheadline)
                 case .denied:
-                    Text("Denegado")
+                    Text(lang.healthDenied)
                         .foregroundStyle(.orange)
                         .font(.subheadline)
                 case .unavailable:
-                    Text("No disponible")
+                    Text(lang.healthUnavailable)
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
                 case .notDetermined:
-                    Button("Conectar") {
+                    Button(lang.healthConnect) {
                         Task {
                             await viewModel.requestHealthKitAuthorization()
                             await viewModel.refreshConnectionStatus()
@@ -129,24 +145,24 @@ struct ProfileView: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("HealthKit: \(viewModel.authorizationStatus == .authorized ? "Conectado" : "No conectado")")
+            .accessibilityLabel("\(lang.labelHealthKit): \(viewModel.authorizationStatus == .authorized ? lang.healthConnected : lang.healthConnect)")
         }
     }
 
     // MARK: - Notifications
 
     private var notificationsSection: some View {
-        Section("Notifications") {
+        Section(lang.sectionNotifications) {
             HStack {
-                Label("Daily Reminder", systemImage: "bell.fill")
+                Label(lang.labelDailyReminder, systemImage: "bell.fill")
                     .foregroundStyle(.orange)
                 Spacer()
                 if viewModel.notificationsEnabled {
-                    Text("Activadas")
+                    Text(lang.notificationsOn)
                         .foregroundStyle(.green)
                         .font(.subheadline)
                 } else {
-                    Button("Activar") {
+                    Button(lang.notificationsEnable) {
                         Task {
                             await viewModel.enableNotifications()
                             await viewModel.refreshConnectionStatus()
@@ -156,24 +172,24 @@ struct ProfileView: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Recordatorio diario: \(viewModel.notificationsEnabled ? "Activado" : "Desactivado")")
+            .accessibilityLabel("\(lang.labelDailyReminder): \(viewModel.notificationsEnabled ? lang.notificationsOn : lang.notificationsEnable)")
         }
     }
 
     // MARK: - Body Metrics
 
     private var bodyMetricsSection: some View {
-        Section("Body Metrics") {
+        Section(lang.sectionBodyMetrics) {
             // Unit preference picker
-            Picker("Units", selection: Binding(
+            Picker(lang.unitsLabel, selection: Binding(
                 get: { viewModel.unitPreference },
                 set: { viewModel.switchUnitPreference($0) }
             )) {
-                Text("Metric").tag(UnitPreference.metric)
-                Text("Imperial").tag(UnitPreference.imperial)
+                Text(lang.unitMetric).tag(UnitPreference.metric)
+                Text(lang.unitImperial).tag(UnitPreference.imperial)
             }
             .pickerStyle(.segmented)
-            .accessibilityLabel("Unit preference")
+            .accessibilityLabel(lang.unitsLabel)
 
             if viewModel.isEditingBodyMetrics {
                 bodyMetricsEditingFields
@@ -193,10 +209,10 @@ struct ProfileView: View {
     private var bodyMetricsDisplayFields: some View {
         Group {
             HStack {
-                Label("Weight", systemImage: "scalemass")
+                Label(lang.labelWeight, systemImage: "scalemass")
                 Spacer()
                 if viewModel.weightDisplay.isEmpty {
-                    Text("Not set")
+                    Text(lang.notSet)
                         .foregroundStyle(.secondary)
                 } else {
                     Text("\(viewModel.weightDisplay) \(viewModel.unitPreference == .metric ? "kg" : "lbs")")
@@ -206,11 +222,11 @@ struct ProfileView: View {
             .accessibilityElement(children: .combine)
 
             HStack {
-                Label("Height", systemImage: "ruler")
+                Label(lang.labelHeight, systemImage: "ruler")
                 Spacer()
                 if viewModel.unitPreference == .metric {
                     if viewModel.heightDisplay.isEmpty {
-                        Text("Not set")
+                        Text(lang.notSet)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("\(viewModel.heightDisplay) cm")
@@ -218,7 +234,7 @@ struct ProfileView: View {
                     }
                 } else {
                     if viewModel.heightFeetDisplay.isEmpty && viewModel.heightInchesDisplay.isEmpty {
-                        Text("Not set")
+                        Text(lang.notSet)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("\(viewModel.heightFeetDisplay) ft \(viewModel.heightInchesDisplay) in")
@@ -228,7 +244,7 @@ struct ProfileView: View {
             }
             .accessibilityElement(children: .combine)
 
-            Button("Edit") {
+            Button(lang.edit) {
                 editWeight = viewModel.weightDisplay
                 editHeight = viewModel.heightDisplay
                 editHeightFeet = viewModel.heightFeetDisplay
@@ -236,14 +252,14 @@ struct ProfileView: View {
                 viewModel.isEditingBodyMetrics = true
                 viewModel.bodyMetricsValidationError = nil
             }
-            .accessibilityLabel("Edit body metrics")
+            .accessibilityLabel(lang.edit)
         }
     }
 
     private var bodyMetricsEditingFields: some View {
         Group {
             HStack {
-                Label("Weight", systemImage: "scalemass")
+                Label(lang.labelWeight, systemImage: "scalemass")
                 TextField(viewModel.unitPreference == .metric ? "kg" : "lbs", text: $editWeight)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
@@ -252,7 +268,7 @@ struct ProfileView: View {
 
             if viewModel.unitPreference == .metric {
                 HStack {
-                    Label("Height", systemImage: "ruler")
+                    Label(lang.labelHeight, systemImage: "ruler")
                     TextField("cm", text: $editHeight)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
@@ -260,7 +276,7 @@ struct ProfileView: View {
                 }
             } else {
                 HStack {
-                    Label("Height", systemImage: "ruler")
+                    Label(lang.labelHeight, systemImage: "ruler")
                     TextField("ft", text: $editHeightFeet)
                         .keyboardType(.numberPad)
                         .frame(width: 40)
@@ -277,16 +293,16 @@ struct ProfileView: View {
             }
 
             HStack {
-                Button("Cancel") {
+                Button(lang.cancel) {
                     viewModel.isEditingBodyMetrics = false
                     viewModel.bodyMetricsValidationError = nil
                 }
                 .foregroundStyle(.red)
-                .accessibilityLabel("Cancel editing body metrics")
+                .accessibilityLabel(lang.cancel)
 
                 Spacer()
 
-                Button("Save") {
+                Button(lang.save) {
                     if viewModel.unitPreference == .metric {
                         viewModel.updateBodyMetrics(
                             weightInput: editWeight,
@@ -302,7 +318,7 @@ struct ProfileView: View {
                     }
                 }
                 .fontWeight(.semibold)
-                .accessibilityLabel("Save body metrics")
+                .accessibilityLabel(lang.save)
             }
         }
     }
@@ -310,7 +326,7 @@ struct ProfileView: View {
     // MARK: - Fitness Goals (FitnessConfig)
 
     private var fitnessGoalsSection: some View {
-        Section("Fitness Goals") {
+        Section(lang.sectionFitnessGoals) {
             sleepScheduleSectionContent
 
             if viewModel.isEditingFitnessConfig {
@@ -333,23 +349,23 @@ struct ProfileView: View {
             if viewModel.isEditingSleepSchedule {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label("Bedtime", systemImage: "moon.stars")
+                        Label(lang.labelBedtime, systemImage: "moon.stars")
                         Spacer()
                         DatePicker("", selection: $editBedtime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                     }
                     HStack {
-                        Label("Wake", systemImage: "sunrise")
+                        Label(lang.labelWake, systemImage: "sunrise")
                         Spacer()
                         DatePicker("", selection: $editWakeTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                     }
                     HStack {
-                        Label("Buffer", systemImage: "slider.horizontal.3")
+                        Label(lang.labelBuffer, systemImage: "slider.horizontal.3")
                         Spacer()
-                        Stepper("\(editBufferMinutes) min", value: $editBufferMinutes, in: 0...180, step: 5)
+                        Stepper("\(editBufferMinutes) \(lang.minutesShort)", value: $editBufferMinutes, in: 0...180, step: 5)
                             .labelsHidden()
-                        Text("\(editBufferMinutes) min")
+                        Text("\(editBufferMinutes) \(lang.minutesShort)")
                             .foregroundStyle(.secondary)
                     }
 
@@ -360,14 +376,14 @@ struct ProfileView: View {
                     }
 
                     HStack {
-                        Button("Cancel") {
+                        Button(lang.cancel) {
                             viewModel.cancelSleepScheduleEditing()
                         }
                         .foregroundStyle(.red)
 
                         Spacer()
 
-                        Button("Save") {
+                        Button(lang.save) {
                             Task {
                                 await viewModel.saveSleepSchedule(
                                     bedtime: editBedtime,
@@ -386,12 +402,12 @@ struct ProfileView: View {
                 }
             } else {
                 HStack {
-                    Label("Sleep Schedule", systemImage: "bed.double.fill")
+                    Label(lang.labelSleepSchedule, systemImage: "bed.double.fill")
                     Spacer()
                     Text(sleepScheduleSummary)
                         .foregroundStyle(.secondary)
                 }
-                Button("Edit Sleep Schedule") {
+                Button(lang.editSleepSchedule) {
                     // Preload local state from viewModel
                     editBedtime = viewModel.sleepGoalBedtime
                     editWakeTime = viewModel.sleepGoalWakeTime
@@ -412,7 +428,7 @@ struct ProfileView: View {
             bed = cal.date(bySettingHour: goal.targetSleepTime.hour, minute: goal.targetSleepTime.minute, second: 0, of: startOfDay) ?? startOfDay
             wake = cal.date(bySettingHour: goal.targetWakeTime.hour, minute: goal.targetWakeTime.minute, second: 0, of: startOfDay) ?? startOfDay
         } else {
-            return "Not set"
+            return lang.sleepScheduleNotSet
         }
 
         let bedStr = DateFormatter.localizedString(from: bed, dateStyle: .none, timeStyle: .short)
@@ -423,15 +439,15 @@ struct ProfileView: View {
     private var fitnessGoalsDisplayFields: some View {
         Group {
             HStack {
-                Label("Sleep Goal", systemImage: "bed.double")
+                Label(lang.labelSleepGoal, systemImage: "bed.double")
                 Spacer()
-                Text("\(viewModel.sleepGoalText)h")
+                Text("\(viewModel.sleepGoalText)\(lang.hoursSuffix)")
                     .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
 
             HStack {
-                Label("Steps Goal", systemImage: "figure.walk")
+                Label(lang.labelStepsGoal, systemImage: "figure.walk")
                 Spacer()
                 Text(viewModel.stepsGoalText)
                     .foregroundStyle(.secondary)
@@ -439,7 +455,7 @@ struct ProfileView: View {
             .accessibilityElement(children: .combine)
 
             HStack {
-                Label("Calorie Goal", systemImage: "flame")
+                Label(lang.labelCalorieGoal, systemImage: "flame")
                 Spacer()
                 Text("\(viewModel.calorieGoalText) kcal")
                     .foregroundStyle(.secondary)
@@ -447,7 +463,7 @@ struct ProfileView: View {
             .accessibilityElement(children: .combine)
 
             HStack {
-                Label("Baseline HR", systemImage: "heart")
+                Label(lang.labelBaselineHR, systemImage: "heart")
                 Spacer()
                 Text("\(viewModel.baselineRestingHRText) bpm")
                     .foregroundStyle(.secondary)
@@ -455,43 +471,52 @@ struct ProfileView: View {
             .accessibilityElement(children: .combine)
 
             HStack {
-                Label("Fitness Level", systemImage: "figure.strengthtraining.traditional")
+                Label(lang.labelFitnessLevel, systemImage: "figure.strengthtraining.traditional")
                 Spacer()
-                Text(viewModel.fitnessLevel.rawValue.capitalized)
+                Text(viewModel.fitnessLevel.displayName(lang))
                     .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
 
-            Button("Edit") {
+            HStack {
+                Label(lang.labelGymWeightUnit, systemImage: "dumbbell.fill")
+                Spacer()
+                Text(viewModel.liftingWeightUnit == .kilograms ? lang.liftingUnitKilograms : lang.liftingUnitPounds)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+
+            Button(lang.edit) {
                 editSleep = viewModel.sleepGoalText
                 editSteps = viewModel.stepsGoalText
                 editCalories = viewModel.calorieGoalText
                 editHR = viewModel.baselineRestingHRText
                 editFitnessLevel = viewModel.fitnessLevel
+                editLiftingWeightUnit = viewModel.liftingWeightUnit
                 print("[ProfileView] Edit tapped — copied sleep='\(editSleep)', steps='\(editSteps)', cal='\(editCalories)', hr='\(editHR)'")
                 viewModel.isEditingFitnessConfig = true
                 viewModel.fitnessConfigValidationError = nil
             }
-            .accessibilityLabel("Edit fitness goals")
+            .accessibilityLabel(lang.edit)
         }
     }
 
     private var fitnessGoalsEditingFields: some View {
         Group {
             HStack {
-                Label("Sleep Goal", systemImage: "bed.double")
+                Label(lang.labelSleepGoal, systemImage: "bed.double")
                 Spacer()
                 TextField("hours", text: $editSleep)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
                     .accessibilityLabel("Sleep goal in hours, 4 to 12")
-                Text("h")
+                Text(lang.hoursSuffix)
                     .foregroundStyle(.secondary)
             }
 
             HStack {
-                Label("Steps Goal", systemImage: "figure.walk")
+                Label(lang.labelStepsGoal, systemImage: "figure.walk")
                 Spacer()
                 TextField("steps", text: $editSteps)
                     .keyboardType(.numberPad)
@@ -501,7 +526,7 @@ struct ProfileView: View {
             }
 
             HStack {
-                Label("Calorie Goal", systemImage: "flame")
+                Label(lang.labelCalorieGoal, systemImage: "flame")
                 Spacer()
                 TextField("kcal", text: $editCalories)
                     .keyboardType(.numberPad)
@@ -513,7 +538,7 @@ struct ProfileView: View {
             }
 
             HStack {
-                Label("Baseline HR", systemImage: "heart")
+                Label(lang.labelBaselineHR, systemImage: "heart")
                 Spacer()
                 TextField("bpm", text: $editHR)
                     .keyboardType(.numberPad)
@@ -524,23 +549,38 @@ struct ProfileView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Picker("Fitness Level", selection: $editFitnessLevel) {
+            Picker(lang.pickerFitnessLevel, selection: $editFitnessLevel) {
                 ForEach(FitnessLevel.allCases, id: \.self) { level in
-                    Text(level.rawValue.capitalized).tag(level)
+                    Text(level.displayName(lang)).tag(level)
                 }
             }
-            .accessibilityLabel("Fitness level")
+            .accessibilityLabel(lang.labelFitnessLevel)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(lang.gymWeightSectionTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Picker(lang.gymWeightPickerAccessibility, selection: $editLiftingWeightUnit) {
+                    Text(lang.liftingUnitKilograms).tag(LiftingWeightUnit.kilograms)
+                    Text(lang.liftingUnitPounds).tag(LiftingWeightUnit.pounds)
+                }
+                .pickerStyle(.segmented)
+                Text(lang.gymWeightFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack {
-                Button("Cancel") {
+                Button(lang.cancel) {
                     viewModel.cancelFitnessConfigEditing()
                 }
                 .foregroundStyle(.red)
-                .accessibilityLabel("Cancel editing fitness goals")
+                .accessibilityLabel(lang.cancel)
 
                 Spacer()
 
-                Button("Save") {
+                Button(lang.save) {
                     Task {
                         print("[ProfileView] Save tapped — editSleep='\(editSleep)', editSteps='\(editSteps)', editCal='\(editCalories)', editHR='\(editHR)'")
                         await viewModel.saveFitnessConfigFrom(
@@ -548,12 +588,13 @@ struct ProfileView: View {
                             steps: editSteps,
                             calories: editCalories,
                             hr: editHR,
-                            level: editFitnessLevel
+                            level: editFitnessLevel,
+                            liftingUnit: editLiftingWeightUnit
                         )
                     }
                 }
                 .fontWeight(.semibold)
-                .accessibilityLabel("Save fitness goals")
+                .accessibilityLabel(lang.save)
             }
         }
     }

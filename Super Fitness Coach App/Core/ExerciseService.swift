@@ -41,6 +41,21 @@ final class ExerciseService {
         self.cachedFallbackExercises = Self.loadBundledExercises(from: bundle)
     }
 
+    // MARK: - Plan generation warm-up
+
+    /// Precarga el índice uuid→imagen **una vez** antes de lanzar varios `fetchExercises` en paralelo.
+    /// Evita condiciones de carrera y el coste de repetir la paginación de imágenes por cada parte del cuerpo.
+    func warmCacheForPlanGeneration() async {
+        guard !didLoadWgerImageIndex else { return }
+        do {
+            cachedWgerImageIndex = try await fetchWgerImageIndex(limitPerPage: 200)
+        } catch {
+            logger.warning("warmCacheForPlanGeneration: image index failed: \(error.localizedDescription)")
+            cachedWgerImageIndex = [:]
+        }
+        didLoadWgerImageIndex = true
+    }
+
     // MARK: - Fetch Exercises
 
     /// Fetch exercises from wger API, filtered by body part category, with optional equipment filter.

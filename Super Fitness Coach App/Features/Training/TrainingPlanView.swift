@@ -4,12 +4,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Full-screen training plan view — shows all 7 days of the current week
 /// with statuses, actions, and progress. Used as a detail view when the user
 /// wants to see the full week at a glance.
 struct TrainingPlanView: View {
     @Bindable var viewModel: TrainingPlanViewModel
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showReEngagementAlert = false
 
     var body: some View {
@@ -77,14 +79,14 @@ struct TrainingPlanView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemGray4)).frame(height: 6)
-                    Capsule().fill(Color.blue)
+                    Capsule().fill(AppSemanticPalette.systemBlue)
                         .frame(width: geo.size.width * viewModel.progressFraction, height: 6)
                 }
             }
             .frame(height: 6)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.blue.opacity(0.07)))
+        .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutWeekProgressBlue(colorScheme)))
     }
 
     // MARK: - Week Days List
@@ -169,7 +171,7 @@ struct TrainingPlanView: View {
                     Label("Reschedule", systemImage: "arrow.uturn.right")
                         .font(.caption).fontWeight(.medium)
                 }
-                .buttonStyle(.bordered).tint(.blue).controlSize(.mini)
+                .buttonStyle(.bordered).tint(AppSemanticPalette.systemBlue).controlSize(.mini)
             }
         }
     }
@@ -186,7 +188,7 @@ struct TrainingPlanView: View {
         case .pending:     return ("⏳", .gray)
         case .completed:   return ("✓", .green)
         case .skipped:     return ("⏭", .orange)
-        case .rescheduled: return ("🔄", .blue)
+        case .rescheduled: return ("🔄", AppSemanticPalette.systemBlue)
         case .unavailable: return ("—", .gray)
         }
     }
@@ -197,7 +199,7 @@ struct TrainingPlanView: View {
         switch day.dayStatus {
         case .completed:   return Color.green.opacity(0.08)
         case .skipped:     return Color.orange.opacity(0.08)
-        case .rescheduled: return Color.blue.opacity(0.08)
+        case .rescheduled: return AppSemanticPalette.tintedFill(.systemBlue, colorScheme, light: 0.08, dark: 0.24)
         default:           return Color(.systemGray6)
         }
     }
