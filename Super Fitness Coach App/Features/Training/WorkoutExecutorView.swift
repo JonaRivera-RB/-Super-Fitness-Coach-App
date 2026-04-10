@@ -160,31 +160,36 @@ struct WorkoutExecutorView: View {
     // MARK: - Workout Complete Screen
 
     private var workoutCompleteScreen: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DesignTokens.Spacing.lg) {
             Spacer()
             Image(systemName: "trophy.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(.yellow)
+                .foregroundStyle(DesignTokens.Color.reward)
             Text(lang.workoutCompleteTitle)
-                .font(.title).fontWeight(.bold)
+                .font(DesignTokens.Typography.displayTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text("\(viewModel.exercises.count) \(lang.workoutCompleteStats) · \(viewModel.completedLogs.flatMap(\.sets).count) \(lang.workoutCompleteSets)")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
             Spacer()
-            VStack(spacing: 12) {
+            VStack(spacing: DesignTokens.Spacing.md) {
                 Button {
                     dismiss()
                 } label: {
                     Label(lang.viewSummary, systemImage: "chart.bar.fill")
-                        .fontWeight(.semibold).frame(maxWidth: .infinity)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
 
                 Button(lang.close) { dismiss() }
-                    .buttonStyle(.bordered).controlSize(.large)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 32)
+            .padding(.horizontal, DesignTokens.Spacing.screenH)
+            .padding(.bottom, DesignTokens.Spacing.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -208,30 +213,33 @@ struct WorkoutExecutorView: View {
 
         return Group {
             if !viewModel.gymCoachMessage.isEmpty || viewModel.isRestTimerActive {
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
                         .font(.title3)
-                        .foregroundStyle(.teal)
+                        .foregroundStyle(Color(uiColor: .systemTeal))
                         .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         if !viewModel.gymCoachMessage.isEmpty {
                             Text(viewModel.gymCoachMessage)
                                 .font(.subheadline)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(DesignTokens.Color.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if viewModel.isRestTimerActive, let ex = exercise {
                             Text(GymCoach.restFocus(exercise: ex, restSecondsRemaining: viewModel.restTimerSeconds, language: lang))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundStyle(DesignTokens.Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .padding(12)
+                .padding(DesignTokens.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.coachBannerFill(colorScheme)))
+                .background(
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                        .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.30 : 0.12))
+                )
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(coachAccessibilitySummary(exercise: exercise))
             }
@@ -250,8 +258,8 @@ struct WorkoutExecutorView: View {
             let fraction = CGFloat(completed) / CGFloat(total)
 
             ZStack(alignment: .leading) {
-                Rectangle().fill(AppSemanticPalette.progressTrack(colorScheme))
-                Rectangle().fill(Color.green)
+                Rectangle().fill(Color(uiColor: colorScheme == .dark ? .tertiarySystemFill : .systemGray5))
+                Rectangle().fill(DesignTokens.Color.positive)
                     .frame(width: geo.size.width * fraction)
                     .animation(.easeInOut(duration: 0.3), value: fraction)
             }
@@ -281,7 +289,7 @@ struct WorkoutExecutorView: View {
                         Text(lang.seeDetail)
                             .font(.caption)
                     }
-                    .foregroundStyle(AppSemanticPalette.systemBlue)
+                    .foregroundStyle(DesignTokens.Color.info)
                 }
             }
             .buttonStyle(.plain)
@@ -298,19 +306,19 @@ struct WorkoutExecutorView: View {
 
             HStack(spacing: 10) {
                 Label(exercise.muscleGroup.displayName(lang), systemImage: "figure.strengthtraining.traditional")
-                    .font(.caption)
-                    .foregroundStyle(AppSemanticPalette.accentOrPrimaryLabel(.systemBlue, colorScheme))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(AppSemanticPalette.muscleTagBackground(colorScheme)))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(colorScheme == .dark ? DesignTokens.Color.textPrimary : DesignTokens.Color.info)
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+                    .background(Capsule().fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.30 : 0.12)))
 
                 if exercise.isCompound {
                     Text(lang.labelCompound)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(AppSemanticPalette.compoundTagBackground(colorScheme)))
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.caution)
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+                        .background(Capsule().fill(DesignTokens.Color.caution.opacity(colorScheme == .dark ? 0.30 : 0.12)))
                 }
 
                 if !exercise.equipment.isEmpty {
@@ -348,8 +356,8 @@ struct WorkoutExecutorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             case .planAdjusted(let original, let adjusted):
                 Text(lang.workoutFootnotePlanAdjustedSeries(original: original, adjusted: adjusted))
-                    .font(.caption)
-                    .foregroundStyle(.orange.opacity(colorScheme == .dark ? 0.95 : 0.9))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Color.caution.opacity(colorScheme == .dark ? 0.95 : 0.90))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -409,45 +417,45 @@ struct WorkoutExecutorView: View {
     @ViewBuilder
     private var restTimerFloatingBar: some View {
         if viewModel.isRestTimerActive {
-            HStack(spacing: 12) {
+            HStack(spacing: DesignTokens.Spacing.md) {
                 Image(systemName: "timer.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(AppSemanticPalette.restBarAccent(colorScheme))
+                    .foregroundStyle(DesignTokens.Color.info)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(lang.restTitle)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
                     Text(lang.nextSet)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(DesignTokens.Typography.micro)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: DesignTokens.Spacing.sm)
                 Text("\(viewModel.restTimerSeconds)")
                     .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppSemanticPalette.restBarAccent(colorScheme))
+                    .foregroundStyle(DesignTokens.Color.info)
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 Text(lang.secondsShort)
                     .font(.title3)
                     .fontWeight(.semibold)
-                    .foregroundStyle(AppSemanticPalette.restBarAccent(colorScheme).opacity(0.85))
+                    .foregroundStyle(DesignTokens.Color.info.opacity(0.85))
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .padding(.vertical, DesignTokens.Spacing.md)
             .frame(maxWidth: .infinity)
             .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
                     .fill(.ultraThinMaterial)
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(AppSemanticPalette.restBarAccent(colorScheme).opacity(0.35), lineWidth: 1)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                    .strokeBorder(DesignTokens.Color.info.opacity(0.35), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.45 : 0.18), radius: 16, y: 6)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .tokenShadow(.floating)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .padding(.bottom, DesignTokens.Spacing.sm)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(lang.restAccessibility(seconds: viewModel.restTimerSeconds))
         }
@@ -536,46 +544,50 @@ private struct WorkoutSetCard: View {
     private var setNumber: Int { setIndex + 1 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             header
             if previousLine != "—" { previousRow }
             inputsBlock
             if !isCompleted { registerButton }
         }
-        .padding(16)
+        .padding(DesignTokens.Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(isCompleted ? Color.green.opacity(0.45) : Color.primary.opacity(0.06), lineWidth: isCompleted ? 2 : 1)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .strokeBorder(
+                    isCompleted
+                        ? DesignTokens.Color.positive.opacity(0.45)
+                        : DesignTokens.Color.textPrimary.opacity(0.06),
+                    lineWidth: isCompleted ? 2 : 1
+                )
         )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.08), radius: 10, y: 4)
+        .tokenShadow(.card)
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: DesignTokens.Spacing.sm) {
             Text(lang.setLabel(setNumber: setNumber))
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(isCompleted ? .green : .primary)
+                .font(DesignTokens.Typography.numberCompact)
+                .foregroundStyle(isCompleted ? DesignTokens.Color.positive : DesignTokens.Color.textPrimary)
             Spacer()
             if isCompleted {
-                HStack(spacing: 8) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
                     if isPR {
                         Text(lang.prBadge)
-                            .font(.caption)
+                            .font(DesignTokens.Typography.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.purple))
+                            .padding(.horizontal, DesignTokens.Spacing.sm)
+                            .padding(.vertical, DesignTokens.Spacing.xs)
+                            .background(Capsule().fill(DesignTokens.Color.restDay))
                     }
                     Label(lang.setDone, systemImage: "checkmark.circle.fill")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignTokens.Color.positive)
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -654,23 +666,22 @@ private struct WorkoutSetCard: View {
 
     private var registerButton: some View {
         Button(action: onRegister) {
-            HStack(spacing: 10) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
                 Text(lang.logSetButton(setNumber: setNumber))
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DesignTokens.Typography.cardTitle)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, DesignTokens.Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(AppSemanticPalette.registerSetButtonFill(colorScheme))
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.42 : 0.20))
             )
-            .foregroundStyle(AppSemanticPalette.registerSetButtonForeground(colorScheme))
+            .foregroundStyle(colorScheme == .dark ? DesignTokens.Color.textPrimary : Color(uiColor: .systemTeal))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(Color.teal.opacity(colorScheme == .dark ? 0.55 : 0.45), lineWidth: 1)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .strokeBorder(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.55 : 0.45), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

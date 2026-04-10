@@ -2,6 +2,17 @@
 //  AppSemanticPalette.swift
 //  Super Fitness Coach App
 //
+//  ⚠️  DEPRECATED — Migrar a DesignTokens.swift
+//
+//  Este archivo se mantiene para no romper código existente.
+//  Para código nuevo, usar siempre DesignTokens:
+//
+//    AppSemanticPalette.systemBlue         → DesignTokens.Color.info
+//    AppSemanticPalette.systemGreen        → DesignTokens.Color.positive
+//    AppSemanticPalette.systemOrange       → DesignTokens.Color.caution
+//    AppSemanticPalette.workoutBannerTeal  → tokenCard() ViewModifier
+//    AppSemanticPalette.cardShadow         → tokenShadow(.card)
+//
 
 import SwiftUI
 import UIKit

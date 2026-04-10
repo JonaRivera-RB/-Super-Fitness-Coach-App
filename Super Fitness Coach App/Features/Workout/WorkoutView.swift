@@ -2,6 +2,10 @@
 //  WorkoutView.swift
 //  Super Fitness Coach App
 //
+//  Rediseño con DesignTokens.
+//  iOS 26+: Liquid Glass en cards y nav bar.
+//  iOS 18+: system materials, adaptive fills, native shadows.
+//
 
 import SwiftUI
 import SwiftData
@@ -51,7 +55,7 @@ struct WorkoutView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DesignTokens.Spacing.md) {
                     if hasPlan && hasRoutine {
                         Picker(lang.workoutSurfacePicker, selection: $storedSurface) {
                             Text(lang.workoutSurfacePlan).tag(WorkoutSurface.plan.rawValue)
@@ -92,8 +96,11 @@ struct WorkoutView: View {
                         noPlanBanner
                     }
                 }
-                .padding()
+                .padding(.horizontal, DesignTokens.Spacing.screenH)
+                .padding(.vertical, DesignTokens.Spacing.sm)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(lang.workoutNavTitle)
             .navigationBarTitleDisplayMode(.large)
             .task {
@@ -101,7 +108,7 @@ struct WorkoutView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
                         Button {
                             onEditRoutine?()
                         } label: {
@@ -124,15 +131,15 @@ struct WorkoutView: View {
     // MARK: - Empty
 
     private var emptyTrainingState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: "figure.run.circle")
                 .font(.system(size: 40))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
             Text(lang.workoutEmptyTitle)
-                .font(.headline)
+                .font(DesignTokens.Typography.cardTitle)
             Text(lang.workoutEmptySubtitle)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
                 .multilineTextAlignment(.center)
             if onEditRoutine != nil {
                 Button {
@@ -144,11 +151,11 @@ struct WorkoutView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .padding(.top, 4)
+                .padding(.top, DesignTokens.Spacing.xs)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(DesignTokens.Spacing.md)
     }
 
     // MARK: - Cross-hints (fusion UX)
@@ -157,25 +164,29 @@ struct WorkoutView: View {
         Button {
             storedSurface = WorkoutSurface.routine.rawValue
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DesignTokens.Spacing.md) {
                 Image(systemName: "arrow.triangle.swap")
                     .font(.title3)
-                    .foregroundStyle(AppSemanticPalette.systemTeal)
-                VStack(alignment: .leading, spacing: 4) {
+                    .foregroundStyle(Color(uiColor: .systemTeal))
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(lang.workoutBannerAlsoRoutineTitle)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
                     Text(lang.workoutBannerAlsoRoutineBody)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
             }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutBannerTeal(colorScheme)))
+            .padding(DesignTokens.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.28 : 0.08))
+            )
         }
         .buttonStyle(.plain)
     }
@@ -184,25 +195,29 @@ struct WorkoutView: View {
         Button {
             storedSurface = WorkoutSurface.plan.rawValue
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DesignTokens.Spacing.md) {
                 Image(systemName: "calendar.badge.clock")
                     .font(.title3)
-                    .foregroundStyle(AppSemanticPalette.systemBlue)
-                VStack(alignment: .leading, spacing: 4) {
+                    .foregroundStyle(DesignTokens.Color.info)
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(lang.workoutBannerBackToPlanTitle)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
                     Text(lang.workoutBannerBackToPlanBody)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
             }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutBannerBlue(colorScheme)))
+            .padding(DesignTokens.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.28 : 0.08))
+            )
         }
         .buttonStyle(.plain)
     }
@@ -210,20 +225,29 @@ struct WorkoutView: View {
     // MARK: - No Plan Banner
 
     private var noPlanBanner: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 36)).foregroundStyle(AppSemanticPalette.systemBlue)
-            Text(lang.workoutOptionalPlanTitle).font(.headline)
+                .font(.system(size: 36))
+                .foregroundStyle(DesignTokens.Color.info)
+            Text(lang.workoutOptionalPlanTitle)
+                .font(DesignTokens.Typography.cardTitle)
             Text(lang.workoutOptionalPlanBody)
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .multilineTextAlignment(.center)
             Button { onNewTrainingPlan?() } label: {
                 Label(lang.workoutCreateTrainingPlan, systemImage: "plus")
-                    .fontWeight(.semibold).frame(maxWidth: .infinity)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
         }
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
+        .padding(DesignTokens.Spacing.screenH)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+        )
     }
 
     // MARK: - Training Plan Section
@@ -234,7 +258,7 @@ struct WorkoutView: View {
             ? plan.weeks[weekIndex].days.sorted { $0.dayOfWeek < $1.dayOfWeek }
             : []
 
-        return VStack(spacing: 14) {
+        return VStack(spacing: DesignTokens.Spacing.md) {
             weekProgressHeader(plan: plan, days: currentWeekDays)
             todayCard(plan: plan, days: currentWeekDays)
             weekOverview(days: currentWeekDays)
@@ -247,7 +271,7 @@ struct WorkoutView: View {
     private func routineSection(routine: UserRoutine) -> some View {
         let days = routine.days.sorted { $0.dayOfWeek < $1.dayOfWeek }
 
-        return VStack(spacing: 14) {
+        return VStack(spacing: DesignTokens.Spacing.md) {
             routineWeekHeader(routine: routine, days: days)
             routineTodayCard(days: days)
             routineWeekOverview(days: days)
@@ -265,30 +289,38 @@ struct WorkoutView: View {
         let totalMoves = days.reduce(0) { $0 + $1.exercises.count }
         let fraction = min(1.0, Double(trainingDayCount) / 7.0)
 
-        return VStack(spacing: 8) {
+        return VStack(spacing: DesignTokens.Spacing.sm) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(lang.workoutMyRoutineHeader)
                         .font(.title3).fontWeight(.bold)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
                     Text(lang.workoutRoutineWeekSummary(days: trainingDayCount, exercises: totalMoves))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
                 Spacer()
                 Image(systemName: "slider.horizontal.3")
                     .font(.title2)
-                    .foregroundStyle(AppSemanticPalette.systemTeal)
+                    .foregroundStyle(Color(uiColor: .systemTeal))
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(uiColor: .tertiarySystemFill)).frame(height: 6)
-                    Capsule().fill(AppSemanticPalette.systemTeal)
+                    Capsule()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(height: 6)
+                    Capsule()
+                        .fill(Color(uiColor: .systemTeal))
                         .frame(width: geo.size.width * fraction, height: 6)
                 }
             }
             .frame(height: 6)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutRoutineHeader(colorScheme)))
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
     }
 
     @ViewBuilder
@@ -324,49 +356,60 @@ struct WorkoutView: View {
     }
 
     private func routineDayCompletedCard(day: UserRoutineDay) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(AppSemanticPalette.systemGreen)
+                .foregroundStyle(DesignTokens.Color.positive)
             Text(lang.workoutRoutineDoneTitle)
-                .font(.headline)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(lang.workoutRoutineDoneBody)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
                 .multilineTextAlignment(.center)
             if let at = day.lastRoutineWorkoutCompletedAt {
                 Text(at, format: .dateTime.hour().minute())
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(DesignTokens.Typography.micro)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
             }
         }
-        .padding(20)
+        .padding(DesignTokens.Spacing.screenH)
         .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutCardGreenTint(colorScheme)))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(AppSemanticPalette.strokeMuted(.systemGreen, colorScheme), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.26 : 0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .strokeBorder(DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.50 : 0.30), lineWidth: 1)
+        )
     }
 
     private var routineEmptyDayCard: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: DesignTokens.Spacing.sm) {
             Text(lang.workoutRoutineDayMissing)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
         }
-        .padding()
+        .padding(DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+        )
     }
 
     private var routineEmptyExercisesCard: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 36))
-                .foregroundStyle(AppSemanticPalette.systemTeal)
+                .foregroundStyle(Color(uiColor: .systemTeal))
             Text(lang.workoutTodayTrainTitle)
-                .font(.headline)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(lang.workoutTodayTrainBody)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
                 .multilineTextAlignment(.center)
             Button { onEditRoutine?() } label: {
                 Label(lang.workoutAddExercises, systemImage: "pencil")
@@ -374,37 +417,49 @@ struct WorkoutView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(AppSemanticPalette.systemTeal)
+            .tint(Color(uiColor: .systemTeal))
         }
-        .padding(20)
+        .padding(DesignTokens.Spacing.screenH)
         .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutCardTealTint(colorScheme)))
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.26 : 0.06))
+        )
     }
 
     private func routineWorkoutHeroCard(day: UserRoutineDay) -> some View {
         let groups = uniqueMuscleLabels(from: day.exercises)
 
-        return VStack(spacing: 14) {
+        return VStack(spacing: DesignTokens.Spacing.md) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(lang.workoutTodayInRoutine)
-                        .font(.headline)
+                        .font(DesignTokens.Typography.cardTitle)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
                     if !groups.isEmpty {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignTokens.Spacing.xs) {
                             ForEach(groups.prefix(4), id: \.self) { g in
                                 Text(g)
-                                    .font(.caption).fontWeight(.medium)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Capsule().fill(AppSemanticPalette.workoutChipTealFill(colorScheme)))
-                                    .foregroundStyle(AppSemanticPalette.accentOrPrimaryLabel(.systemTeal, colorScheme))
+                                    .font(DesignTokens.Typography.caption)
+                                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                                    .padding(.vertical, DesignTokens.Spacing.xs)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.32 : 0.15))
+                                    )
+                                    .foregroundStyle(colorScheme == .dark ? DesignTokens.Color.textPrimary : Color(uiColor: .systemTeal))
                             }
                         }
                     }
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(day.exercises.count)").font(.title2).fontWeight(.bold)
-                    Text(lang.workoutExercisesWord).font(.caption2).foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xs) {
+                    Text("\(day.exercises.count)")
+                        .font(DesignTokens.Typography.numberCompact)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                    Text(lang.workoutExercisesWord)
+                        .font(DesignTokens.Typography.micro)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
             }
 
@@ -412,19 +467,28 @@ struct WorkoutView: View {
                 ForEach(Array(day.exercises.prefix(4).enumerated()), id: \.offset) { _, exercise in
                     HStack {
                         Circle()
-                            .fill(exercise.isCompound ? AppSemanticPalette.systemOrange : AppSemanticPalette.tintedFill(.systemTeal, colorScheme, light: 0.5, dark: 0.55))
+                            .fill(exercise.isCompound
+                                  ? DesignTokens.Color.caution
+                                  : Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.55 : 0.50))
                             .frame(width: 6, height: 6)
-                        Text(exercise.name).font(.subheadline).lineLimit(1)
+                        Text(exercise.name)
+                            .font(.subheadline)
+                            .foregroundStyle(DesignTokens.Color.textPrimary)
+                            .lineLimit(1)
                         Spacer()
                         Text("\(exercise.sets)×\(exercise.reps)")
-                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Color.textSecondary)
+                            .monospacedDigit()
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, DesignTokens.Spacing.xs + 2)
                     if exercise.id != day.exercises.prefix(4).last?.id { Divider() }
                 }
                 if day.exercises.count > 4 {
                     Text(lang.workoutMoreExercises(day.exercises.count - 4))
-                        .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                        .padding(.top, DesignTokens.Spacing.xs)
                 }
             }
 
@@ -432,14 +496,21 @@ struct WorkoutView: View {
                 onStartRoutineWorkout?(day.exercises, day.dayOfWeek)
             } label: {
                 Label(lang.workoutStart, systemImage: "play.fill")
-                    .fontWeight(.semibold).frame(maxWidth: .infinity)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(AppSemanticPalette.systemGreen)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(DesignTokens.Color.positive)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))
-            .shadow(color: AppSemanticPalette.systemGreen.opacity(colorScheme == .dark ? 0.22 : 0.15), radius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(AppSemanticPalette.strokeMuted(.systemGreen, colorScheme), lineWidth: 1))
+        .padding(DesignTokens.Spacing.md)
+        .background(DesignTokens.Color.surfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .strokeBorder(DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.50 : 0.30), lineWidth: 1)
+        )
+        .tokenShadow(.card)
     }
 
     private func uniqueMuscleLabels(from exercises: [PlannedExercise]) -> [String] {
@@ -456,17 +527,21 @@ struct WorkoutView: View {
     }
 
     private func routineWeekOverview(days: [UserRoutineDay]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text(lang.workoutThisWeek)
-                .font(.headline)
-            HStack(spacing: 4) {
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
+            HStack(spacing: DesignTokens.Spacing.xs) {
                 ForEach(days, id: \.dayOfWeek) { day in
                     routineDayPill(day: day)
                 }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+        )
     }
 
     private func routineDayPill(day: UserRoutineDay) -> some View {
@@ -476,14 +551,21 @@ struct WorkoutView: View {
         let n = day.exercises.count
         let doneThisWeek = routineDayCompletedThisCalendarWeek(day)
 
-        return VStack(spacing: 4) {
+        let pillColor: Color = {
+            if doneThisWeek { return DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.62 : 0.55) }
+            if isRest { return DesignTokens.Color.restDay.opacity(colorScheme == .dark ? 0.55 : 0.45) }
+            if n > 0 { return Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.55 : 0.45) }
+            return Color(uiColor: .systemGray).opacity(colorScheme == .dark ? 0.35 : 0.28)
+        }()
+
+        return VStack(spacing: DesignTokens.Spacing.xs) {
             Text(lang.shortWeekday(day.dayOfWeek))
                 .font(.system(size: 9)).fontWeight(.medium)
-                .foregroundStyle(isToday ? .primary : .secondary)
+                .foregroundStyle(isToday ? DesignTokens.Color.textPrimary : DesignTokens.Color.textSecondary)
 
             ZStack {
                 Circle()
-                    .fill(AppSemanticPalette.workoutPillCircle(doneThisWeek: doneThisWeek, isRest: isRest, hasExercises: n > 0, scheme: colorScheme))
+                    .fill(pillColor)
                     .frame(width: 32, height: 32)
                 if doneThisWeek {
                     Image(systemName: "checkmark").font(.caption).fontWeight(.bold).foregroundStyle(.white)
@@ -501,12 +583,15 @@ struct WorkoutView: View {
             if !isRest && n > 0 && !doneThisWeek {
                 Text("+\(n)")
                     .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignTokens.Color.textSecondary)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 8).fill(isToday ? AppSemanticPalette.workoutDayPillTodayTeal(colorScheme) : Color.clear))
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.chip, style: .continuous)
+                .fill(isToday ? Color(uiColor: .systemTeal).opacity(colorScheme == .dark ? 0.28 : 0.12) : Color.clear)
+        )
     }
 
     // MARK: - Week Progress Header (plan)
@@ -528,27 +613,38 @@ struct WorkoutView: View {
         default: phaseLabel = ""
         }
 
-        return VStack(spacing: 8) {
+        return VStack(spacing: DesignTokens.Spacing.sm) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(progressText).font(.title3).fontWeight(.bold)
-                    Text(phaseLabel).font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    Text(progressText)
+                        .font(.title3).fontWeight(.bold)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                    Text(phaseLabel)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
                 Spacer()
                 Text("\(completed)/\(training)")
-                    .font(.title2).fontWeight(.bold).foregroundStyle(AppSemanticPalette.systemGreen)
+                    .font(.title2).fontWeight(.bold)
+                    .foregroundStyle(DesignTokens.Color.positive)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(uiColor: .tertiarySystemFill)).frame(height: 6)
-                    Capsule().fill(AppSemanticPalette.systemBlue)
+                    Capsule()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(height: 6)
+                    Capsule()
+                        .fill(DesignTokens.Color.info)
                         .frame(width: geo.size.width * progressFraction, height: 6)
                 }
             }
             .frame(height: 6)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutWeekProgressBlue(colorScheme)))
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
     }
 
     // MARK: - Today Card (plan)
@@ -600,25 +696,34 @@ struct WorkoutView: View {
     }
 
     private func todayWorkoutCard(day: TrainingDayPlan, dayIndex: Int, isActuallyToday: Bool) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(isActuallyToday ? lang.workoutTodayCard : lang.workoutNextDay(lang.shortWeekday(day.dayOfWeek)))
-                        .font(.headline)
-                    HStack(spacing: 6) {
+                        .font(DesignTokens.Typography.cardTitle)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                    HStack(spacing: DesignTokens.Spacing.xs) {
                         ForEach(day.muscleGroups, id: \.self) { group in
                             Text(group.displayName(lang))
-                                .font(.caption).fontWeight(.medium)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(Capsule().fill(AppSemanticPalette.workoutChipBlueFill(colorScheme)))
-                                .foregroundStyle(AppSemanticPalette.accentOrPrimaryLabel(.systemBlue, colorScheme))
+                                .font(DesignTokens.Typography.caption)
+                                .padding(.horizontal, DesignTokens.Spacing.sm)
+                                .padding(.vertical, DesignTokens.Spacing.xs)
+                                .background(
+                                    Capsule()
+                                        .fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.30 : 0.12))
+                                )
+                                .foregroundStyle(colorScheme == .dark ? DesignTokens.Color.textPrimary : DesignTokens.Color.info)
                         }
                     }
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(day.exercises.count)").font(.title2).fontWeight(.bold)
-                    Text(lang.workoutExercisesWord).font(.caption2).foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xs) {
+                    Text("\(day.exercises.count)")
+                        .font(DesignTokens.Typography.numberCompact)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                    Text(lang.workoutExercisesWord)
+                        .font(DesignTokens.Typography.micro)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
             }
 
@@ -626,19 +731,28 @@ struct WorkoutView: View {
                 ForEach(Array(day.exercises.prefix(4).enumerated()), id: \.offset) { _, exercise in
                     HStack {
                         Circle()
-                            .fill(exercise.isCompound ? AppSemanticPalette.systemOrange : AppSemanticPalette.tintedFill(.systemBlue, colorScheme, light: 0.5, dark: 0.55))
+                            .fill(exercise.isCompound
+                                  ? DesignTokens.Color.caution
+                                  : DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.55 : 0.50))
                             .frame(width: 6, height: 6)
-                        Text(exercise.name).font(.subheadline).lineLimit(1)
+                        Text(exercise.name)
+                            .font(.subheadline)
+                            .foregroundStyle(DesignTokens.Color.textPrimary)
+                            .lineLimit(1)
                         Spacer()
                         Text("\(exercise.sets)×\(exercise.reps)")
-                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Color.textSecondary)
+                            .monospacedDigit()
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, DesignTokens.Spacing.xs + 2)
                     if exercise.id != day.exercises.prefix(4).last?.id { Divider() }
                 }
                 if day.exercises.count > 4 {
                     Text(lang.workoutMoreExercises(day.exercises.count - 4))
-                        .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                        .padding(.top, DesignTokens.Spacing.xs)
                 }
             }
 
@@ -646,74 +760,125 @@ struct WorkoutView: View {
                 Label(lang.workoutStart, systemImage: "play.fill")
                     .fontWeight(.semibold).frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(AppSemanticPalette.systemGreen)
+            .buttonStyle(.borderedProminent).controlSize(.large)
+            .tint(DesignTokens.Color.positive)
 
             if isActuallyToday {
-                HStack(spacing: 12) {
+                HStack(spacing: DesignTokens.Spacing.md) {
                     Button { trainingPlanVM?.skipDay(at: dayIndex) } label: {
                         Label(lang.workoutSkipToday, systemImage: "forward.fill").font(.subheadline)
                     }
-                    .buttonStyle(.bordered).tint(AppSemanticPalette.systemOrange).controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .tint(DesignTokens.Color.caution)
+                    .controlSize(.small)
 
                     if trainingPlanVM?.canReschedule(at: dayIndex) == true {
                         Button { trainingPlanVM?.rescheduleDay(at: dayIndex) } label: {
                             Label(lang.workoutReschedule, systemImage: "arrow.uturn.right").font(.subheadline)
                         }
-                        .buttonStyle(.bordered).tint(AppSemanticPalette.systemBlue).controlSize(.small)
+                        .buttonStyle(.bordered)
+                        .tint(DesignTokens.Color.info)
+                        .controlSize(.small)
                     }
                     Spacer()
                 }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))
-            .shadow(color: AppSemanticPalette.systemGreen.opacity(colorScheme == .dark ? 0.22 : 0.15), radius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(AppSemanticPalette.strokeMuted(.systemGreen, colorScheme), lineWidth: 1))
+        .padding(DesignTokens.Spacing.md)
+        .background(DesignTokens.Color.surfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .strokeBorder(DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.50 : 0.30), lineWidth: 1)
+        )
+        .tokenShadow(.card)
     }
 
     private var restDayCard: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "moon.zzz.fill").font(.system(size: 36)).foregroundStyle(AppSemanticPalette.systemPurple)
-            Text(lang.workoutRestDayTitle).font(.title3).fontWeight(.bold)
+        VStack(spacing: DesignTokens.Spacing.md) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 36))
+                .foregroundStyle(DesignTokens.Color.restDay)
+            Text(lang.workoutRestDayTitle)
+                .font(.title3).fontWeight(.bold)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(lang.workoutRestDayBody)
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(20).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutRestCardPurple(colorScheme)))
+        .padding(DesignTokens.Spacing.screenH)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.restDay.opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
     }
 
     private func dayCompletedCard(day: TrainingDayPlan) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 36)).foregroundStyle(AppSemanticPalette.systemGreen)
-            Text(lang.workoutTodayDoneTitle).font(.headline)
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 36))
+                .foregroundStyle(DesignTokens.Color.positive)
+            Text(lang.workoutTodayDoneTitle)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(day.muscleGroups.map { $0.displayName(lang) }.joined(separator: " · "))
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
         }
-        .padding(20).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutCardGreenTint(colorScheme)))
+        .padding(DesignTokens.Spacing.screenH)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.positive.opacity(colorScheme == .dark ? 0.26 : 0.08))
+        )
     }
 
     private var noWorkoutTodayCard: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "calendar").font(.system(size: 36)).foregroundStyle(AppSemanticPalette.systemBlue)
-            Text(lang.workoutNoTrainingTodayTitle).font(.headline)
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "calendar")
+                .font(.system(size: 36))
+                .foregroundStyle(DesignTokens.Color.info)
+            Text(lang.workoutNoTrainingTodayTitle)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(lang.workoutNoTrainingTodayBody)
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(20).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutInfoCardBlue(colorScheme)))
+        .padding(DesignTokens.Spacing.screenH)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
     }
 
     private var skippedDayCard: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "lock.fill").font(.system(size: 36)).foregroundStyle(AppSemanticPalette.systemOrange)
-            Text(lang.workoutLockedTitle).font(.title3).fontWeight(.bold)
+        VStack(spacing: DesignTokens.Spacing.md) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 36))
+                .foregroundStyle(DesignTokens.Color.caution)
+            Text(lang.workoutLockedTitle)
+                .font(.title3).fontWeight(.bold)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
             Text(lang.workoutLockedBody)
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(20).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppSemanticPalette.workoutLockedOrange(colorScheme)))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(AppSemanticPalette.strokeMuted(.systemOrange, colorScheme), lineWidth: 1))
+        .padding(DesignTokens.Spacing.screenH)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.caution.opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .strokeBorder(DesignTokens.Color.caution.opacity(colorScheme == .dark ? 0.50 : 0.30), lineWidth: 1)
+        )
     }
 
     private func weekCompleteCard(days: [TrainingDayPlan]) -> some View {
@@ -722,21 +887,29 @@ struct WorkoutView: View {
             return AnyView(noWorkoutTodayCard)
         }
         let allCompleted = trainingDays.allSatisfy { $0.dayStatus == .completed }
+        let accent: Color = allCompleted ? DesignTokens.Color.reward : DesignTokens.Color.caution
+        let fill: Color = allCompleted
+            ? DesignTokens.Color.reward.opacity(colorScheme == .dark ? 0.22 : 0.07)
+            : DesignTokens.Color.caution.opacity(colorScheme == .dark ? 0.26 : 0.07)
 
-        return AnyView(VStack(spacing: 10) {
+        return AnyView(VStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: allCompleted ? "trophy.fill" : "checkmark.circle")
                 .font(.system(size: 36))
-                .foregroundStyle(allCompleted ? AppSemanticPalette.systemYellow : AppSemanticPalette.systemOrange)
+                .foregroundStyle(accent)
             Text(allCompleted ? lang.workoutWeekCompleteCelebration : lang.workoutWeekNoMore)
-                .font(.headline)
-            Text(allCompleted
-                 ? lang.workoutWeekCompleteBody
-                 : lang.workoutWeekNoMoreBody)
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
+            Text(allCompleted ? lang.workoutWeekCompleteBody : lang.workoutWeekNoMoreBody)
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(20).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 16)
-            .fill(allCompleted ? AppSemanticPalette.workoutWeekCompleteYellow(colorScheme) : AppSemanticPalette.workoutWeekCompleteOrange(colorScheme))))
+        .padding(DesignTokens.Spacing.screenH)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(fill)
+        ))
     }
 
     // MARK: - Week Overview (plan)
@@ -744,16 +917,21 @@ struct WorkoutView: View {
     private func weekOverview(days: [TrainingDayPlan]) -> some View {
         let training = days.filter { !$0.isRestDay }
         let weekAllTrainingDone = !training.isEmpty && training.allSatisfy { $0.dayStatus == .completed }
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(lang.workoutThisWeek).font(.headline)
-            HStack(spacing: 4) {
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(lang.workoutThisWeek)
+                .font(DesignTokens.Typography.cardTitle)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
+            HStack(spacing: DesignTokens.Spacing.xs) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                     dayPill(day: day, maskFutureCompleted: !weekAllTrainingDone)
                 }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color(.systemGray6)))
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+        )
     }
 
     private func dayPill(day: TrainingDayPlan, maskFutureCompleted: Bool) -> some View {
@@ -766,10 +944,10 @@ struct WorkoutView: View {
         let isPast = day.dayOfWeek < today && status == .pending
         let isToday = day.dayOfWeek == today
 
-        return VStack(spacing: 4) {
+        return VStack(spacing: DesignTokens.Spacing.xs) {
             Text(lang.shortWeekday(day.dayOfWeek))
                 .font(.system(size: 9)).fontWeight(.medium)
-                .foregroundStyle(isToday ? .primary : .secondary)
+                .foregroundStyle(isToday ? DesignTokens.Color.textPrimary : DesignTokens.Color.textSecondary)
 
             ZStack {
                 Circle()
@@ -780,12 +958,16 @@ struct WorkoutView: View {
 
             if !day.isRestDay && !day.muscleGroups.isEmpty && !isPast {
                 Text(day.muscleGroups.first.map { String($0.displayName(lang).prefix(3)) } ?? "")
-                    .font(.system(size: 8)).foregroundStyle(.secondary)
+                    .font(.system(size: 8))
+                    .foregroundStyle(DesignTokens.Color.textSecondary)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 8).fill(isToday ? AppSemanticPalette.workoutDayPillTodayBlue(colorScheme) : Color.clear))
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.chip, style: .continuous)
+                .fill(isToday ? DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.26 : 0.10) : Color.clear)
+        )
         .opacity(isPast ? 0.45 : 1.0)
     }
 
@@ -811,14 +993,14 @@ struct WorkoutView: View {
 
     private func pillColor(status: DayStatus, isRestDay: Bool) -> Color {
         if isRestDay {
-            return AppSemanticPalette.tintedFill(.systemPurple, colorScheme, light: 0.5, dark: 0.55)
+            return DesignTokens.Color.restDay.opacity(colorScheme == .dark ? 0.55 : 0.50)
         }
         switch status {
-        case .completed:   return AppSemanticPalette.systemGreen
-        case .skipped:     return AppSemanticPalette.systemOrange
-        case .rescheduled: return AppSemanticPalette.systemBlue
+        case .completed:   return DesignTokens.Color.positive
+        case .skipped:     return DesignTokens.Color.caution
+        case .rescheduled: return DesignTokens.Color.info
         case .pending, .unavailable:
-            return Color(uiColor: .systemGray).opacity(colorScheme == .dark ? 0.38 : 0.4)
+            return Color(uiColor: .systemGray).opacity(colorScheme == .dark ? 0.38 : 0.40)
         }
     }
 

@@ -73,7 +73,7 @@ struct ProfileView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(AppSemanticPalette.systemBlue)
+                    .foregroundStyle(DesignTokens.Color.info)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(viewModel.userName)
                         .font(.title3)
@@ -103,7 +103,7 @@ struct ProfileView: View {
                         Spacer()
                         if goal == viewModel.selectedGoal {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(AppSemanticPalette.systemBlue)
+                                .foregroundStyle(DesignTokens.Color.info)
                                 .fontWeight(.semibold)
                         }
                     }
