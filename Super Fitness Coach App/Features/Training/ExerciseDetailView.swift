@@ -5,26 +5,33 @@
 
 import SwiftUI
 import UIKit
+import SwiftData
 
 /// Sheet con información completa de un ejercicio:
 /// GIF animado, para qué sirve, cómo ejecutarlo, equipamiento y tipo.
 struct ExerciseDetailView: View {
     let exercise: PlannedExercise
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
 
     @State private var gifData: Data? = nil
     @State private var isLoadingGif = false
     @State private var gifErrorMessage: String? = nil
 
-    private let exerciseService = ExerciseService()
+    @State private var catalogEntry: ExerciseCatalogEntry? = nil
+    @State private var showSafari: Bool = false
+    @State private var safariURL: URL? = nil
+    @State private var showMediaEditor: Bool = false
+
+    private let exerciseService = ExerciseService.shared
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     gifSection
+                    mediaSection
                     metaSection
                     purposeSection
                     instructionsSection
@@ -39,7 +46,28 @@ struct ExerciseDetailView: View {
                 }
             }
         }
+        .onAppear {
+            exerciseService.configure(modelContext: modelContext)
+            loadCatalogEntry()
+        }
         .task { await loadGif() }
+        .sheet(isPresented: $showSafari) {
+            if let safariURL {
+                SafariView(url: safariURL)
+            }
+        }
+        .sheet(isPresented: $showMediaEditor) {
+            MediaEditorSheet(
+                title: exercise.name,
+                onOpenSearch: { url in
+                    safariURL = url
+                    showSafari = true
+                },
+                onSave: { videoUrl, imageUrl in
+                    saveMedia(videoUrl: videoUrl, imageUrl: imageUrl)
+                }
+            )
+        }
     }
 
     // MARK: - GIF / Image
@@ -105,21 +133,65 @@ struct ExerciseDetailView: View {
     }
 
     private func openGoogleSearch(mode: GoogleSearchMode) {
-        let base: String
+        let q = "\(exercise.name)"
+        let url: URL?
         switch mode {
         case .video:
-            base = "https://www.google.com/search?tbm=vid"
+            url = URL(string: "https://www.youtube.com/results?search_query=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)")
         case .images:
-            base = "https://www.google.com/search?tbm=isch"
+            url = URL(string: "https://www.google.com/search?tbm=isch&q=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)")
         case .web:
-            base = "https://www.google.com/search"
+            url = URL(string: "https://www.google.com/search?q=\(q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q)")
         }
+        guard let url else { return }
+        safariURL = url
+        showSafari = true
+    }
 
-        let q = "\(exercise.name) exercise"
-        guard var comps = URLComponents(string: base) else { return }
-        comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "q", value: q)]
-        guard let url = comps.url else { return }
-        openURL(url)
+    // MARK: - Media (in-app)
+
+    @ViewBuilder
+    private var mediaSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Media", systemImage: "photo.on.rectangle.angled")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    showMediaEditor = true
+                } label: {
+                    Label("Buscar / guardar", systemImage: "magnifyingglass")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if let entry = catalogEntry {
+                if let imageUrl = entry.imageUrl, let url = URL(string: imageUrl) {
+                    AsyncImage(url: url) { img in
+                        img.resizable().scaledToFit()
+                    } placeholder: {
+                        ProgressView()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                if let videoUrl = entry.videoUrl, let url = URL(string: videoUrl) {
+                    Button {
+                        safariURL = url
+                        showSafari = true
+                    } label: {
+                        Label("Ver video guardado", systemImage: "play.circle.fill")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6)))
     }
 
     // MARK: - Meta chips
@@ -189,13 +261,15 @@ struct ExerciseDetailView: View {
 
     @ViewBuilder
     private var instructionsSection: some View {
-        if !exercise.instructions.isEmpty {
+        let steps = (catalogEntry?.instructionsEs ?? catalogEntry?.instructionsEn)?.split(separator: "\n").map(String.init) ?? exercise.instructions
+
+        if !steps.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Cómo ejecutarlo", systemImage: "list.number")
                     .font(.headline)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(exercise.instructions.enumerated()), id: \.offset) { idx, step in
+                    ForEach(Array(steps.enumerated()), id: \.offset) { idx, step in
                         HStack(alignment: .top, spacing: 12) {
                             Text("\(idx + 1)")
                                 .font(.caption).fontWeight(.bold)
@@ -225,12 +299,11 @@ struct ExerciseDetailView: View {
         gifErrorMessage = nil
         defer { isLoadingGif = false }
 
-        let bundled = exerciseService.bundledExercise(withId: catalogId)
-        let urlString = exercise.gifUrl ?? bundled?.gifUrl
+        let urlString = exercise.gifUrl
         guard let urlString, let url = URL(string: urlString), url.scheme == "http" || url.scheme == "https" else {
             gifData = nil
             if gifErrorMessage == nil {
-                gifErrorMessage = "No se pudo cargar la animación (sin URL y el endpoint de imágenes falló)."
+                gifErrorMessage = "No se pudo cargar la animación (sin URL)."
             }
             return
         }
@@ -247,6 +320,98 @@ struct ExerciseDetailView: View {
         } catch {
             gifData = nil
             gifErrorMessage = "No se pudo cargar la animación (\(error.localizedDescription))."
+        }
+    }
+
+    // MARK: - Catalog entry + save
+
+    private func loadCatalogEntry() {
+        let id = exercise.effectiveCatalogId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
+        let fd = FetchDescriptor<ExerciseCatalogEntry>(predicate: #Predicate { $0.wgerUuid == id })
+        catalogEntry = (try? modelContext.fetch(fd))?.first
+    }
+
+    private func saveMedia(videoUrl: String?, imageUrl: String?) {
+        guard let entry = catalogEntry else { return }
+        if let videoUrl, !videoUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            entry.videoUrl = videoUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let imageUrl, !imageUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            entry.imageUrl = imageUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        entry.updatedAt = Date()
+        try? modelContext.save()
+        loadCatalogEntry()
+    }
+}
+
+private struct MediaEditorSheet: View {
+    let title: String
+    let onOpenSearch: (URL) -> Void
+    let onSave: (_ videoUrl: String?, _ imageUrl: String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var videoUrl: String = ""
+    @State private var imageUrl: String = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Buscar") {
+                    Button {
+                        let q = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? title
+                        if let url = URL(string: "https://www.youtube.com/results?search_query=\(q)") {
+                            onOpenSearch(url)
+                        }
+                    } label: {
+                        Label("YouTube (en la app)", systemImage: "play.rectangle")
+                    }
+                    Button {
+                        let q = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? title
+                        if let url = URL(string: "https://www.google.com/search?tbm=isch&q=\(q)") {
+                            onOpenSearch(url)
+                        }
+                    } label: {
+                        Label("Google Imágenes (en la app)", systemImage: "photo.on.rectangle")
+                    }
+                }
+
+                Section("Guardar enlaces") {
+                    TextField("Video URL (YouTube)", text: $videoUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                    TextField("Imagen URL", text: $imageUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+
+                    Button("Pegar desde portapapeles") {
+                        let t = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                        if t.contains("youtube") || t.contains("youtu.be") {
+                            videoUrl = t
+                        } else if t.hasPrefix("http") {
+                            imageUrl = t
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Media")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Guardar") {
+                        onSave(videoUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : videoUrl,
+                               imageUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : imageUrl)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
         }
     }
 }

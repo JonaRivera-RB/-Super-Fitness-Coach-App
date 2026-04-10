@@ -1,0 +1,68 @@
+---
+description: Disciplina de cambios — análisis de impacto, plan, límites de alcance y validación
+alwaysApply: true
+---
+
+# Disciplina de cambios (Super Fitness Coach App)
+
+Antes de implementar código, el asistente debe seguir este flujo.
+
+## 0. Respuesta previa a implementar (obligatoria)
+
+**Inmediatamente antes** de aplicar cambios en el código (editar archivos / generar diff), el mensaje debe incluir estas **cinco respuestas explícitas** (listas o párrafos cortos):
+
+1. **Qué entendí** — petición del usuario y alcance acordado.
+2. **Qué archivos tocaré** — rutas previstas (o “ninguno” si solo es explicación).
+3. **Qué podría romper** — regresiones o flujos sensibles.
+4. **Cómo lo pruebo** — pasos o comando de build/test.
+5. **Cómo hago rollback** — `git revert` / `git checkout -- <archivos>` / restaurar desde rama.
+
+**Excepción:** el usuario pide explícitamente **“solo implementa”** o es un **cambio trivial** (p. ej. una línea, typo obvio); en ese caso puede bastar una sola línea que cite estos cinco puntos de forma ultra breve.
+
+## 0b. Brief de trabajo (obligatorio para cada feature o bug)
+
+Completar en la respuesta (o siguiendo `WORK_ITEM_TEMPLATE.md` en la raíz del proyecto) **las 8 secciones**:
+
+1. **Contexto**
+2. **Problema real**
+3. **Módulos afectados**
+4. **Riesgos**
+5. **Plan por pasos**
+6. **Archivos a tocar**
+7. **Cómo validar**
+8. **Qué no debe romperse**
+
+Sin este brief completo, no escribir código salvo que el usuario indique explícitamente “solo implementa” o un cambio trivial de una línea. Las secciones **6–7–8** del brief deben alinearse con **archivos / pruebas / rollback** de la respuesta previa (**§0**).
+
+## 1. Mini análisis de impacto (obligatorio)
+
+Sin implementar nada todavía, resumir en pocas frases (puede fusionarse con el brief):
+
+- Qué problema u objetivo concreto se aborda.
+- Qué superficies del sistema pueden verse afectadas (UI, persistencia, red, notificaciones, etc.).
+
+## 2. Plan antes de código (obligatorio)
+
+Proponer un plan breve alineado con la sección 5 del brief: pasos ordenados, qué archivos o áreas se tocarán y por qué. Solo después de eso escribir código.
+
+## 3. Límite de archivos por cambio
+
+- Objetivo: **no editar más de 3–5 archivos** en un solo cambio.
+- Si hace falta más, **justificar** (p. ej. bug que cruza capas, renombre coordinado, o el usuario pidió alcance amplio).
+
+## 4. Arquitectura
+
+- **No** introducir refactors de arquitectura, nuevas capas o patrones distintos a los ya usados en el repo **sin decirlo explícitamente** en el plan (“cambio arquitectónico: …”).
+- Preferir encajar el cambio en la estructura existente.
+
+## 5. Cierre de cada cambio (obligatorio)
+
+Al entregar el trabajo, incluir siempre:
+
+- **Módulos / áreas tocadas** (p. ej. `Features/Training`, `Core/NotificationService`, `Models`).
+- **Riesgos** que veas (regresiones, permisos, migraciones SwiftData, etc.).
+- **Cómo validar** (pasos de prueba manual, escenarios edge, o qué comando ejecutar si aplica).
+
+---
+
+Esta regla complementa las preferencias del usuario: cambios mínimos, sin refactors colaterales y sin documentación markdown no solicitada.

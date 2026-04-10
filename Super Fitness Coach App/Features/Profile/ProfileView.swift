@@ -4,11 +4,17 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ProfileView: View {
     @Bindable var viewModel: ProfileViewModel
     @Environment(\.appLanguage) private var lang
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.spanish.rawValue
+    @Query private var catalogRows: [ExerciseCatalogEntry]
+
+    @State private var isImportingCatalog: Bool = false
+    @State private var catalogImportError: String? = nil
 
     // Local @State for fitness config editing (immune to viewModel re-renders)
     @State private var editSleep: String = ""
@@ -34,6 +40,7 @@ struct ProfileView: View {
             List {
                 languageSection
                 userSection
+                exerciseCatalogSection
                 bodyMetricsSection
                 fitnessGoalsSection
                 fitnessGoalSection
@@ -86,6 +93,69 @@ struct ProfileView: View {
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(viewModel.userName), goal: \(viewModel.selectedGoal.displayName(lang))")
+        }
+    }
+
+    // MARK: - Exercise Catalog (Offline)
+
+    private var exerciseCatalogSection: some View {
+        Section {
+            HStack {
+                Label(lang == .spanish ? "Ejercicios locales" : "Local exercises", systemImage: "internaldrive.fill")
+                Spacer()
+                Text("\(catalogRows.count)")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            if isImportingCatalog {
+                HStack {
+                    ProgressView()
+                    Text(lang == .spanish ? "Descargando catálogo…" : "Downloading catalog…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let catalogImportError {
+                Text(catalogImportError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await importCatalogNow() }
+            } label: {
+                Label(
+                    lang == .spanish ? "Reintentar descarga" : "Retry download",
+                    systemImage: "arrow.clockwise"
+                )
+            }
+            .disabled(isImportingCatalog)
+        } header: {
+            Text(lang == .spanish ? "Catálogo de ejercicios" : "Exercise catalog")
+        } footer: {
+            Text(
+                lang == .spanish
+                    ? "Se descarga automáticamente la primera vez. Este botón fuerza la importación desde los fixtures de wger en GitHub para tenerlo offline."
+                    : "It downloads automatically the first time. This button forces an import from wger GitHub fixtures so it works offline."
+            )
+        }
+    }
+
+    @MainActor
+    private func importCatalogNow() async {
+        guard !isImportingCatalog else { return }
+        isImportingCatalog = true
+        catalogImportError = nil
+        defer { isImportingCatalog = false }
+
+        do {
+            let fixturesBase = "https://raw.githubusercontent.com/wger-project/wger/master/wger/exercises/fixtures"
+            let importer = ExerciseCatalogImporter(baseURL: fixturesBase)
+            try await importer.importAll(into: modelContext, wipeExisting: true)
+        } catch {
+            catalogImportError = error.localizedDescription
         }
     }
 

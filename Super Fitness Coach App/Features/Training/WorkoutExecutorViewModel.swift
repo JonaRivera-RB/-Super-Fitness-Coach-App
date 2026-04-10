@@ -48,6 +48,7 @@ final class WorkoutExecutorViewModel {
     private let plannedExercises: [PlannedExercise]
     private let setLogger: SetLogger
     private let healthKitManager: HealthKitManager
+    private let notificationService: NotificationService
     private let goal: FitnessGoal
     private let sessionId: String
     private let appLanguage: AppLanguage
@@ -80,6 +81,7 @@ final class WorkoutExecutorViewModel {
         plannedExercises: [PlannedExercise],
         setLogger: SetLogger,
         healthKitManager: HealthKitManager,
+        notificationService: NotificationService = NotificationService(),
         goal: FitnessGoal,
         sessionId: String,
         appLanguage: AppLanguage = .current,
@@ -89,6 +91,7 @@ final class WorkoutExecutorViewModel {
         self.plannedExercises = plannedExercises
         self.setLogger = setLogger
         self.healthKitManager = healthKitManager
+        self.notificationService = notificationService
         self.goal = goal
         self.sessionId = sessionId
         self.appLanguage = appLanguage
@@ -407,6 +410,17 @@ final class WorkoutExecutorViewModel {
 
         guard seconds > 0 else { return }
 
+        // Allow lock-screen feedback when rest finishes (sound/vibration).
+        if let deadline = restTimerDeadline {
+            Task {
+                await notificationService.scheduleRestTimerFinishedNotification(
+                    fireAt: deadline,
+                    exerciseName: ex.name,
+                    restSeconds: seconds
+                )
+            }
+        }
+
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.tickRestTimer()
         }
@@ -435,6 +449,7 @@ final class WorkoutExecutorViewModel {
         restTimerDeadline = nil
         isRestTimerActive = false
         restTimerSeconds = 0
+        notificationService.cancelRestTimerNotification()
         #if canImport(UIKit)
         DispatchQueue.main.async {
             let gen = UINotificationFeedbackGenerator()
@@ -450,6 +465,7 @@ final class WorkoutExecutorViewModel {
         restTimerDeadline = nil
         isRestTimerActive = false
         restTimerSeconds = 0
+        notificationService.cancelRestTimerNotification()
     }
 
     /// Pasa al siguiente ejercicio sin completar series (descanso, teclado, etc.).

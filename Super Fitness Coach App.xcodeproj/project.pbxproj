@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FC73E1272F87858700F1CAF2 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC73E1262F87858700F1CAF2 /* WidgetKit.framework */; };
+		FC73E1292F87858700F1CAF2 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FC73E1282F87858700F1CAF2 /* SwiftUI.framework */; };
+		FC73E1382F87858800F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FC73E1242F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		AA000001AAAA0001AAAA0001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -14,12 +20,46 @@
 			remoteGlobalIDString = FC6C2F3B2F70C26E008171E0;
 			remoteInfo = "Super Fitness Coach App";
 		};
+		FC73E1362F87858800F1CAF2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FC6C2F342F70C26E008171E0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FC73E1232F87858700F1CAF2;
+			remoteInfo = SuperFitnessCoachWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FC73E1392F87858800F1CAF2 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				FC73E1382F87858800F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AA000002AAAA0002AAAA0002 /* Super Fitness Coach AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Super Fitness Coach AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC6C2F3C2F70C26E008171E0 /* Super Fitness Coach App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Super Fitness Coach App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FC73E1242F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SuperFitnessCoachWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		FC73E1262F87858700F1CAF2 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		FC73E1282F87858700F1CAF2 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FC73E13C2F87858800F1CAF2 /* Exceptions for "SuperFitnessCoachWidgets" folder in "SuperFitnessCoachWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FC73E1232F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA000003AAAA0003AAAA0003 /* Tests */ = {
@@ -30,6 +70,14 @@
 		FC6C2F3E2F70C26E008171E0 /* Super Fitness Coach App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Super Fitness Coach App";
+			sourceTree = "<group>";
+		};
+		FC73E12A2F87858700F1CAF2 /* SuperFitnessCoachWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FC73E13C2F87858800F1CAF2 /* Exceptions for "SuperFitnessCoachWidgets" folder in "SuperFitnessCoachWidgetsExtension" target */,
+			);
+			path = SuperFitnessCoachWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -49,6 +97,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC73E1212F87858700F1CAF2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC73E1292F87858700F1CAF2 /* SwiftUI.framework in Frameworks */,
+				FC73E1272F87858700F1CAF2 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,6 +114,8 @@
 			children = (
 				FC6C2F3E2F70C26E008171E0 /* Super Fitness Coach App */,
 				AA000003AAAA0003AAAA0003 /* Tests */,
+				FC73E12A2F87858700F1CAF2 /* SuperFitnessCoachWidgets */,
+				FC73E1252F87858700F1CAF2 /* Frameworks */,
 				FC6C2F3D2F70C26E008171E0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,8 +125,18 @@
 			children = (
 				FC6C2F3C2F70C26E008171E0 /* Super Fitness Coach App.app */,
 				AA000002AAAA0002AAAA0002 /* Super Fitness Coach AppTests.xctest */,
+				FC73E1242F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		FC73E1252F87858700F1CAF2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FC73E1262F87858700F1CAF2 /* WidgetKit.framework */,
+				FC73E1282F87858700F1CAF2 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -103,10 +172,12 @@
 				FC6C2F382F70C26E008171E0 /* Sources */,
 				FC6C2F392F70C26E008171E0 /* Frameworks */,
 				FC6C2F3A2F70C26E008171E0 /* Resources */,
+				FC73E1392F87858800F1CAF2 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				FC73E1372F87858800F1CAF2 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				FC6C2F3E2F70C26E008171E0 /* Super Fitness Coach App */,
@@ -117,6 +188,28 @@
 			productName = "Super Fitness Coach App";
 			productReference = FC6C2F3C2F70C26E008171E0 /* Super Fitness Coach App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		FC73E1232F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC73E13D2F87858800F1CAF2 /* Build configuration list for PBXNativeTarget "SuperFitnessCoachWidgetsExtension" */;
+			buildPhases = (
+				FC73E1202F87858700F1CAF2 /* Sources */,
+				FC73E1212F87858700F1CAF2 /* Frameworks */,
+				FC73E1222F87858700F1CAF2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FC73E12A2F87858700F1CAF2 /* SuperFitnessCoachWidgets */,
+			);
+			name = SuperFitnessCoachWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = SuperFitnessCoachWidgetsExtension;
+			productReference = FC73E1242F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -133,6 +226,9 @@
 						TestTargetID = FC6C2F3B2F70C26E008171E0;
 					};
 					FC6C2F3B2F70C26E008171E0 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
+					FC73E1232F87858700F1CAF2 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
 				};
@@ -153,6 +249,7 @@
 			targets = (
 				FC6C2F3B2F70C26E008171E0 /* Super Fitness Coach App */,
 				AA000005AAAA0005AAAA0005 /* Super Fitness Coach AppTests */,
+				FC73E1232F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -166,6 +263,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FC6C2F3A2F70C26E008171E0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC73E1222F87858700F1CAF2 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,6 +293,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC73E1202F87858700F1CAF2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -196,6 +307,11 @@
 			isa = PBXTargetDependency;
 			target = FC6C2F3B2F70C26E008171E0 /* Super Fitness Coach App */;
 			targetProxy = AA000001AAAA0001AAAA0001 /* PBXContainerItemProxy */;
+		};
+		FC73E1372F87858800F1CAF2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC73E1232F87858700F1CAF2 /* SuperFitnessCoachWidgetsExtension */;
+			targetProxy = FC73E1362F87858800F1CAF2 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -437,6 +553,68 @@
 			};
 			name = Release;
 		};
+		FC73E13A2F87858800F1CAF2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T594C3YA28;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SuperFitnessCoachWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SuperFitnessCoachWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.riverland.Super-Fitness-Coach-App.SuperFitnessCoachWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FC73E13B2F87858800F1CAF2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T594C3YA28;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SuperFitnessCoachWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SuperFitnessCoachWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.riverland.Super-Fitness-Coach-App.SuperFitnessCoachWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -463,6 +641,15 @@
 			buildConfigurations = (
 				FC6C2F482F70C270008171E0 /* Debug */,
 				FC6C2F492F70C270008171E0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FC73E13D2F87858800F1CAF2 /* Build configuration list for PBXNativeTarget "SuperFitnessCoachWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC73E13A2F87858800F1CAF2 /* Debug */,
+				FC73E13B2F87858800F1CAF2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

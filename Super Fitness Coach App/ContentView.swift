@@ -418,10 +418,12 @@ struct ContentView: View {
         let detoxRepo = DetoxRepository(context: modelContext)
 
         let ge = GamificationEngine(repository: gamificationRepo)
-        let es = ExerciseService()
+        let es = ExerciseService.shared
         let dm = DetoxManager(repository: detoxRepo, gamificationEngine: ge)
 
         gamificationEngine = ge
+        es.configure(modelContext: modelContext)
+        Task { await es.ensureLocalCatalogImportedIfNeeded() }
         exerciseService = es
         detoxManager = dm
         trainingPlanRepository = TrainingPlanRepository(context: modelContext)
@@ -490,6 +492,7 @@ struct ContentView: View {
             WorkoutLog.self,
             RecoverySnapshot.self,
             UserRoutine.self,
-            UserRoutineDay.self
+            UserRoutineDay.self,
+            ExerciseCatalogEntry.self
         ])
 }

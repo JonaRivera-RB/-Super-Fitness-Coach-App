@@ -509,7 +509,8 @@ private struct RoutineExerciseRow: View {
     @State private var showingAlternatives = false
     @State private var showingDetail = false
 
-    private let exerciseService = ExerciseService()
+    @Environment(\.modelContext) private var modelContext
+    private let exerciseService = ExerciseService.shared
 
     init(exercise: PlannedExercise, liftingUnit: LiftingWeightUnit, onUpdate: @escaping (PlannedExercise) -> Void) {
         self.exercise = exercise
@@ -746,7 +747,7 @@ private struct RoutineExerciseRow: View {
             }
 
             if let alts = exercise.alternateExerciseIds, !alts.isEmpty {
-                Text(alts.map { exerciseService.bundledExercise(withId: $0)?.name ?? $0 }.joined(separator: " · "))
+                Text(alts.map { exerciseService.resolveLocalExerciseName(wgerUuid: $0) ?? $0 }.joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
@@ -779,6 +780,9 @@ private struct RoutineExerciseRow: View {
             .foregroundStyle(RoutineTheme.accent)
         }
         .padding(.vertical, 2)
+        .onAppear {
+            exerciseService.configure(modelContext: modelContext)
+        }
         .sheet(isPresented: $showingAlternatives) {
             AlternativesEditorSheet(
                 exercise: exercise,
@@ -998,6 +1002,7 @@ private struct RoutineWeightField: View {
 
 private struct AlternativesEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let exercise: PlannedExercise
     let onSave: (PlannedExercise) -> Void
 
@@ -1005,7 +1010,7 @@ private struct AlternativesEditorSheet: View {
     @State private var query: String = ""
     @State private var results: [Exercise] = []
 
-    private let exerciseService = ExerciseService()
+    private let exerciseService = ExerciseService.shared
 
     init(exercise: PlannedExercise, onSave: @escaping (PlannedExercise) -> Void) {
         self.exercise = exercise
@@ -1029,7 +1034,7 @@ private struct AlternativesEditorSheet: View {
                     Section("Guardados (\(ids.count))") {
                         ForEach(ids, id: \.self) { id in
                             HStack {
-                                Text(exerciseService.bundledExercise(withId: id)?.name ?? id)
+                                Text(exerciseService.resolveLocalExerciseName(wgerUuid: id) ?? id)
                                 Spacer()
                                 Button(role: .destructive) {
                                     ids.removeAll { $0 == id }
@@ -1082,13 +1087,20 @@ private struct AlternativesEditorSheet: View {
             }
         }
         .onAppear {
+            exerciseService.configure(modelContext: modelContext)
             ids = exercise.alternateExerciseIds ?? []
             refreshResults()
         }
     }
 
     private func refreshResults() {
-        results = exerciseService.searchBundledExercises(query: query, limit: 40)
+        Task { @MainActor in
+            do {
+                results = try await exerciseService.searchLocalExercises(query: query, limit: 40)
+            } catch {
+                results = []
+            }
+        }
     }
 }
 
@@ -1099,6 +1111,9 @@ private struct ExercisePickerSheet: View {
     @State private var selectedEquipment: String = "Todos"
     @State private var selectedBodyPart: String = "Todos"
     @State private var isLoading: Bool = false
+    @State private var catalogError: String? = nil
+    @State private var justAddedId: String? = nil
+    @State private var addedIds: Set<String> = []
     @State private var lastLoadedKey: String = ""
     @State private var cachedPool: [Exercise] = []
     // Wrapper for sheet(item:) since Exercise isn't Identifiable in this context
@@ -1158,11 +1173,36 @@ private struct ExercisePickerSheet: View {
                             Spacer()
                         }
                     }
+                    if let catalogError, !isLoading {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(catalogError)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                refreshResults(forceReload: true)
+                            } label: {
+                                Label("Descargar catálogo", systemImage: "arrow.down.circle")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 6)
+                    }
                     ForEach(results, id: \.id) { ex in
+                        let isAdded = addedIds.contains(ex.id)
                         HStack(spacing: 10) {
                             Button {
+                                guard !isAdded else {
+                                    justAddedId = ex.id
+                                    return
+                                }
+                                addedIds.insert(ex.id)
+                                justAddedId = ex.id
+                                #if canImport(UIKit)
+                                let gen = UINotificationFeedbackGenerator()
+                                gen.notificationOccurred(.success)
+                                #endif
                                 onPick(Self.toPlannedExercise(ex))
-                                dismiss()
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(ex.name)
@@ -1174,8 +1214,18 @@ private struct ExercisePickerSheet: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .disabled(isAdded)
 
                             Spacer()
+
+                            if isAdded {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                    .accessibilityLabel("Agregado")
+                            } else if justAddedId == ex.id {
+                                Image(systemName: "checkmark.circle")
+                                    .foregroundStyle(.secondary)
+                            }
 
                             Button {
                                 previewItem = PreviewItem(exercise: ex)
@@ -1198,7 +1248,7 @@ private struct ExercisePickerSheet: View {
             }
         }
         .onAppear {
-            refreshResults()
+            refreshResults(forceReload: true)
         }
         .onChange(of: query) { _, newValue in
             _ = newValue
@@ -1215,26 +1265,37 @@ private struct ExercisePickerSheet: View {
         }
     }
 
-    private func refreshResults() {
+    private func refreshResults(forceReload: Bool = false) {
         let key = "\(selectedBodyPart)|\(selectedEquipment)"
-        if key != lastLoadedKey {
+        if forceReload || key != lastLoadedKey {
             lastLoadedKey = key
             cachedPool = []
             isLoading = true
+            catalogError = nil
 
             Task { @MainActor in
                 var pool: [Exercise] = []
                 if selectedBodyPart == "Todos" {
                     // Load a reasonable cross-section (keeps UI fast).
-                    async let chest = try? await exerciseService.fetchExercises(bodyPart: "chest", equipment: nil)
-                    async let back = try? await exerciseService.fetchExercises(bodyPart: "back", equipment: nil)
-                    async let legs = try? await exerciseService.fetchExercises(bodyPart: "upper legs", equipment: nil)
-                    async let shoulders = try? await exerciseService.fetchExercises(bodyPart: "shoulders", equipment: nil)
-                    async let core = try? await exerciseService.fetchExercises(bodyPart: "waist", equipment: nil)
-                    let lists = [await chest, await back, await legs, await shoulders, await core].compactMap { $0 }
-                    pool = Array(lists.flatMap { $0 }.prefix(400))
+                    do {
+                        async let chest = exerciseService.fetchExercises(bodyPart: "chest", equipment: nil)
+                        async let back = exerciseService.fetchExercises(bodyPart: "back", equipment: nil)
+                        async let legs = exerciseService.fetchExercises(bodyPart: "upper legs", equipment: nil)
+                        async let shoulders = exerciseService.fetchExercises(bodyPart: "shoulders", equipment: nil)
+                        async let core = exerciseService.fetchExercises(bodyPart: "waist", equipment: nil)
+                        let lists = try await [chest, back, legs, shoulders, core]
+                        pool = Array(lists.flatMap { $0 }.prefix(400))
+                    } catch {
+                        catalogError = error.localizedDescription
+                        pool = []
+                    }
                 } else {
-                    pool = (try? await exerciseService.fetchExercises(bodyPart: selectedBodyPart, equipment: nil)) ?? []
+                    do {
+                        pool = try await exerciseService.fetchExercises(bodyPart: selectedBodyPart, equipment: nil)
+                    } catch {
+                        catalogError = error.localizedDescription
+                        pool = []
+                    }
                 }
 
                 cachedPool = pool

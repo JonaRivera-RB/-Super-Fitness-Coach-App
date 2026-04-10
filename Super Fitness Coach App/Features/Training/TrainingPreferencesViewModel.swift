@@ -95,12 +95,9 @@ final class TrainingPreferencesViewModel {
         let weightKg = profile?.weightKg
         let heightCm = profile?.heightCm
 
-        // Fetch exercises — wger: primero índice de imágenes (varias páginas), luego categorías en paralelo.
-        // Antes era todo en serie (~7 partes × red + índice repetido) y “Generating…” se sentía eterno.
+        // Fetch exercises — local catalog (downloaded from wger GitHub fixtures).
         let allBodyParts = Set(MuscleGroup.allCases.map(\.apiBodyPart))
         var exercises: [Exercise] = []
-
-        await exerciseService.warmCacheForPlanGeneration()
 
         await withTaskGroup(of: [Exercise].self) { group in
             for bodyPart in allBodyParts {
@@ -108,7 +105,7 @@ final class TrainingPreferencesViewModel {
                     do {
                         return try await exerciseService.fetchExercises(bodyPart: bodyPart, equipment: nil)
                     } catch {
-                        return exerciseService.fallbackExercises(bodyPart: bodyPart)
+                        return []
                     }
                 }
             }
@@ -117,15 +114,8 @@ final class TrainingPreferencesViewModel {
             }
         }
 
-        // If still empty after fallback, try all fallback exercises
-        if exercises.isEmpty {
-            for bodyPart in allBodyParts {
-                exercises.append(contentsOf: exerciseService.fallbackExercises(bodyPart: bodyPart))
-            }
-        }
-
         guard !exercises.isEmpty else {
-            errorMessage = "No exercises available. Check your connection."
+            errorMessage = "No exercises available. Download the exercise catalog first."
             return
         }
 

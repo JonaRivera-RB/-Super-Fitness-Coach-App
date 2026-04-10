@@ -54,7 +54,7 @@ final class StatsViewModel {
             })
             var resolved: [String: String] = [:]
             for id in missingIds {
-                if let name = await exerciseService.resolveExerciseName(exerciseId: id) {
+                if let name = exerciseService.resolveLocalExerciseName(wgerUuid: id) {
                     resolved[id] = name
                 }
             }

@@ -12,6 +12,7 @@ final class NotificationService {
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "NotificationService")
 
     static let dailyNotificationIdentifier = "daily-fitness-notification"
+    static let restTimerNotificationIdentifier = "rest-timer-finished"
 
     // MARK: - Request Permission
 
@@ -77,6 +78,55 @@ final class NotificationService {
     /// Remove all pending notifications.
     func cancelAll() {
         center.removeAllPendingNotificationRequests()
+    }
+
+    // MARK: - Rest timer notification (Workout)
+
+    func scheduleRestTimerFinishedNotification(
+        fireAt date: Date,
+        exerciseName: String?,
+        restSeconds: Int
+    ) async {
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus != .authorized {
+            let granted = await requestPermission()
+            guard granted else { return }
+        }
+
+        let restText: String = {
+            if restSeconds <= 0 { return "" }
+            if restSeconds < 60 { return "\(restSeconds)s" }
+            let m = restSeconds / 60
+            let s = restSeconds % 60
+            return s == 0 ? "\(m)m" : "\(m)m \(s)s"
+        }()
+
+        let content = UNMutableNotificationContent()
+        content.title = "Descanso listo"
+        if let exerciseName, !exerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            content.body = "Siguiente serie: \(exerciseName)\(restText.isEmpty ? "" : " (\(restText))")"
+        } else {
+            content.body = "Ya puedes hacer tu siguiente serie.\(restText.isEmpty ? "" : " (\(restText))")"
+        }
+        content.subtitle = "Tu Coach"
+        content.sound = .default
+
+        let seconds = max(1, date.timeIntervalSinceNow)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: Self.restTimerNotificationIdentifier,
+            content: content,
+            trigger: trigger
+        )
+        do {
+            try await center.add(request)
+        } catch {
+            logger.error("Failed to schedule rest timer notification: \(error.localizedDescription)")
+        }
+    }
+
+    func cancelRestTimerNotification() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.restTimerNotificationIdentifier])
     }
 
     /// Estado actual de autorización (para mostrar en Perfil sin pulsar de nuevo).
