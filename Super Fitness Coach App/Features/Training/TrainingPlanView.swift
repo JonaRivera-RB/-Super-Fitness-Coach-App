@@ -79,14 +79,17 @@ struct TrainingPlanView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemGray4)).frame(height: 6)
-                    Capsule().fill(AppSemanticPalette.systemBlue)
+                    Capsule().fill(DesignTokens.Color.info)
                         .frame(width: geo.size.width * viewModel.progressFraction, height: 6)
                 }
             }
             .frame(height: 6)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14).fill(AppSemanticPalette.workoutWeekProgressBlue(colorScheme)))
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.26 : 0.07))
+        )
     }
 
     // MARK: - Week Days List
@@ -171,7 +174,7 @@ struct TrainingPlanView: View {
                     Label("Reschedule", systemImage: "arrow.uturn.right")
                         .font(.caption).fontWeight(.medium)
                 }
-                .buttonStyle(.bordered).tint(AppSemanticPalette.systemBlue).controlSize(.mini)
+                .buttonStyle(.bordered).tint(DesignTokens.Color.info).controlSize(.mini)
             }
         }
     }
@@ -188,7 +191,7 @@ struct TrainingPlanView: View {
         case .pending:     return ("⏳", .gray)
         case .completed:   return ("✓", .green)
         case .skipped:     return ("⏭", .orange)
-        case .rescheduled: return ("🔄", AppSemanticPalette.systemBlue)
+        case .rescheduled: return ("🔄", DesignTokens.Color.info)
         case .unavailable: return ("—", .gray)
         }
     }
@@ -199,7 +202,7 @@ struct TrainingPlanView: View {
         switch day.dayStatus {
         case .completed:   return Color.green.opacity(0.08)
         case .skipped:     return Color.orange.opacity(0.08)
-        case .rescheduled: return AppSemanticPalette.tintedFill(.systemBlue, colorScheme, light: 0.08, dark: 0.24)
+        case .rescheduled: return DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.24 : 0.08)
         default:           return Color(.systemGray6)
         }
     }

@@ -162,7 +162,7 @@ struct RoutineEditorView: View {
     private var routineThemeBackground: some View {
         LinearGradient(
             colors: colorScheme == .dark
-                ? AppSemanticPalette.planRoutineDarkGradientColors()
+                ? [Color(red: 0.12, green: 0.12, blue: 0.11), Color(red: 0.06, green: 0.06, blue: 0.06)]
                 : [RoutineTheme.mintTop, RoutineTheme.mintBottom],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
