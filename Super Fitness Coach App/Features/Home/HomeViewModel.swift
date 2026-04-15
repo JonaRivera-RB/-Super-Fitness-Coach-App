@@ -13,6 +13,8 @@ final class HomeViewModel {
     private(set) var statusIndicator: StatusIndicator = .yellow
     private(set) var recommendationText: String = ""
     private(set) var totalPoints: Int = 0
+    /// Días consecutivos con entreno (gamificación) — refuerzo positivo en Home.
+    private(set) var trainingStreakDays: Int = 0
     private(set) var todayMuscleLabel: String = "Entrenamiento"
     private(set) var detoxActive: Bool = false
     private(set) var detoxCurrentDay: Int = 0
@@ -28,6 +30,10 @@ final class HomeViewModel {
     private(set) var recoveryLabel: String = ""
     private(set) var activityLabel: String = ""
     private(set) var recoveryConfidenceLabel: String = ""
+    /// Texto opcional bajo la card principal de recuperación (p. ej. “recopilando…”).
+    private(set) var heroRecoveryMessage: String? = nil
+    /// Si true, la card principal está mostrando el score de AYER.
+    private(set) var isShowingYesterdayRecovery: Bool = false
     /// "Anoche" card: sleep duration, window, goal line, HRV/RHR vs baseline.
     private(set) var lastNightSleepSummary: String = ""
     private(set) var lastNightSleepWindow: String = ""
@@ -116,6 +122,8 @@ final class HomeViewModel {
         if showLoading { isLoading = true }
         defer { if showLoading { isLoading = false } }
 
+        gamificationEngine.invalidateStaleStreakIfNeeded()
+
         let config: FitnessConfig
         if let profile = try? userProfileRepository.fetchCompleted() {
             config = profile.effectiveFitnessConfig
@@ -133,6 +141,8 @@ final class HomeViewModel {
         recoveryConfidenceLabel = healthKitManager.recoveryConfidence.localizedLabel(lang)
         populateRecoveryContextLines(config: config)
 
+        applyOvernightRecoveryPresentationIfNeeded(language: lang)
+
         let recoveryValue = recoveryScore.value ?? 50
         let activityValue = activityScore.value ?? 0
         statusIndicator = StatusIndicator.from(score: recoveryValue)
@@ -144,7 +154,7 @@ final class HomeViewModel {
             recoveryScore: recoveryValue,
             activityScore: activityValue,
             recoveryBreakdown: recoveryBreakdown,
-            streakDays: gamificationEngine.currentStreak,
+            streakDays: gamificationEngine.displayedStreak(),
             recentWorkoutCount: gamificationEngine.workoutsCompleted,
             recoveryConfidence: healthKitManager.recoveryConfidence,
             language: lang
@@ -166,6 +176,7 @@ final class HomeViewModel {
         activityInsights = activityBreakdown.map { MetricInsightGenerator.generateInsights(from: $0, config: config) } ?? []
 
         totalPoints = gamificationEngine.totalPoints
+        trainingStreakDays = gamificationEngine.displayedStreak()
 
         if let progress = detoxManager.currentProgress, progress.isActive, !progress.isCompleted {
             detoxActive = true; detoxCurrentDay = progress.currentDay
@@ -185,6 +196,58 @@ final class HomeViewModel {
             statusEmoji: statusIndicator.emoji,
             recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue, language: AppLanguage.current)
         )
+    }
+
+    private func applyOvernightRecoveryPresentationIfNeeded(language: AppLanguage) {
+        heroRecoveryMessage = nil
+        isShowingYesterdayRecovery = false
+
+        let now = Date()
+        let cal = Calendar.current
+        let noonToday = cal.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+
+        // “Datos listos para hoy” (regla producto): sueño sincronizado + confianza al menos media.
+        let hasSleepSession = (healthKitManager.sleepSessionEnd != nil)
+        let confidenceReady: Bool = {
+            switch healthKitManager.recoveryConfidence {
+            case .high, .medium: return true
+            case .low, .insufficient: return false
+            }
+        }()
+        let todayReady = hasSleepSession && confidenceReady && recoveryScore.isAvailable
+        guard !todayReady else { return }
+
+        // Antes del mediodía: mostrar AYER si existe snapshot, y un mensaje “recopilando”.
+        if now < noonToday {
+            heroRecoveryMessage = AppLanguage.current.homeRecoveryCollectingOvernight
+            if let y = fetchYesterdayRecoverySnapshot(now: now) {
+                recoveryScore = .available(y.recoveryScore)
+                // No mostrar breakdown “de hoy” si estamos enseñando ayer.
+                recoveryBreakdown = nil
+                isShowingYesterdayRecovery = true
+            } else {
+                // Si no hay ayer (primera vez), ocultar score.
+                recoveryScore = .unavailable
+            }
+            return
+        }
+
+        // Después de mediodía sin datos: no inventar.
+        heroRecoveryMessage = AppLanguage.current.homeRecoveryNotCollectedByNoon
+        recoveryScore = .unavailable
+        recoveryBreakdown = nil
+    }
+
+    private func fetchYesterdayRecoverySnapshot(now: Date) -> RecoverySnapshot? {
+        do {
+            let cal = Calendar.current
+            guard let yesterday = cal.date(byAdding: .day, value: -1, to: now) else { return nil }
+            let yesterdayStart = cal.startOfDay(for: yesterday)
+            let recent = try recoverySnapshotRepository.fetchRecent(limit: 7, now: now)
+            return recent.first(where: { $0.dayStart == yesterdayStart })
+        } catch {
+            return nil
+        }
     }
 
     private func loadRecoveryHistory() {

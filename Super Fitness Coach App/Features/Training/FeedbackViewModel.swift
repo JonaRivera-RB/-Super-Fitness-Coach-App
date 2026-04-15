@@ -113,7 +113,7 @@ final class FeedbackViewModel {
 
     /// Reads the current streak from GamificationEngine.
     private func computeConsecutiveDays() {
-        consecutiveDays = gamificationEngine.currentStreak
+        consecutiveDays = gamificationEngine.displayedStreak()
     }
 
     // MARK: - Gamification (Req 11.1, 11.2, 11.3)
@@ -130,7 +130,7 @@ final class FeedbackViewModel {
         gamificationEngine.updateStreak(hasActionToday: true)
 
         // Refresh consecutive days after streak update
-        consecutiveDays = gamificationEngine.currentStreak
+        consecutiveDays = gamificationEngine.displayedStreak()
 
         // Bonus for streak >= 3 (Req 11.2)
         if gamificationEngine.currentStreak >= 3 {

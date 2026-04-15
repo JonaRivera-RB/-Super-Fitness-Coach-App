@@ -710,6 +710,27 @@ extension AppLanguage {
         }
     }
 
+    var homeHeroRecoveryEnergyYesterday: String {
+        switch self {
+        case .spanish: return "Recuperación (ayer)"
+        case .english: return "Recovery (yesterday)"
+        }
+    }
+
+    var homeRecoveryCollectingOvernight: String {
+        switch self {
+        case .spanish: return "Estamos recopilando tu descanso… vuelve más tarde cuando se sincronicen tus datos."
+        case .english: return "We’re collecting your sleep… check back later once your data syncs."
+        }
+    }
+
+    var homeRecoveryNotCollectedByNoon: String {
+        switch self {
+        case .spanish: return "Hoy no se ha logrado recopilar información suficiente para calcular tu recuperación."
+        case .english: return "We couldn’t collect enough data today to calculate your recovery."
+        }
+    }
+
     var homeWellbeingGoalLine: String {
         switch self {
         case .spanish: return "de tu objetivo de bienestar hoy"
@@ -735,6 +756,25 @@ extension AppLanguage {
         switch self {
         case .spanish: return "Cargando recuperación"
         case .english: return "Loading recovery"
+        }
+    }
+
+    /// Racha + puntos en Home (refuerzo tipo apps premium).
+    var homeMomentumTitle: String {
+        switch self {
+        case .spanish: return "Tu momentum"
+        case .english: return "Your momentum"
+        }
+    }
+
+    func homeMomentumStreak(days: Int) -> String {
+        switch self {
+        case .spanish:
+            if days <= 0 { return "Sin racha aún" }
+            return days == 1 ? "1 día seguido" : "\(days) días seguidos"
+        case .english:
+            if days <= 0 { return "No streak yet" }
+            return days == 1 ? "1 day streak" : "\(days)-day streak"
         }
     }
 
@@ -1094,6 +1134,138 @@ extension AppLanguage {
         switch self {
         case .spanish: return "Elegir entre plan guiado o mi rutina"
         case .english: return "Choose guided plan or my routine"
+        }
+    }
+
+    // MARK: Workout dashboard (rings + chart)
+
+    var workoutRingWeek: String {
+        switch self {
+        case .spanish: return "Semana"
+        case .english: return "Week"
+        }
+    }
+
+    var workoutRingWeekSubtitle: String {
+        switch self {
+        case .spanish: return "Días del plan hechos"
+        case .english: return "Plan days done"
+        }
+    }
+
+    var workoutRingWeekInfo: String {
+        switch self {
+        case .spanish:
+            return "Cuenta cuántos días del plan guiado ya completaste esta semana del plan. Ejemplo: 1/4 significa “ya hice 1 de 4 días de entreno”."
+        case .english:
+            return "Counts how many guided plan days you’ve completed in the plan’s current week. Example: 1/4 means “I’ve done 1 of 4 training days”."
+        }
+    }
+
+    var workoutRingRoutine: String {
+        switch self {
+        case .spanish: return "Rutina"
+        case .english: return "Routine"
+        }
+    }
+
+    var workoutRingRoutineSubtitle: String {
+        switch self {
+        case .spanish: return "Días de rutina hechos"
+        case .english: return "Routine days done"
+        }
+    }
+
+    var workoutRingRoutineInfo: String {
+        switch self {
+        case .spanish:
+            return "Cuenta cuántos días de «Mi rutina» completaste esta semana. Ejemplo: 2/5 significa “hice 2 de 5 días de rutina”."
+        case .english:
+            return "Counts how many “My routine” days you completed this week. Example: 2/5 means “I did 2 of 5 routine days”."
+        }
+    }
+
+    var workoutRingVolume: String {
+        switch self {
+        case .spanish: return "Volumen"
+        case .english: return "Volume"
+        }
+    }
+
+    var workoutRingVolumeSubtitle: String {
+        switch self {
+        case .spanish: return "Series esta semana"
+        case .english: return "Sets this week"
+        }
+    }
+
+    var workoutRingVolumeInfo: String {
+        switch self {
+        case .spanish:
+            return "Series que ya registraste esta semana / series que el plan esperaba para esta semana. (Una serie = un set)."
+        case .english:
+            return "Sets you logged this week / sets your plan expected for this week. (A set = one set)."
+        }
+    }
+
+    var workoutRingToday: String {
+        switch self {
+        case .spanish: return "Hoy"
+        case .english: return "Today"
+        }
+    }
+
+    var workoutRingTodaySubtitle: String {
+        switch self {
+        case .spanish: return "Series hoy"
+        case .english: return "Sets today"
+        }
+    }
+
+    var workoutRingTodayInfo: String {
+        switch self {
+        case .spanish:
+            return "Series que ya llevas hoy / series que el plan esperaba para hoy. (Una serie = un set)."
+        case .english:
+            return "Sets you’ve logged today / sets your plan expected for today. (A set = one set)."
+        }
+    }
+
+    var workoutVolumeTrendTitle: String {
+        switch self {
+        case .spanish: return "Volumen (semanal)"
+        case .english: return "Volume (weekly)"
+        }
+    }
+
+    /// Bajo el título de la gráfica cuando la superficie es Mi rutina (el tonelaje sigue siendo global).
+    var workoutVolumeTrendRoutineSubtitle: String {
+        switch self {
+        case .spanish: return "Incluye entrenos del plan guiado y de Mi rutina (todos tus registros)."
+        case .english: return "Includes guided plan and My routine workouts (all your logs)."
+        }
+    }
+
+    var workoutVolumeTrendEmpty: String {
+        switch self {
+        case .spanish: return "Completa entrenos para ver tu progreso aquí."
+        case .english: return "Complete workouts to see your progress here."
+        }
+    }
+
+    var workoutVolumeInfoTitle: String {
+        switch self {
+        case .spanish: return "¿Qué es Volumen?"
+        case .english: return "What is Volume?"
+        }
+    }
+
+    var workoutVolumeInfoBody: String {
+        switch self {
+        case .spanish:
+            return "Volumen aquí significa trabajo total (tonnage): suma de (peso en kg × repeticiones) de todas tus series registradas.\\n\\nEjemplo: 60 kg × 10 reps × 4 series = 2400.\\n\\nEsta gráfica es semanal y combina tanto el Plan guiado como Mi rutina porque se calcula desde tus registros (WorkoutLog)."
+        case .english:
+            return "Volume here means total work (tonnage): sum of (weight in kg × reps) for all your logged sets.\\n\\nExample: 60 kg × 10 reps × 4 sets = 2400.\\n\\nThis chart is weekly and includes both the guided plan and your routine because it is calculated from your logs (WorkoutLog)."
         }
     }
 

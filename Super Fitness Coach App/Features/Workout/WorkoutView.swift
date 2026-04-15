@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import Charts
 
 /// Entrenamiento unificado: **plan guiado** (metas, semanas, fases) y **mi rutina** (misma capa visual).
 struct WorkoutView: View {
@@ -40,6 +41,10 @@ struct WorkoutView: View {
     ) private var activeRoutines: [UserRoutine]
     private var activeRoutine: UserRoutine? { activeRoutines.first }
 
+    @State private var insights: WorkoutInsights?
+    @State private var isLoadingInsights: Bool = false
+    @State private var showVolumeInfo: Bool = false
+
     private var hasPlan: Bool { activePlan != nil }
     private var hasRoutine: Bool { activeRoutine != nil }
 
@@ -64,6 +69,8 @@ struct WorkoutView: View {
                         .pickerStyle(.segmented)
                         .accessibilityLabel(lang.workoutSurfacePickerA11y)
                     }
+
+                    dashboardHeader
 
                     Group {
                         switch surface {
@@ -105,7 +112,11 @@ struct WorkoutView: View {
             .navigationBarTitleDisplayMode(.large)
             .task {
                 try? UserRoutineRepository(context: modelContext).getOrCreateActiveDefault()
+                refreshInsights()
             }
+            .onChange(of: activePlan?.id) { _, _ in refreshInsights() }
+            .onChange(of: activeRoutine?.id) { _, _ in refreshInsights() }
+            .onChange(of: storedSurface) { _, _ in refreshInsights() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: DesignTokens.Spacing.sm) {
@@ -124,6 +135,302 @@ struct WorkoutView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: - Dashboard (Rings + Chart)
+
+    @ViewBuilder
+    private var dashboardHeader: some View {
+        if isLoadingInsights {
+            dashboardLoading
+        } else if let insights {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                ringsRow(insights: insights)
+                volumeTrendCard(insights: insights, surface: surface)
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+            .animation(DesignTokens.Motion.standard, value: insights)
+        } else {
+            EmptyView()
+        }
+    }
+
+    private var dashboardLoading: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 60)
+        }
+        .tokenCard()
+    }
+
+    private func refreshInsights() {
+        isLoadingInsights = true
+        Task { @MainActor in
+            let computed = WorkoutInsightsCalculator.compute(
+                activePlan: activePlan,
+                activeRoutine: activeRoutine,
+                context: modelContext,
+                workoutSurface: surface
+            )
+            insights = computed
+            isLoadingInsights = false
+        }
+    }
+
+    private func ringsRow(insights: WorkoutInsights) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                if let ring = insights.todayRing {
+                    RingCard(ring: ring, tint: DesignTokens.Color.positive)
+                }
+                if let ring = insights.primaryRing {
+                    RingCard(ring: ring, tint: DesignTokens.Color.info)
+                }
+                if let ring = insights.secondaryRing {
+                    RingCard(ring: ring, tint: Color(uiColor: .systemTeal))
+                }
+                if let ring = insights.volumeRing {
+                    RingCard(ring: ring, tint: DesignTokens.Color.reward)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func volumeTrendCard(insights: WorkoutInsights, surface: WorkoutSurface) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            HStack {
+                Text(lang.workoutVolumeTrendTitle)
+                    .font(DesignTokens.Typography.cardTitle)
+                    .foregroundStyle(DesignTokens.Color.textPrimary)
+                Button {
+                    showVolumeInfo = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(lang.workoutVolumeInfoTitle)
+                Spacer()
+                if let last = insights.volumeTrend.last {
+                    Text(formatTonnage(last.tonnage))
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                        .monospacedDigit()
+                }
+            }
+            if surface == .routine {
+                Text(lang.workoutVolumeTrendRoutineSubtitle)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if insights.volumeTrend.isEmpty {
+                Text(lang.workoutVolumeTrendEmpty)
+                    .font(.subheadline)
+                    .foregroundStyle(DesignTokens.Color.textSecondary)
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+            } else {
+                Chart(insights.volumeTrend) { p in
+                    AreaMark(
+                        x: .value("Week", p.periodStart, unit: .weekOfYear),
+                        y: .value("Tonnage", p.tonnage)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(DesignTokens.Color.reward.opacity(0.18).gradient)
+
+                    LineMark(
+                        x: .value("Week", p.periodStart, unit: .weekOfYear),
+                        y: .value("Tonnage", p.tonnage)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(DesignTokens.Color.reward)
+                    .lineStyle(.init(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                }
+                .chartYScale(domain: 0...(insights.volumeTrend.map(\.tonnage).max() ?? 0) * 1.1 + 1)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .weekOfYear, count: 1)) { value in
+                        AxisGridLine().foregroundStyle(Color(.systemGray5))
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine().foregroundStyle(Color(.systemGray5))
+                        AxisValueLabel()
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                    }
+                }
+                .frame(height: 140)
+            }
+        }
+        .tokenCard()
+        .sheet(isPresented: $showVolumeInfo) {
+            VolumeInfoSheet()
+        }
+    }
+
+    private func formatTonnage(_ kgReps: Double) -> String {
+        let kg = max(0, kgReps)
+        let tons = kg / 1000.0
+        if tons >= 10 {
+            return String(format: "%.1f t", tons)
+        }
+        if tons >= 1 {
+            return String(format: "%.2f t", tons)
+        }
+        return String(format: "%.0f", kg)
+    }
+
+    private struct VolumeInfoSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @Environment(\.appLanguage) private var lang
+        @Environment(\.colorScheme) private var colorScheme
+
+        var body: some View {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                        Text(lang.workoutVolumeInfoBody)
+                            .font(DesignTokens.Typography.body)
+                            .foregroundStyle(DesignTokens.Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(DesignTokens.Spacing.screenH)
+                }
+                .background(DesignTokens.Color.surfaceSheet)
+                .navigationTitle(lang.workoutVolumeInfoTitle)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(lang.close) { dismiss() }
+                    }
+                }
+            }
+        }
+    }
+
+    private struct RingCard: View {
+        let ring: WorkoutInsights.Ring
+        let tint: Color
+
+        @Environment(\.colorScheme) private var colorScheme
+        @Environment(\.dismiss) private var dismiss
+
+        private var progress: Double { min(max(ring.progress, 0), 1) }
+        @State private var showInfo: Bool = false
+
+        var body: some View {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                ZStack {
+                    Circle()
+                        .stroke(Color(.systemGray5).opacity(colorScheme == .dark ? 0.55 : 1), lineWidth: 10)
+                        .frame(width: 64, height: 64)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(tint, style: .init(lineWidth: 10, lineCap: .round))
+                        .frame(width: 64, height: 64)
+                        .rotationEffect(.degrees(-90))
+                        .animation(DesignTokens.Motion.springSnappy, value: ring.progress)
+                    Text(ring.valueText)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        Text(ring.title)
+                            .font(DesignTokens.Typography.microMedium)
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                            .textCase(.uppercase)
+                            .tracking(0.6)
+                        if let info = ring.infoText, !info.isEmpty {
+                            Button {
+                                showInfo = true
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(DesignTokens.Color.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(ring.title). Info")
+                        }
+                    }
+                    if let sub = ring.subtitleText, !sub.isEmpty {
+                        Text(sub)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Color.textPrimary)
+                            .lineLimit(2)
+                    } else {
+                        Text(" ")
+                            .font(DesignTokens.Typography.caption)
+                    }
+                }
+            }
+            .padding(DesignTokens.Spacing.md)
+            .frame(width: 260, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [tint.opacity(colorScheme == .dark ? 0.45 : 0.25), tint.opacity(0.06)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    }
+            )
+            .tokenShadow(.card)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(ring.title). \(ring.valueText)")
+            .sheet(isPresented: $showInfo) {
+                RingInfoSheet(title: ring.title, message: ring.infoText ?? "")
+            }
+        }
+    }
+
+    private struct RingInfoSheet: View {
+        @Environment(\.dismiss) private var dismiss
+        @Environment(\.appLanguage) private var lang
+
+        let title: String
+        let message: String
+
+        var bodyView: some View {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                    Text(message)
+                        .font(DesignTokens.Typography.body)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(DesignTokens.Spacing.screenH)
+            }
+        }
+
+        var body: some View {
+            NavigationStack {
+                bodyView
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(lang.close) { dismiss() }
+                        }
+                    }
             }
         }
     }
@@ -272,7 +579,7 @@ struct WorkoutView: View {
         let days = routine.days.sorted { $0.dayOfWeek < $1.dayOfWeek }
 
         return VStack(spacing: DesignTokens.Spacing.md) {
-            routineWeekHeader(routine: routine, days: days)
+            routineWeekHeader(days: days)
             routineTodayCard(days: days)
             routineWeekOverview(days: days)
         }
@@ -284,10 +591,11 @@ struct WorkoutView: View {
         day.isRestDay && day.exercises.isEmpty
     }
 
-    private func routineWeekHeader(routine: UserRoutine, days: [UserRoutineDay]) -> some View {
-        let trainingDayCount = days.filter { !routineDayIsEffectiveRest($0) }.count
+    /// Barra: días configurados (ejercicios añadidos o descanso explícito) / 7 — evita barra llena con plantilla vacía.
+    private func routineWeekHeader(days: [UserRoutineDay]) -> some View {
+        let configuredDayCount = days.filter { !$0.exercises.isEmpty || ($0.isRestDay && $0.exercises.isEmpty) }.count
         let totalMoves = days.reduce(0) { $0 + $1.exercises.count }
-        let fraction = min(1.0, Double(trainingDayCount) / 7.0)
+        let fraction = min(1.0, Double(configuredDayCount) / 7.0)
 
         return VStack(spacing: DesignTokens.Spacing.sm) {
             HStack {
@@ -295,7 +603,7 @@ struct WorkoutView: View {
                     Text(lang.workoutMyRoutineHeader)
                         .font(.title3).fontWeight(.bold)
                         .foregroundStyle(DesignTokens.Color.textPrimary)
-                    Text(lang.workoutRoutineWeekSummary(days: trainingDayCount, exercises: totalMoves))
+                    Text(lang.workoutRoutineWeekSummary(days: configuredDayCount, exercises: totalMoves))
                         .font(DesignTokens.Typography.caption)
                         .foregroundStyle(DesignTokens.Color.textSecondary)
                 }
@@ -350,9 +658,7 @@ struct WorkoutView: View {
     /// Último entreno de este día de rutina cayó en la **misma semana calendario** que hoy (para la fila «Esta semana»).
     private func routineDayCompletedThisCalendarWeek(_ day: UserRoutineDay) -> Bool {
         guard let at = day.lastRoutineWorkoutCompletedAt else { return false }
-        let cal = Calendar.current
-        return cal.component(.yearForWeekOfYear, from: at) == cal.component(.yearForWeekOfYear, from: Date())
-            && cal.component(.weekOfYear, from: at) == cal.component(.weekOfYear, from: Date())
+        return WorkoutInsightsCalculator.isDateInSameCalendarWeekAsReference(at, reference: Date())
     }
 
     private func routineDayCompletedCard(day: UserRoutineDay) -> some View {
@@ -1006,13 +1312,6 @@ struct WorkoutView: View {
 
     // MARK: - Helpers
 
-}
-
-// MARK: - Surface
-
-private enum WorkoutSurface: String {
-    case plan
-    case routine
 }
 
 private extension Array {

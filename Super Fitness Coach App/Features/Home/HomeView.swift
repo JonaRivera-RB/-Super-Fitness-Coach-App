@@ -13,6 +13,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct HomeView: View {
 
@@ -26,6 +29,7 @@ struct HomeView: View {
     @State private var showRecoveryBreakdown  = false
     @State private var showActivityBreakdown  = false
     @State private var showHowWeScore         = false
+    @State private var homeContentVisible     = false
 
     // MARK: - Environment
 
@@ -41,20 +45,119 @@ struct HomeView: View {
     }
     private var accent: Color { recoveryLevel.accent }
 
+    // MARK: - Ambiente & momentum (refuerzo positivo, estilo “super app”)
+
+    private var ambientBackdrop: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    accent.opacity(colorScheme == .dark ? 0.26 : 0.16),
+                    DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.10 : 0.06),
+                    Color(.systemGroupedBackground)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottom
+            )
+            .frame(height: 320)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+        .allowsHitTesting(false)
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private var momentumStrip: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(lang.homeMomentumTitle)
+                .font(DesignTokens.Typography.microMedium)
+                .foregroundStyle(DesignTokens.Color.textTertiary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                momentumPill(
+                    icon: "flame.fill",
+                    tint: DesignTokens.Color.caution,
+                    value: "\(viewModel.trainingStreakDays)",
+                    caption: lang.homeMomentumStreak(days: viewModel.trainingStreakDays)
+                )
+                momentumPill(
+                    icon: "star.fill",
+                    tint: DesignTokens.Color.reward,
+                    value: "\(viewModel.totalPoints)",
+                    caption: lang.pointsWord
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func momentumPill(icon: String, tint: Color, value: String, caption: String) -> some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(tint)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(DesignTokens.Typography.numberCompact)
+                    .foregroundStyle(DesignTokens.Color.textPrimary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(caption)
+                    .font(DesignTokens.Typography.micro)
+                    .foregroundStyle(DesignTokens.Color.textSecondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity)
+        .background(chipBackground)
+        .tokenStroke(radius: DesignTokens.Radius.card)
+    }
+
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
+            ZStack(alignment: .top) {
+                ambientBackdrop
             ScrollView {
                 VStack(spacing: DesignTokens.Spacing.lg) {
 
                     // ── Zona 1: siempre visible ──────────────
                     authorizationBanner
                     greetingSection
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 10)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.02), value: homeContentVisible)
+                    momentumStrip
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 14)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.08), value: homeContentVisible)
                     heroRecoveryCard
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 18)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.14), value: homeContentVisible)
                     metricChipsRow
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 12)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.20), value: homeContentVisible)
                     coachInsightSection
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 10)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.26), value: homeContentVisible)
                     ctaSection
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 8)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.32), value: homeContentVisible)
 
                     // ── Separador hacia detalles ─────────────
                     detailsDivider
@@ -81,8 +184,9 @@ struct HomeView: View {
                 .padding(.top, DesignTokens.Spacing.sm)
             }
             .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
+            .background(Color.clear)
             .refreshable { await viewModel.refresh() }
+            }
             .navigationTitle(lang.tabHome)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -92,6 +196,9 @@ struct HomeView: View {
             }
         }
         .task { await viewModel.onAppear() }
+        .onAppear {
+            homeContentVisible = true
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task { await viewModel.refresh() }
@@ -178,7 +285,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
 
             // Label
-            Text(lang.homeHeroRecoveryEnergy)
+            Text(viewModel.isShowingYesterdayRecovery ? lang.homeHeroRecoveryEnergyYesterday : lang.homeHeroRecoveryEnergy)
                 .font(DesignTokens.Typography.caption)
                 .foregroundStyle(DesignTokens.Color.textSecondary)
                 .textCase(.uppercase)
@@ -189,9 +296,17 @@ struct HomeView: View {
             } else if case .available(let score) = viewModel.recoveryScore {
                 heroScoreContent(score: score)
             } else {
-                Text(lang.homeNoRecoveryData)
+                Text(viewModel.heroRecoveryMessage ?? lang.homeNoRecoveryData)
                     .font(DesignTokens.Typography.body)
                     .foregroundStyle(DesignTokens.Color.textSecondary)
+            }
+
+            if let msg = viewModel.heroRecoveryMessage,
+               case .available = viewModel.recoveryScore {
+                Text(msg)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -199,6 +314,21 @@ struct HomeView: View {
         .background(heroCardBackground)
         .tokenStroke(radius: DesignTokens.Radius.hero)
         .tokenShadow(.elevated)
+        // Borde fijo (sin repeatForever): antes el pulso infinito solo afectaba el stroke y quedaba incoherente.
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(colorScheme == .dark ? 0.38 : 0.22),
+                            accent.opacity(0.06)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(heroAccessibilityLabel)
     }
@@ -231,44 +361,44 @@ struct HomeView: View {
 
     private func heroScoreContent(score: Int) -> some View {
         let level = DesignTokens.Color.recoveryLevel(score: score)
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+        let ringSize: CGFloat = 132
+        let lineWidth: CGFloat = 10
 
-            // Número + badge de estado
-            HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.sm) {
-                Text("\(score)")
-                    .font(DesignTokens.Typography.scoreHero)
-                    .foregroundStyle(level.accent)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            HStack(alignment: .center, spacing: DesignTokens.Spacing.md) {
+                ZStack {
+                    Circle()
+                        .stroke(Color(.systemGray5).opacity(colorScheme == .dark ? 0.55 : 1), lineWidth: lineWidth)
+                        .frame(width: ringSize, height: ringSize)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(score, 100)) / 100)
+                        .stroke(
+                            level.accent,
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                        )
+                        .frame(width: ringSize, height: ringSize)
+                        .rotationEffect(.degrees(-90))
+                        .animation(DesignTokens.Motion.springSnappy, value: score)
+                    Text("\(score)")
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(level.accent)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     recoveryStatusBadge(level: level)
                     Text("de 100")
                         .font(DesignTokens.Typography.micro)
                         .foregroundStyle(DesignTokens.Color.textTertiary)
+                    if !viewModel.recoveryConfidenceLabel.isEmpty {
+                        Text(viewModel.recoveryConfidenceLabel)
+                            .font(DesignTokens.Typography.micro)
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                    }
                 }
                 Spacer(minLength: 0)
-            }
-
-            // Barra de progreso fina
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(.systemGray5))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(level.accent)
-                        .frame(width: max(6, geo.size.width * CGFloat(min(score, 100)) / 100), height: 6)
-                        .animation(DesignTokens.Motion.springSnappy, value: score)
-                }
-            }
-            .frame(height: 6)
-
-            // Confianza
-            if !viewModel.recoveryConfidenceLabel.isEmpty {
-                Text(viewModel.recoveryConfidenceLabel)
-                    .font(DesignTokens.Typography.micro)
-                    .foregroundStyle(DesignTokens.Color.textTertiary)
             }
         }
     }
@@ -380,7 +510,6 @@ struct HomeView: View {
     private var coachInsightSection: some View {
         if !viewModel.coachSummary.isEmpty && !viewModel.isLoading {
             HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
-                // Barra de color izquierda (reemplaza el emoji grande)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(accent)
                     .frame(width: 3)
@@ -392,14 +521,35 @@ struct HomeView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(viewModel.coachSummaryAccessibilityLabel)
             }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(DesignTokens.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [accent.opacity(0.35), accent.opacity(0.06)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    }
+            )
+            .tokenShadow(.card)
         }
     }
 
     // MARK: CTA
 
     private var ctaSection: some View {
-        Button(action: onStartRoutine) {
+        Button {
+            #if canImport(UIKit)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            #endif
+            onStartRoutine()
+        } label: {
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 14, weight: .bold))

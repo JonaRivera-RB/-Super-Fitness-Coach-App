@@ -33,9 +33,10 @@ final class StatsViewModel {
     }
 
     func refresh() {
+        gamificationEngine.invalidateStaleStreakIfNeeded()
         totalPoints = gamificationEngine.totalPoints
         currentLevel = gamificationEngine.currentLevel
-        currentStreak = gamificationEngine.currentStreak
+        currentStreak = gamificationEngine.displayedStreak()
         personalBestStreak = gamificationEngine.personalBestStreak
         badges = gamificationEngine.badges
         Task { @MainActor in
