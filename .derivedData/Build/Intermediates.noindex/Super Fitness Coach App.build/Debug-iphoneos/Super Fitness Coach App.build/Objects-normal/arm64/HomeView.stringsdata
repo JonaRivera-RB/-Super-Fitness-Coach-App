@@ -1,0 +1,96 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Home/HomeView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Cómo medimos tu recuperación",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 220
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 374
+        }
+      },
+      {
+        "comment": "",
+        "key": "de 100",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 384
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@: %@",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 868
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@: %@",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 889
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 790
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cómo medimos tu recuperación",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 996
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tu puntuación de recuperación diaria se calcula combinando señales de Apple Health.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 953
+        }
+      },
+      {
+        "comment": "",
+        "key": "Todos los valores se comparan con tu historial personal de los últimos 14 días, no con promedios generales.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 985
+        }
+      },
+      {
+        "comment": "",
+        "key": "Esta información es orientativa y no sustituye consejo médico profesional.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 989
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cerrar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1000
+        }
+      }
+    ]
+  },
+  "version": 1
+}

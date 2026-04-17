@@ -30,6 +30,7 @@ struct HomeView: View {
     @State private var showActivityBreakdown  = false
     @State private var showHowWeScore         = false
     @State private var homeContentVisible     = false
+    @State private var presentedRing: HomeRingDetail? = nil
 
     // MARK: - Environment
 
@@ -44,6 +45,19 @@ struct HomeView: View {
         DesignTokens.Color.recoveryLevel(score: recoveryScore)
     }
     private var accent: Color { recoveryLevel.accent }
+
+    private enum HomeRingDetail: Identifiable {
+        case sleep
+        case recovery
+        case activity
+        var id: String {
+            switch self {
+            case .sleep: return "sleep"
+            case .recovery: return "recovery"
+            case .activity: return "activity"
+            }
+        }
+    }
 
     // MARK: - Ambiente & momentum (refuerzo positivo, estilo “super app”)
 
@@ -123,6 +137,22 @@ struct HomeView: View {
         .tokenStroke(radius: DesignTokens.Radius.card)
     }
 
+    @ViewBuilder
+    private var chipBackground: some View {
+        if #available(iOS 26, *) {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(.regularMaterial)
+        } else {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+                .shadow(
+                    color: DesignTokens.Shadow.subtle(colorScheme).color,
+                    radius: DesignTokens.Shadow.subtle(colorScheme).radius,
+                    x: 0, y: DesignTokens.Shadow.subtle(colorScheme).y
+                )
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -142,22 +172,14 @@ struct HomeView: View {
                         .opacity(homeContentVisible ? 1 : 0)
                         .offset(y: homeContentVisible ? 0 : 14)
                         .animation(DesignTokens.Motion.springSnappy.delay(0.08), value: homeContentVisible)
-                    heroRecoveryCard
+                    homeRingsPyramid
                         .opacity(homeContentVisible ? 1 : 0)
                         .offset(y: homeContentVisible ? 0 : 18)
                         .animation(DesignTokens.Motion.springSnappy.delay(0.14), value: homeContentVisible)
-                    metricChipsRow
-                        .opacity(homeContentVisible ? 1 : 0)
-                        .offset(y: homeContentVisible ? 0 : 12)
-                        .animation(DesignTokens.Motion.springSnappy.delay(0.20), value: homeContentVisible)
                     coachInsightSection
                         .opacity(homeContentVisible ? 1 : 0)
                         .offset(y: homeContentVisible ? 0 : 10)
                         .animation(DesignTokens.Motion.springSnappy.delay(0.26), value: homeContentVisible)
-                    ctaSection
-                        .opacity(homeContentVisible ? 1 : 0)
-                        .offset(y: homeContentVisible ? 0 : 8)
-                        .animation(DesignTokens.Motion.springSnappy.delay(0.32), value: homeContentVisible)
 
                     // ── Separador hacia detalles ─────────────
                     detailsDivider
@@ -206,6 +228,16 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showHowWeScore) {
             HowWeScoreSheet()
+        }
+        .sheet(item: $presentedRing) { ring in
+            switch ring {
+            case .sleep:
+                SleepDetailScreen(viewModel: viewModel)
+            case .recovery:
+                RecoveryDetailScreen(viewModel: viewModel)
+            case .activity:
+                ActivityDetailScreen(viewModel: viewModel)
+            }
         }
     }
 
@@ -279,58 +311,181 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Hero recovery card
+    // MARK: Home rings (pyramid)
 
-    private var heroRecoveryCard: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-
-            // Label
-            Text(viewModel.isShowingYesterdayRecovery ? lang.homeHeroRecoveryEnergyYesterday : lang.homeHeroRecoveryEnergy)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-
-            if viewModel.isLoading || viewModel.recoveryScore.isLoading {
-                heroLoadingState
-            } else if case .available(let score) = viewModel.recoveryScore {
-                heroScoreContent(score: score)
-            } else {
-                Text(viewModel.heroRecoveryMessage ?? lang.homeNoRecoveryData)
-                    .font(DesignTokens.Typography.body)
-                    .foregroundStyle(DesignTokens.Color.textSecondary)
-            }
-
-            if let msg = viewModel.heroRecoveryMessage,
-               case .available = viewModel.recoveryScore {
-                Text(msg)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Color.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignTokens.Spacing.heroInner)
-        .background(heroCardBackground)
-        .tokenStroke(radius: DesignTokens.Radius.hero)
-        .tokenShadow(.elevated)
-        // Borde fijo (sin repeatForever): antes el pulso infinito solo afectaba el stroke y quedaba incoherente.
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            accent.opacity(colorScheme == .dark ? 0.38 : 0.22),
-                            accent.opacity(0.06)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
+    private var homeRingsPyramid: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            Button { presentedRing = .recovery } label: {
+                HomeRingCard(
+                    title: lang.homeRingRecoveryTitle,
+                    subtitle: viewModel.isShowingYesterdayRecovery ? lang.homeRingYesterday : lang.homeRingToday,
+                    value: viewModel.recoveryScore.value,
+                    tint: accent,
+                    size: .large,
+                    message: viewModel.heroRecoveryMessage
                 )
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Button { presentedRing = .sleep } label: {
+                    HomeRingCard(
+                        title: lang.homeRingSleepTitle,
+                        subtitle: viewModel.isShowingYesterdaySleep ? lang.homeRingYesterday : lang.homeRingToday,
+                        value: viewModel.sleepScore.value,
+                        tint: DesignTokens.Color.info,
+                        size: .small,
+                        message: nil
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button { presentedRing = .activity } label: {
+                    HomeRingCard(
+                        title: lang.homeRingActivityTitle,
+                        subtitle: lang.homeRingToday,
+                        value: viewModel.activityScore.value,
+                        tint: DesignTokens.Color.reward,
+                        size: .small,
+                        message: nil
+                    )
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(heroAccessibilityLabel)
+        .accessibilityElement(children: .contain)
+    }
+
+    private enum HomeRingSize {
+        case small
+        case large
+
+        var diameter: CGFloat { self == .large ? 132 : 104 }
+        var stroke: CGFloat { self == .large ? 12 : 10 }
+    }
+
+    private struct HomeRingCard: View {
+        let title: String
+        let subtitle: String
+        let value: Int?
+        let tint: Color
+        let size: HomeRingSize
+        let message: String?
+
+        @Environment(\.colorScheme) private var colorScheme
+        @Environment(\.appLanguage) private var lang
+
+        private var progress: Double {
+            guard let value else { return 0 }
+            return min(max(Double(value) / 100.0, 0), 1)
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(DesignTokens.Typography.microMedium)
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                            .textCase(.uppercase)
+                            .tracking(0.6)
+                        Text(subtitle)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundStyle(DesignTokens.Color.textSecondary)
+                    }
+                    Spacer()
+                }
+
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color(.systemGray5).opacity(colorScheme == .dark ? 0.55 : 1), lineWidth: size.stroke)
+                            .frame(width: size.diameter, height: size.diameter)
+                        Circle()
+                            .trim(from: 0, to: progress)
+                            .stroke(tint, style: .init(lineWidth: size.stroke, lineCap: .round))
+                            .frame(width: size.diameter, height: size.diameter)
+                            .rotationEffect(.degrees(-90))
+                            .animation(DesignTokens.Motion.springSnappy, value: progress)
+
+                        if let v = value {
+                            Text("\(v)")
+                                .font(size == .large ? DesignTokens.Typography.displayTitle : DesignTokens.Typography.numberCompact)
+                                .fontWeight(.bold)
+                                .foregroundStyle(DesignTokens.Color.textPrimary)
+                                .monospacedDigit()
+                        } else {
+                            Text("—")
+                                .font(DesignTokens.Typography.displayTitle)
+                                .fontWeight(.bold)
+                                .foregroundStyle(DesignTokens.Color.textTertiary)
+                        }
+                    }
+
+                    if size == .large {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(lang.homeRingOutOf100)
+                                .font(DesignTokens.Typography.micro)
+                                .foregroundStyle(DesignTokens.Color.textSecondary)
+                            if let message, !message.isEmpty {
+                                Text(message)
+                                    .font(DesignTokens.Typography.caption)
+                                    .foregroundStyle(DesignTokens.Color.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                Text(lang.homeRingTapForDetails)
+                                    .font(DesignTokens.Typography.caption)
+                                    .foregroundStyle(DesignTokens.Color.textSecondary)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(DesignTokens.Spacing.heroInner)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardBackground)
+            .tokenStroke(radius: DesignTokens.Radius.hero)
+            .tokenShadow(.elevated)
+            .overlay {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                tint.opacity(colorScheme == .dark ? 0.38 : 0.22),
+                                tint.opacity(0.06)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
+        }
+
+        @ViewBuilder
+        private var cardBackground: some View {
+            if #available(iOS 26, *) {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                    .fill(.regularMaterial)
+            } else {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                    .fill(DesignTokens.Color.surfaceCard)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DesignTokens.Radius.hero, style: .continuous)
+                            .fill(tint.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                    }
+            }
+        }
+    }
+
+    private var sleepChipValue: String {
+        if viewModel.lastNightSleepSummary.isEmpty { return "—" }
+        let s = viewModel.lastNightSleepSummary
+        if let range = s.range(of: #"[\d.]+\s*h"#, options: .regularExpression) {
+            return String(s[range])
+        }
+        return viewModel.lastNightSleepSummary
     }
 
     @ViewBuilder
@@ -421,89 +576,6 @@ struct HomeView: View {
         return lang.homeHeroLoading
     }
 
-    // MARK: Metric chips (sueño + hoy)
-
-    private var metricChipsRow: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            sleepMetricChip
-            todayWorkoutChip
-        }
-    }
-
-    private var sleepMetricChip: some View {
-        metricChip(
-            icon: "moon.zzz.fill",
-            iconColor: DesignTokens.Color.info,
-            label: lang.homeQuickLastNight,
-            value: sleepChipValue
-        )
-    }
-
-    private var sleepChipValue: String {
-        if viewModel.lastNightSleepSummary.isEmpty { return "—" }
-        // Extraer solo el número de horas del string "Dormiste ~7.4 h"
-        let s = viewModel.lastNightSleepSummary
-        if let range = s.range(of: #"[\d.]+\s*h"#, options: .regularExpression) {
-            return String(s[range])
-        }
-        return viewModel.lastNightSleepSummary
-    }
-
-    private var todayWorkoutChip: some View {
-        metricChip(
-            icon: "figure.run",
-            iconColor: accent,
-            label: lang.homeQuickTrain,
-            value: viewModel.todayMuscleLabel
-        )
-    }
-
-    private func metricChip(icon: String, iconColor: Color, label: String, value: String) -> some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            ZStack {
-                Circle()
-                    .fill(iconColor.opacity(colorScheme == .dark ? 0.18 : 0.10))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(DesignTokens.Typography.micro)
-                    .foregroundStyle(DesignTokens.Color.textSecondary)
-                Text(value)
-                    .font(DesignTokens.Typography.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(DesignTokens.Color.textPrimary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.vertical, DesignTokens.Spacing.sm)
-        .frame(maxWidth: .infinity)
-        .background(chipBackground)
-        .tokenStroke(radius: DesignTokens.Radius.card)
-    }
-
-    @ViewBuilder
-    private var chipBackground: some View {
-        if #available(iOS 26, *) {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                .fill(.regularMaterial)
-        } else {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                .fill(DesignTokens.Color.surfaceCard)
-                .shadow(
-                    color: DesignTokens.Shadow.subtle(colorScheme).color,
-                    radius: DesignTokens.Shadow.subtle(colorScheme).radius,
-                    x: 0, y: DesignTokens.Shadow.subtle(colorScheme).y
-                )
-        }
-    }
-
     // MARK: Coach insight
 
     @ViewBuilder
@@ -539,35 +611,6 @@ struct HomeView: View {
             )
             .tokenShadow(.card)
         }
-    }
-
-    // MARK: CTA
-
-    private var ctaSection: some View {
-        Button {
-            #if canImport(UIKit)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            #endif
-            onStartRoutine()
-        } label: {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 14, weight: .bold))
-                Text(viewModel.actionCardTitle.isEmpty ? lang.goToWorkout : viewModel.actionCardTitle)
-                    .font(DesignTokens.Typography.bodyMedium)
-                    .fontWeight(.semibold)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DesignTokens.Spacing.md)
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(accent)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.pill, style: .continuous))
-        .shadow(
-            color: accent.opacity(colorScheme == .dark ? 0.35 : 0.25),
-            radius: 12, x: 0, y: 4
-        )
-        .accessibilityLabel(lang.goToWorkout)
     }
 
     // ─────────────────────────────────────────────────────────

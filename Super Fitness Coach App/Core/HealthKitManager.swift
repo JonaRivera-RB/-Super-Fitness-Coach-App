@@ -44,6 +44,7 @@ final class HealthKitManager {
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
     private(set) var recoveryScore: HealthDataStatus<Int> = .loading
     private(set) var activityScore: HealthDataStatus<Int> = .loading
+    private(set) var sleepScore: HealthDataStatus<Int> = .loading
     private(set) var recoveryBreakdown: ScoreBreakdown?
     private(set) var activityBreakdown: ScoreBreakdown?
     private(set) var recoveryConfidence: DataConfidenceLevel = .low
@@ -341,6 +342,7 @@ final class HealthKitManager {
                 remHours: sleepDetection.remSleepHours, sleepGoal: config.sleepGoalHours
             )
             let effectiveSleepScore = sleepQualityScore * sleepDetection.sleepConfidence
+            self.sleepScore = .available(Int(max(0, min(100, round(effectiveSleepScore)))))
             logger.info("recovery: sleepQuality=\(String(format: "%.1f", sleepQualityScore)) confidence=\(String(format: "%.2f", sleepDetection.sleepConfidence)) effectiveSleep=\(String(format: "%.1f", effectiveSleepScore))")
             let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
             let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
@@ -364,6 +366,7 @@ final class HealthKitManager {
                 hrvScore: hrvNormalized, hrvRawMs: hrvMs, finalScore: recScore, weights: weights
             )
         } else if rhr != nil || hrvMs != nil {
+            self.sleepScore = .unavailable
             let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
             let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
             var available: [String] = []
@@ -377,6 +380,7 @@ final class HealthKitManager {
             self.recoveryScore = .available(Int(round(score)))
             self.recoveryBreakdown = nil
         } else {
+            self.sleepScore = .unavailable
             // Neutral recovery when no sleep and no HRV/RHR.
             self.recoveryScore = .available(50)
             self.recoveryBreakdown = nil
@@ -727,6 +731,7 @@ final class HealthKitManager {
         activeEnergy = .unavailable
         recoveryScore = .unavailable
         activityScore = .unavailable
+        sleepScore = .unavailable
         recoveryBreakdown = nil
         activityBreakdown = nil
         recoveryConfidence = .low

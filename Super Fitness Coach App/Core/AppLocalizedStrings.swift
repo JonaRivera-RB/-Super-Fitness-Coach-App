@@ -745,6 +745,436 @@ extension AppLanguage {
         }
     }
 
+    // MARK: Home — rings (Sueño / Recuperación / Actividad)
+
+    var homeRingRecoveryTitle: String {
+        switch self {
+        case .spanish: return "Recuperación"
+        case .english: return "Recovery"
+        }
+    }
+
+    var homeRingSleepTitle: String {
+        switch self {
+        case .spanish: return "Sueño"
+        case .english: return "Sleep"
+        }
+    }
+
+    var homeRingActivityTitle: String {
+        switch self {
+        case .spanish: return "Actividad"
+        case .english: return "Activity"
+        }
+    }
+
+    var homeRingToday: String {
+        switch self {
+        case .spanish: return "Hoy"
+        case .english: return "Today"
+        }
+    }
+
+    var homeRingYesterday: String {
+        switch self {
+        case .spanish: return "Ayer"
+        case .english: return "Yesterday"
+        }
+    }
+
+    var homeRingOutOf100: String {
+        switch self {
+        case .spanish: return "de 100"
+        case .english: return "out of 100"
+        }
+    }
+
+    var homeRingTapForDetails: String {
+        switch self {
+        case .spanish: return "Toca para ver detalles"
+        case .english: return "Tap to see details"
+        }
+    }
+
+    var homeTodayUpper: String {
+        switch self {
+        case .spanish: return "HOY"
+        case .english: return "TODAY"
+        }
+    }
+
+    var homeOutOf100: String {
+        switch self {
+        case .spanish: return "de 100"
+        case .english: return "out of 100"
+        }
+    }
+
+    // MARK: Home — detail screens copy
+
+    var homeSleepTitle: String {
+        switch self {
+        case .spanish: return "Sueño"
+        case .english: return "Sleep"
+        }
+    }
+
+    var homeSleepSubtitle: String {
+        switch self {
+        case .spanish: return "Cómo dormiste y qué tan constante fue tu horario."
+        case .english: return "How you slept and how consistent your schedule was."
+        }
+    }
+
+    var homeRecoveryTitle: String {
+        switch self {
+        case .spanish: return "Recuperación"
+        case .english: return "Recovery"
+        }
+    }
+
+    var homeRecoverySubtitle: String {
+        switch self {
+        case .spanish: return "Qué tan listo está tu cuerpo para entrenar hoy."
+        case .english: return "How ready your body is to train today."
+        }
+    }
+
+    var homeActivityTitle: String {
+        switch self {
+        case .spanish: return "Actividad"
+        case .english: return "Activity"
+        }
+    }
+
+    var homeActivitySubtitle: String {
+        switch self {
+        case .spanish: return "Tu movimiento del día: pasos y calorías activas."
+        case .english: return "Your daily movement: steps and active calories."
+        }
+    }
+
+    var homeSleepInfo: String {
+        switch self {
+        case .spanish:
+            return "El score de Sueño (0–100) resume cuánto dormiste y la calidad de tu descanso. Si falta información, verás “—”."
+        case .english:
+            return "The Sleep score (0–100) summarizes how much you slept and your sleep quality. If data is missing, you’ll see “—”."
+        }
+    }
+
+    var homeRecoveryInfo: String {
+        switch self {
+        case .spanish:
+            return "El score de Recuperación (0–100) combina tu descanso y señales del cuerpo (como FC en reposo y HRV). Entre más alto, mejor para entrenar fuerte."
+        case .english:
+            return "The Recovery score (0–100) combines your sleep and body signals (like resting HR and HRV). Higher usually means you can push harder."
+        }
+    }
+
+    var homeActivityInfo: String {
+        switch self {
+        case .spanish:
+            return "El score de Actividad (0–100) resume tu movimiento del día. Sube con más pasos y calorías activas."
+        case .english:
+            return "The Activity score (0–100) summarizes your daily movement. It goes up with more steps and active calories."
+        }
+    }
+
+    var homeSleepFooter: String {
+        switch self {
+        case .spanish: return "Tip: intenta dormir y despertar a horas parecidas para mejorar la regularidad."
+        case .english: return "Tip: go to sleep and wake up around the same time to improve regularity."
+        }
+    }
+
+    var homeRecoveryFooter: String {
+        switch self {
+        case .spanish: return "Tip: tu recuperación mejora con buen sueño, descanso y menos estrés."
+        case .english: return "Tip: recovery improves with good sleep, rest, and lower stress."
+        }
+    }
+
+    var homeActivityFooter: String {
+        switch self {
+        case .spanish: return "Tip: una caminata corta puede subir tu actividad sin cansarte."
+        case .english: return "Tip: a short walk can boost activity without draining you."
+        }
+    }
+
+    // MARK: Home — metrics labels
+
+    var homeMetricSleepTotal: String {
+        switch self {
+        case .spanish: return "Horas dormidas"
+        case .english: return "Sleep hours"
+        }
+    }
+
+    var homeMetricSleepDeep: String {
+        switch self {
+        case .spanish: return "Sueño profundo"
+        case .english: return "Deep sleep"
+        }
+    }
+
+    var homeMetricSleepREM: String {
+        switch self {
+        case .spanish: return "Sueño REM"
+        case .english: return "REM sleep"
+        }
+    }
+
+    var homeMetricSleepRegularity: String {
+        switch self {
+        case .spanish: return "Regularidad"
+        case .english: return "Regularity"
+        }
+    }
+
+    var homeMetricSleepWindow: String {
+        switch self {
+        case .spanish: return "Ventana detectada"
+        case .english: return "Detected window"
+        }
+    }
+
+    var homeMetricHRV: String {
+        switch self {
+        case .spanish: return "HRV"
+        case .english: return "HRV"
+        }
+    }
+
+    var homeMetricRHR: String {
+        switch self {
+        case .spanish: return "FC reposo"
+        case .english: return "Resting HR"
+        }
+    }
+
+    var homeMetricSleepScore: String {
+        switch self {
+        case .spanish: return "Score de sueño"
+        case .english: return "Sleep score"
+        }
+    }
+
+    var homeMetricConfidence: String {
+        switch self {
+        case .spanish: return "Confianza"
+        case .english: return "Confidence"
+        }
+    }
+
+    var homeMetricSteps: String {
+        switch self {
+        case .spanish: return "Pasos"
+        case .english: return "Steps"
+        }
+    }
+
+    var homeMetricActiveCalories: String {
+        switch self {
+        case .spanish: return "Calorías activas"
+        case .english: return "Active calories"
+        }
+    }
+
+    // MARK: Home — transparency / definitions (inline)
+
+    var homeWhatItMeans: String {
+        switch self {
+        case .spanish: return "Qué significa"
+        case .english: return "What it means"
+        }
+    }
+
+    // Recovery definitions
+    var homeRecoveryWhatItMeansIntro: String {
+        switch self {
+        case .spanish: return "Esto es lo que usamos para estimar tu recuperación. Si algo sale como “—”, es porque Apple Health no registró suficiente información."
+        case .english: return "These are the signals we use to estimate recovery. If you see “—”, it means Apple Health didn’t record enough data."
+        }
+    }
+
+    var homeDefinitionHRVTitle: String {
+        switch self {
+        case .spanish: return "HRV"
+        case .english: return "HRV"
+        }
+    }
+
+    var homeDefinitionHRVBody: String {
+        switch self {
+        case .spanish: return "Variabilidad de la frecuencia cardiaca: cambios entre latidos. En general, más alto puede indicar mejor recuperación (pero varía por persona)."
+        case .english: return "Heart rate variability: changes between heart beats. Higher can suggest better recovery (but it’s personal)."
+        }
+    }
+
+    var homeDefinitionRHRTitle: String {
+        switch self {
+        case .spanish: return "FC en reposo"
+        case .english: return "Resting HR"
+        }
+    }
+
+    var homeDefinitionRHRBody: String {
+        switch self {
+        case .spanish: return "Tu frecuencia cardiaca cuando estás en reposo. Si sube más de lo normal, a veces es señal de fatiga, estrés o poco descanso."
+        case .english: return "Your heart rate at rest. If it’s higher than your usual, it can signal fatigue, stress, or poor sleep."
+        }
+    }
+
+    var homeDefinitionSleepScoreTitle: String {
+        switch self {
+        case .spanish: return "Score de sueño"
+        case .english: return "Sleep score"
+        }
+    }
+
+    var homeDefinitionSleepScoreBody: String {
+        switch self {
+        case .spanish: return "Un resumen (0–100) de cuánto y qué tan bien dormiste. Lo calculamos con tus fases/horas de sueño registradas."
+        case .english: return "A 0–100 summary of how much and how well you slept, based on sleep hours/stages recorded."
+        }
+    }
+
+    var homeDefinitionConfidenceTitle: String {
+        switch self {
+        case .spanish: return "Confianza"
+        case .english: return "Confidence"
+        }
+    }
+
+    var homeDefinitionConfidenceBody: String {
+        switch self {
+        case .spanish: return "Qué tan segura es la app de que los datos son completos. Si hay poca señal (por ejemplo, falta sueño o HRV), la confianza baja."
+        case .english: return "How sure we are the data is complete. If signals are missing (like sleep or HRV), confidence goes down."
+        }
+    }
+
+    var homeDataSourceAppleHealth: String {
+        switch self {
+        case .spanish: return "Fuente: Apple Health (HealthKit). Esta app solo lee tus datos con permiso; no inventa valores."
+        case .english: return "Source: Apple Health (HealthKit). This app only reads your data with permission; it doesn’t make values up."
+        }
+    }
+
+    // Sleep definitions
+    var homeSleepWhatItMeansIntro: String {
+        switch self {
+        case .spanish: return "Estas métricas vienen de tu sueño registrado. Si duermes sin el iPhone/Watch cerca, puede faltar información."
+        case .english: return "These metrics come from your recorded sleep. If you sleep without your iPhone/Watch nearby, data may be missing."
+        }
+    }
+
+    var homeDefinitionSleepTotalTitle: String {
+        switch self {
+        case .spanish: return "Horas dormidas"
+        case .english: return "Sleep hours"
+        }
+    }
+
+    var homeDefinitionSleepTotalBody: String {
+        switch self {
+        case .spanish: return "Tiempo total que Apple Health detectó como sueño."
+        case .english: return "Total time Apple Health detected as sleep."
+        }
+    }
+
+    var homeDefinitionSleepDeepTitle: String {
+        switch self {
+        case .spanish: return "Sueño profundo"
+        case .english: return "Deep sleep"
+        }
+    }
+
+    var homeDefinitionSleepDeepBody: String {
+        switch self {
+        case .spanish: return "Fase de sueño más reparadora para el cuerpo. No siempre se detecta en todos los dispositivos."
+        case .english: return "A restorative sleep stage for the body. It may not be detected on every device."
+        }
+    }
+
+    var homeDefinitionSleepREMTitle: String {
+        switch self {
+        case .spanish: return "Sueño REM"
+        case .english: return "REM sleep"
+        }
+    }
+
+    var homeDefinitionSleepREMBody: String {
+        switch self {
+        case .spanish: return "Fase relacionada con memoria y aprendizaje. Puede variar mucho noche a noche."
+        case .english: return "A stage linked to memory and learning. It can vary a lot night to night."
+        }
+    }
+
+    var homeDefinitionSleepRegularityTitle: String {
+        switch self {
+        case .spanish: return "Regularidad"
+        case .english: return "Regularity"
+        }
+    }
+
+    var homeDefinitionSleepRegularityBody: String {
+        switch self {
+        case .spanish: return "Qué tan parecidos fueron tus horarios de dormir/despertar comparado con tus últimos días."
+        case .english: return "How consistent your sleep/wake times were compared with recent days."
+        }
+    }
+
+    var homeDataSourceAppleHealthSleep: String {
+        switch self {
+        case .spanish: return "Fuente: sueño detectado en Apple Health (HealthKit)."
+        case .english: return "Source: sleep detected in Apple Health (HealthKit)."
+        }
+    }
+
+    // Activity definitions
+    var homeActivityWhatItMeansIntro: String {
+        switch self {
+        case .spanish: return "Actividad resume tu movimiento del día. Si ves “—”, es porque no hay datos suficientes en Apple Health."
+        case .english: return "Activity summarizes your daily movement. If you see “—”, Apple Health didn’t have enough data."
+        }
+    }
+
+    var homeDefinitionStepsTitle: String {
+        switch self {
+        case .spanish: return "Pasos"
+        case .english: return "Steps"
+        }
+    }
+
+    var homeDefinitionStepsBody: String {
+        switch self {
+        case .spanish: return "Conteo de pasos detectado por tu iPhone/Watch durante el día."
+        case .english: return "Step count detected by your iPhone/Watch during the day."
+        }
+    }
+
+    var homeDefinitionActiveCaloriesTitle: String {
+        switch self {
+        case .spanish: return "Calorías activas"
+        case .english: return "Active calories"
+        }
+    }
+
+    var homeDefinitionActiveCaloriesBody: String {
+        switch self {
+        case .spanish: return "Energía estimada que gastaste al moverte (no incluye lo que gastas en reposo)."
+        case .english: return "Estimated energy you burned from movement (not including resting energy)."
+        }
+    }
+
+    var homeDataSourceAppleHealthActivity: String {
+        switch self {
+        case .spanish: return "Fuente: pasos y energía activa en Apple Health (HealthKit)."
+        case .english: return "Source: steps and active energy in Apple Health (HealthKit)."
+        }
+    }
+
     func homeHeroAccessibility(score: Int, confidence: String) -> String {
         switch self {
         case .spanish: return "Recuperación \(score) de 100. \(confidence)"

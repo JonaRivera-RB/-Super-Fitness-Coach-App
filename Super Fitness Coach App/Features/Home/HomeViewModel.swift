@@ -10,6 +10,7 @@ import Observation
 final class HomeViewModel {
     private(set) var recoveryScore: HealthDataStatus<Int> = .loading
     private(set) var activityScore: HealthDataStatus<Int> = .loading
+    private(set) var sleepScore: HealthDataStatus<Int> = .loading
     private(set) var statusIndicator: StatusIndicator = .yellow
     private(set) var recommendationText: String = ""
     private(set) var totalPoints: Int = 0
@@ -21,6 +22,17 @@ final class HomeViewModel {
     private(set) var isLoading: Bool = false
     private(set) var recoveryBreakdown: ScoreBreakdown?
     private(set) var activityBreakdown: ScoreBreakdown?
+    // Raw health values for detail screens
+    private(set) var sleepHours: HealthDataStatus<Double> = .loading
+    private(set) var deepSleepHours: HealthDataStatus<Double> = .loading
+    private(set) var remSleepHours: HealthDataStatus<Double> = .loading
+    private(set) var sleepConsistencyScore: Int = 0
+    private(set) var sleepSessionStart: Date?
+    private(set) var sleepSessionEnd: Date?
+    private(set) var restingHR: HealthDataStatus<Double> = .loading
+    private(set) var hrv: HealthDataStatus<Double> = .loading
+    private(set) var stepCount: HealthDataStatus<Double> = .loading
+    private(set) var activeEnergy: HealthDataStatus<Double> = .loading
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
 
     private(set) var coachSummary: String = ""
@@ -34,6 +46,10 @@ final class HomeViewModel {
     private(set) var heroRecoveryMessage: String? = nil
     /// Si true, la card principal está mostrando el score de AYER.
     private(set) var isShowingYesterdayRecovery: Bool = false
+    /// Si true, el ring/pantalla de Sueño está mostrando datos de AYER.
+    private(set) var isShowingYesterdaySleep: Bool = false
+    /// Texto opcional bajo el ring/pantalla de sueño (p. ej. “recopilando…”).
+    private(set) var heroSleepMessage: String? = nil
     /// "Anoche" card: sleep duration, window, goal line, HRV/RHR vs baseline.
     private(set) var lastNightSleepSummary: String = ""
     private(set) var lastNightSleepWindow: String = ""
@@ -132,16 +148,32 @@ final class HomeViewModel {
         }
 
         await healthKitManager.refreshHealthData(config: config)
-        recoveryScore = healthKitManager.recoveryScore
-        activityScore = healthKitManager.activityScore
+        let rawRecoveryScore = healthKitManager.recoveryScore
+        let rawActivityScore = healthKitManager.activityScore
+        let rawSleepScore = healthKitManager.sleepScore
+
+        recoveryScore = rawRecoveryScore
+        activityScore = rawActivityScore
+        sleepScore = rawSleepScore
         recoveryBreakdown = healthKitManager.recoveryBreakdown
         activityBreakdown = healthKitManager.activityBreakdown
         authorizationStatus = healthKitManager.authorizationStatus
+        sleepHours = healthKitManager.sleepHours
+        deepSleepHours = healthKitManager.deepSleepHours
+        remSleepHours = healthKitManager.remSleepHours
+        sleepConsistencyScore = healthKitManager.sleepConsistencyScore
+        sleepSessionStart = healthKitManager.sleepSessionStart
+        sleepSessionEnd = healthKitManager.sleepSessionEnd
+        restingHR = healthKitManager.restingHR
+        hrv = healthKitManager.hrv
+        stepCount = healthKitManager.stepCount
+        activeEnergy = healthKitManager.activeEnergy
         let lang = AppLanguage.current
         recoveryConfidenceLabel = healthKitManager.recoveryConfidence.localizedLabel(lang)
         populateRecoveryContextLines(config: config)
 
         applyOvernightRecoveryPresentationIfNeeded(language: lang)
+        applyOvernightSleepPresentationIfNeeded(language: lang)
 
         let recoveryValue = recoveryScore.value ?? 50
         let activityValue = activityScore.value ?? 0
@@ -184,10 +216,24 @@ final class HomeViewModel {
             detoxActive = false; detoxCurrentDay = 0
         }
 
-        if authorizationStatus == .authorized,
-           case .available(let r) = recoveryScore,
-           case .available(let a) = activityScore {
-            try? recoverySnapshotRepository.upsertToday(recovery: r, activity: a)
+        if shouldPersistTodaySnapshot(),
+           authorizationStatus == .authorized,
+           case .available(let r) = rawRecoveryScore,
+           case .available(let a) = rawActivityScore {
+            try? recoverySnapshotRepository.upsertToday(
+                recovery: r,
+                activity: a,
+                sleepScore: rawSleepScore.value,
+                sleepHours: healthKitManager.sleepHours.value,
+                deepSleepHours: healthKitManager.deepSleepHours.value,
+                remSleepHours: healthKitManager.remSleepHours.value,
+                sleepConsistencyScore: healthKitManager.sleepConsistencyScore,
+                sleepSessionStart: healthKitManager.sleepSessionStart,
+                sleepSessionEnd: healthKitManager.sleepSessionEnd,
+                restingHR: healthKitManager.restingHR.value,
+                hrv: healthKitManager.hrv.value,
+                recoveryConfidenceRaw: healthKitManager.recoveryConfidence.rawValue
+            )
         }
         loadRecoveryHistory()
 
@@ -236,6 +282,54 @@ final class HomeViewModel {
         heroRecoveryMessage = AppLanguage.current.homeRecoveryNotCollectedByNoon
         recoveryScore = .unavailable
         recoveryBreakdown = nil
+    }
+
+    private func applyOvernightSleepPresentationIfNeeded(language: AppLanguage) {
+        heroSleepMessage = nil
+        isShowingYesterdaySleep = false
+
+        let now = Date()
+        let cal = Calendar.current
+        let noonToday = cal.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+
+        // “Datos listos para sueño hoy”: sesión sincronizada + score disponible.
+        let hasSleepSession = (healthKitManager.sleepSessionEnd != nil)
+        let sleepReady = hasSleepSession && sleepScore.isAvailable
+        guard !sleepReady else { return }
+
+        if now < noonToday {
+            heroSleepMessage = language.homeRecoveryCollectingOvernight
+            if let y = fetchYesterdayRecoverySnapshot(now: now) {
+                sleepScore = y.sleepScore.map { .available($0) } ?? .unavailable
+                sleepHours = y.sleepHours.map { .available($0) } ?? .unavailable
+                deepSleepHours = y.deepSleepHours.map { .available($0) } ?? .unavailable
+                remSleepHours = y.remSleepHours.map { .available($0) } ?? .unavailable
+                sleepConsistencyScore = y.sleepConsistencyScore ?? 0
+                sleepSessionStart = y.sleepSessionStart
+                sleepSessionEnd = y.sleepSessionEnd
+                isShowingYesterdaySleep = true
+            } else {
+                sleepScore = .unavailable
+            }
+            return
+        }
+
+        heroSleepMessage = language.homeRecoveryNotCollectedByNoon
+        sleepScore = .unavailable
+    }
+
+    private func shouldPersistTodaySnapshot() -> Bool {
+        let hasSleepSession = (healthKitManager.sleepSessionEnd != nil)
+        let confidenceReady: Bool = {
+            switch healthKitManager.recoveryConfidence {
+            case .high, .medium: return true
+            case .low, .insufficient: return false
+            }
+        }()
+        return hasSleepSession
+            && confidenceReady
+            && healthKitManager.recoveryScore.isAvailable
+            && healthKitManager.activityScore.isAvailable
     }
 
     private func fetchYesterdayRecoverySnapshot(now: Date) -> RecoverySnapshot? {

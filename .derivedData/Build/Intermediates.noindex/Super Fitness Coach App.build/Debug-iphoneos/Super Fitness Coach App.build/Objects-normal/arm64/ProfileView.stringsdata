@@ -1,0 +1,384 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Profile/ProfileView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%@, goal: %@",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 95
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 106
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ejercicios locales",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Local exercises",
+        "location": {
+          "startingColumn": 65,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Descargando catálogo…",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 114
+        }
+      },
+      {
+        "comment": "",
+        "key": "Downloading catalog…",
+        "location": {
+          "startingColumn": 74,
+          "startingLine": 114
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reintentar descarga",
+        "location": {
+          "startingColumn": 40,
+          "startingLine": 130
+        }
+      },
+      {
+        "comment": "",
+        "key": "Retry download",
+        "location": {
+          "startingColumn": 64,
+          "startingLine": 130
+        }
+      },
+      {
+        "comment": "",
+        "key": "Catálogo de ejercicios",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 136
+        }
+      },
+      {
+        "comment": "",
+        "key": "Exercise catalog",
+        "location": {
+          "startingColumn": 65,
+          "startingLine": 136
+        }
+      },
+      {
+        "comment": "",
+        "key": "Se descarga automáticamente la primera vez. Este botón fuerza la importación desde los fixtures de wger en GitHub para tenerlo offline.",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 140
+        }
+      },
+      {
+        "comment": "",
+        "key": "It downloads automatically the first time. This button forces an import from wger GitHub fixtures so it works offline.",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 141
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@: %@",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 218
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@: %@",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 245
+        }
+      },
+      {
+        "comment": "",
+        "key": "Validation error: %@",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 274
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 288
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ cm",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 302
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ ft %@ in",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 310
+        }
+      },
+      {
+        "comment": "",
+        "key": "kg",
+        "location": {
+          "startingColumn": 65,
+          "startingLine": 333
+        }
+      },
+      {
+        "comment": "",
+        "key": "lbs",
+        "location": {
+          "startingColumn": 72,
+          "startingLine": 333
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight in %@",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 336
+        }
+      },
+      {
+        "comment": "",
+        "key": "cm",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 342
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height in centimeters",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 345
+        }
+      },
+      {
+        "comment": "",
+        "key": "ft",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 355
+        }
+      },
+      {
+        "comment": "",
+        "key": "in",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "ft",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 350
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height feet",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 354
+        }
+      },
+      {
+        "comment": "",
+        "key": "in",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height inches",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 360
+        }
+      },
+      {
+        "comment": "",
+        "key": "Validation error: %@",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 412
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 424
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 430
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld %@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 438
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld %@",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 436
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@%@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 514
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ kcal",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 530
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ bpm",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 538
+        }
+      },
+      {
+        "comment": "",
+        "key": "hours",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 579
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sleep goal in hours, 4 to 12",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 583
+        }
+      },
+      {
+        "comment": "",
+        "key": "steps",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 591
+        }
+      },
+      {
+        "comment": "",
+        "key": "Steps goal, 1000 to 50000",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 595
+        }
+      },
+      {
+        "comment": "",
+        "key": "kcal",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 606
+        }
+      },
+      {
+        "comment": "",
+        "key": "kcal",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 601
+        }
+      },
+      {
+        "comment": "",
+        "key": "Calorie goal, 100 to 2000",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 605
+        }
+      },
+      {
+        "comment": "",
+        "key": "bpm",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 618
+        }
+      },
+      {
+        "comment": "",
+        "key": "bpm",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 613
+        }
+      },
+      {
+        "comment": "",
+        "key": "Baseline resting heart rate, 35 to 120",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 617
+        }
+      }
+    ]
+  },
+  "version": 1
+}

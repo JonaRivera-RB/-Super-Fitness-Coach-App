@@ -1,0 +1,264 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Detox/DetoxView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Detox Mode",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 29
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge complete. 7 days alcohol-free. %lld points earned.",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 303
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day %lld of 7",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 57
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld of 7 days completed",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld of %lld bonus points earned",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel detox challenge",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 201
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day %lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 40
+        }
+      },
+      {
+        "comment": "",
+        "key": "of 7",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "Day %lld of 7",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Progress",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "",
+        "key": "D%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 111
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 99
+        }
+      },
+      {
+        "comment": "",
+        "key": "Today marked alcohol-free",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 123
+        }
+      },
+      {
+        "comment": "",
+        "key": "Today marked as alcohol-free",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 132
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark today as alcohol-free",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 143
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark Today Alcohol-Free",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 135
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bonus Points",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 152
+        }
+      },
+      {
+        "comment": "",
+        "key": "Earned",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 157
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 160
+        }
+      },
+      {
+        "comment": "",
+        "key": "Available",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 169
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 172
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel Challenge",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 195
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start 7-day detox challenge",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 244
+        }
+      },
+      {
+        "comment": "",
+        "key": "7-Day Detox Challenge",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 213
+        }
+      },
+      {
+        "comment": "",
+        "key": "Commit to 7 alcohol-free days and earn up to %lld bonus points.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 217
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start Challenge",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 236
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge Complete!",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 268
+        }
+      },
+      {
+        "comment": "",
+        "key": "7 days alcohol-free 🎉",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start a new detox challenge",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 300
+        }
+      },
+      {
+        "comment": "",
+        "key": "+%lld points earned",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 277
+        }
+      },
+      {
+        "comment": "",
+        "key": "Badge: 7 days no alcohol",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 281
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start New Challenge",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 292
+        }
+      }
+    ]
+  },
+  "version": 1
+}

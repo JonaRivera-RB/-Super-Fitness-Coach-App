@@ -1,0 +1,120 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Training/FeedbackView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Resumen del entreno",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 29
+        }
+      },
+      {
+        "comment": "",
+        "key": "Welcome to your first workout. Great job completing your first session.",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 61
+        }
+      },
+      {
+        "comment": "",
+        "key": "You are improving",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 83
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld consecutive training days",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 160
+        }
+      },
+      {
+        "comment": "",
+        "key": "Welcome to your first workout!",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 44
+        }
+      },
+      {
+        "comment": "",
+        "key": "Great job completing your first session. Keep it up and you'll start seeing your progress here.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 49
+        }
+      },
+      {
+        "comment": "",
+        "key": "🔼",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 70
+        }
+      },
+      {
+        "comment": "",
+        "key": "You're improving!",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 72
+        }
+      },
+      {
+        "comment": "",
+        "key": "Progreso de peso (máx. por ejercicio)",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 91
+        }
+      },
+      {
+        "comment": "",
+        "key": "Comparado con tu último día de entreno anterior para ese mismo movimiento (no es el volumen total).",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 95
+        }
+      },
+      {
+        "comment": "",
+        "key": "No hay datos de ejercicios.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 100
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@, %@",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 143
+        }
+      },
+      {
+        "comment": "",
+        "key": "consecutive days",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 146
+        }
+      }
+    ]
+  },
+  "version": 1
+}
