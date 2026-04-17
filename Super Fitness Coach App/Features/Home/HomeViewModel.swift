@@ -33,6 +33,9 @@ final class HomeViewModel {
     private(set) var hrv: HealthDataStatus<Double> = .loading
     private(set) var stepCount: HealthDataStatus<Double> = .loading
     private(set) var activeEnergy: HealthDataStatus<Double> = .loading
+    /// Metas de actividad desde `FitnessConfig` (perfil).
+    private(set) var stepsGoal: Double = FitnessConfig.default.stepsGoal
+    private(set) var calorieGoal: Double = FitnessConfig.default.calorieGoal
     private(set) var authorizationStatus: AuthorizationStatus = .notDetermined
 
     private(set) var coachSummary: String = ""
@@ -68,8 +71,11 @@ final class HomeViewModel {
     private(set) var coachSummaryAccessibilityLabel: String = ""
     /// VoiceOver corto para la interpretación rápida.
     private(set) var quickMeaningAccessibilityLabel: String = ""
-    /// Últimos días con recuperación guardada localmente (más antiguo → más reciente).
+    /// Últimos 7 días calendario (hoy a la izquierda), con snapshot opcional por día.
     private(set) var recoveryHistoryDays: [RecoveryHistoryDay] = []
+    /// Ventana móvil de 7 días (hoy incluido) para gráfica 0...100.
+    /// Si un día no tiene snapshot, se renderiza solo el track (sin fill).
+    private(set) var rollingRecoveryDays: [RollingRecoveryDay] = []
     private(set) var recoveryInsights: [MetricInsight] = []
     private(set) var activityInsights: [MetricInsight] = []
 
@@ -87,6 +93,17 @@ final class HomeViewModel {
         let id: Date
         let weekdayShort: String
         let recoveryScore: Int
+        let hasSnapshot: Bool
+        let isToday: Bool
+    }
+
+    struct RollingRecoveryDay: Identifiable, Equatable {
+        let id: Date // dayStart
+        /// 1...7 (Lun...Dom / Mon...Sun)
+        let dayOfWeek: Int
+        /// nil = no snapshot
+        let percent: Int?
+        let isToday: Bool
     }
 
     enum StatusIndicator: String {
@@ -146,6 +163,8 @@ final class HomeViewModel {
         } else {
             config = .default
         }
+        stepsGoal = config.stepsGoal
+        calorieGoal = config.calorieGoal
 
         await healthKitManager.refreshHealthData(config: config)
         let rawRecoveryScore = healthKitManager.recoveryScore
@@ -236,12 +255,50 @@ final class HomeViewModel {
             )
         }
         loadRecoveryHistory()
+        loadRollingRecoveryWindow(now: Date())
 
         await notificationService.scheduleDailyNotification(
             recoveryScore: recoveryValue,
             statusEmoji: statusIndicator.emoji,
             recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue, language: AppLanguage.current)
         )
+    }
+
+    private func loadRollingRecoveryWindow(now: Date) {
+        do {
+            let cal = Calendar.current
+            let todayStart = cal.startOfDay(for: now)
+            guard let start = cal.date(byAdding: .day, value: -6, to: todayStart) else {
+                rollingRecoveryDays = []
+                return
+            }
+
+            let snaps = try recoverySnapshotRepository.fetchRecent(limit: 60, now: now)
+            var lookup: [Date: RecoverySnapshot] = [:]
+            for s in snaps {
+                lookup[cal.startOfDay(for: s.dayStart)] = s
+            }
+
+            var out: [RollingRecoveryDay] = []
+            for offset in 0..<7 {
+                guard let d = cal.date(byAdding: .day, value: offset, to: start) else { continue }
+                let dayStart = cal.startOfDay(for: d)
+                let weekday = cal.component(.weekday, from: dayStart) // 1=Sun...7=Sat
+                let dayOfWeek = weekday == 1 ? 7 : weekday - 1 // 1=Mon...7=Sun
+                let score = lookup[dayStart]?.recoveryScore
+                out.append(
+                    RollingRecoveryDay(
+                        id: dayStart,
+                        dayOfWeek: dayOfWeek,
+                        percent: score.map { min(100, max(0, $0)) },
+                        isToday: dayStart == todayStart
+                    )
+                )
+            }
+            rollingRecoveryDays = out
+        } catch {
+            rollingRecoveryDays = []
+        }
     }
 
     private func applyOvernightRecoveryPresentationIfNeeded(language: AppLanguage) {
@@ -346,17 +403,24 @@ final class HomeViewModel {
 
     private func loadRecoveryHistory() {
         do {
-            let rows = try recoverySnapshotRepository.fetchRecent(limit: 7)
-            let chronological = Array(rows.reversed())
+            let now = Date()
+            let cal = Calendar.current
+            let lang = AppLanguage.current
+            let todayStart = cal.startOfDay(for: now)
+            let rows = try recoverySnapshotRepository.fetchRecent(limit: 7, now: now)
             let df = DateFormatter()
-            df.locale = Locale(identifier: AppLanguage.current == .spanish ? "es_ES" : "en_US")
+            df.locale = Locale(identifier: lang == .spanish ? "es_ES" : "en_US")
             df.setLocalizedDateFormatFromTemplate("EEE")
+            let chronological = Array(rows.reversed())
             recoveryHistoryDays = chronological.map { snap in
-                let label = df.string(from: snap.dayStart).trimmingCharacters(in: .whitespaces)
+                let dayStart = cal.startOfDay(for: snap.dayStart)
+                let label = df.string(from: dayStart).trimmingCharacters(in: .whitespaces)
                 return RecoveryHistoryDay(
-                    id: snap.dayStart,
+                    id: dayStart,
                     weekdayShort: label.replacingOccurrences(of: ".", with: ""),
-                    recoveryScore: snap.recoveryScore
+                    recoveryScore: snap.recoveryScore,
+                    hasSnapshot: true,
+                    isToday: dayStart == todayStart
                 )
             }
         } catch {

@@ -8,11 +8,20 @@ import SwiftUI
 struct ActivityDetailScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var lang
+    @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
 
     let viewModel: HomeViewModel
 
     @State private var showWhatItMeans = true
+
+    private var integerFormatter: NumberFormatter {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.locale = locale
+        f.maximumFractionDigits = 0
+        return f
+    }
 
     var body: some View {
         NavigationStack {
@@ -57,10 +66,63 @@ struct ActivityDetailScreen: View {
 
     private var metricList: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            metricRow(icon: "figure.walk", title: lang.homeMetricSteps, value: formatCount(viewModel.stepCount.value))
-            metricRow(icon: "flame.fill", title: lang.homeMetricActiveCalories, value: formatKcal(viewModel.activeEnergy.value))
+            activityMetricRow(
+                icon: "figure.walk",
+                title: lang.homeMetricSteps,
+                current: viewModel.stepCount.value,
+                goal: viewModel.stepsGoal
+            )
+            activityMetricRow(
+                icon: "flame.fill",
+                title: lang.homeMetricActiveCalories,
+                current: viewModel.activeEnergy.value,
+                goal: viewModel.calorieGoal,
+                suffixKcal: true
+            )
         }
         .tokenCard()
+    }
+
+    private func activityMetricRow(
+        icon: String,
+        title: String,
+        current: Double?,
+        goal: Double,
+        suffixKcal: Bool = false
+    ) -> some View {
+        let goalStr = formatIntForDisplay(goal)
+        let currentStr: String = {
+            guard let current else { return "—" }
+            let s = formatIntForDisplay(current)
+            return suffixKcal ? "\(s) kcal" : s
+        }()
+        return HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: icon)
+                .foregroundStyle(DesignTokens.Color.textSecondary)
+                .frame(width: 22)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(DesignTokens.Typography.captionRegular)
+                    .foregroundStyle(DesignTokens.Color.textPrimary)
+                Text("\(lang.homeActivityGoalShort): \(goalStr)\(suffixKcal ? " kcal" : "")")
+                    .font(DesignTokens.Typography.micro)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
+            }
+            Spacer(minLength: DesignTokens.Spacing.sm)
+            Text(currentStr)
+                .font(DesignTokens.Typography.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(DesignTokens.Color.textPrimary)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func formatIntForDisplay(_ value: Double) -> String {
+        let n = NSNumber(value: round(value))
+        return integerFormatter.string(from: n) ?? String(Int(round(value)))
     }
 
     private var whatItMeansSection: some View {
@@ -101,24 +163,6 @@ struct ActivityDetailScreen: View {
                 .foregroundStyle(DesignTokens.Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private func metricRow(icon: String, title: String, value: String) -> some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
-                .frame(width: 22)
-            Text(title)
-                .font(DesignTokens.Typography.captionRegular)
-                .foregroundStyle(DesignTokens.Color.textPrimary)
-            Spacer()
-            Text(value)
-                .font(DesignTokens.Typography.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
-                .monospacedDigit()
-        }
-        .padding(.vertical, 6)
     }
 
     private func bigRing(title: String, value: Int?, tint: Color) -> some View {
@@ -162,14 +206,5 @@ struct ActivityDetailScreen: View {
             .padding(.horizontal, DesignTokens.Spacing.sm)
     }
 
-    private func formatCount(_ v: Double?) -> String {
-        guard let v else { return "—" }
-        return "\(Int(round(v)))"
-    }
-
-    private func formatKcal(_ v: Double?) -> String {
-        guard let v else { return "—" }
-        return "\(Int(round(v))) kcal"
-    }
 }
 

@@ -981,6 +981,14 @@ extension AppLanguage {
         }
     }
 
+    /// Etiqueta corta antes del valor objetivo (pasos/kcal) en el detalle de actividad.
+    var homeActivityGoalShort: String {
+        switch self {
+        case .spanish: return "Meta"
+        case .english: return "Goal"
+        }
+    }
+
     // MARK: Home — transparency / definitions (inline)
 
     var homeWhatItMeans: String {
@@ -1523,10 +1531,42 @@ extension AppLanguage {
         }
     }
 
+    /// Título de la tarjeta de barras (estilo progreso semanal).
+    var homeRecoveryWeeklyProgressTitle: String {
+        switch self {
+        case .spanish: return "Progreso semanal"
+        case .english: return "Weekly progress"
+        }
+    }
+
+    var homeRecoveryLast7Days: String {
+        switch self {
+        case .spanish: return "Últimos 7 días"
+        case .english: return "Last 7 days"
+        }
+    }
+
     func recoveryHistoryChipA11y(weekday: String, score: Int) -> String {
         switch self {
         case .spanish: return "\(weekday), recuperación \(score)"
         case .english: return "\(weekday), recovery \(score)"
+        }
+    }
+
+    func recoveryHistoryBarA11y(weekday: String, score: Int, isToday: Bool, hasData: Bool) -> String {
+        switch self {
+        case .spanish:
+            let dayTag = isToday ? "Hoy" : weekday
+            if hasData {
+                return "\(dayTag), recuperación \(score) de 100"
+            }
+            return "\(dayTag), sin datos de recuperación guardados"
+        case .english:
+            let dayTag = isToday ? "Today" : weekday
+            if hasData {
+                return "\(dayTag), recovery \(score) out of 100"
+            }
+            return "\(dayTag), no saved recovery data"
         }
     }
 

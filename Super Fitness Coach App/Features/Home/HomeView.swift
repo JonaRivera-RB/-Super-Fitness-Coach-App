@@ -6,10 +6,9 @@
 //  iOS 26+: Liquid Glass en cards y nav bar (glass material).
 //  iOS 18+: system materials, adaptive fills, native shadows.
 //
-//  Layout en 3 zonas:
-//  ① Hero (sin scroll) — score + chips + coach + CTA
-//  ② Detalles (scroll)  — breakdown colapsable por sección
-//  ③ Contextual         — detox banner, historial 7 días
+//  Layout en 2 zonas:
+//  ① Hero (scroll) — score + chips + coach + CTA
+//  ② Contextual — detox banner, historial 7 días
 //
 
 import SwiftUI
@@ -26,11 +25,10 @@ struct HomeView: View {
 
     // MARK: - State
 
-    @State private var showRecoveryBreakdown  = false
-    @State private var showActivityBreakdown  = false
     @State private var showHowWeScore         = false
     @State private var homeContentVisible     = false
     @State private var presentedRing: HomeRingDetail? = nil
+    @State private var selectedHistoryDayId: Date? = nil
 
     // MARK: - Environment
 
@@ -181,18 +179,7 @@ struct HomeView: View {
                         .offset(y: homeContentVisible ? 0 : 10)
                         .animation(DesignTokens.Motion.springSnappy.delay(0.26), value: homeContentVisible)
 
-                    // ── Separador hacia detalles ─────────────
-                    detailsDivider
-
-                    // ── Zona 2: detalles bajo demanda ────────
-                    recoveryDetailSection
-                        .id("recovery")
-                    sleepDetailSection
-                        .id("sleep")
-                    activityDetailSection
-                        .id("activity")
-
-                    // ── Zona 3: contextual ───────────────────
+                    // ── Contextual ───────────────────
                     if !viewModel.recoveryHistoryDays.isEmpty {
                         historyStripSection
                     }
@@ -220,6 +207,8 @@ struct HomeView: View {
         .task { await viewModel.onAppear() }
         .onAppear {
             homeContentVisible = true
+            selectedHistoryDayId = viewModel.recoveryHistoryDays.last(where: { $0.isToday })?.id
+                ?? viewModel.recoveryHistoryDays.last?.id
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -479,15 +468,6 @@ struct HomeView: View {
         }
     }
 
-    private var sleepChipValue: String {
-        if viewModel.lastNightSleepSummary.isEmpty { return "—" }
-        let s = viewModel.lastNightSleepSummary
-        if let range = s.range(of: #"[\d.]+\s*h"#, options: .regularExpression) {
-            return String(s[range])
-        }
-        return viewModel.lastNightSleepSummary
-    }
-
     @ViewBuilder
     private var heroCardBackground: some View {
         if #available(iOS 26, *) {
@@ -614,246 +594,109 @@ struct HomeView: View {
     }
 
     // ─────────────────────────────────────────────────────────
-    // MARK: Separador "Detalles"
+    // MARK: Contextual — historial 7 días
     // ─────────────────────────────────────────────────────────
-
-    private var detailsDivider: some View {
-        HStack {
-            Rectangle().fill(Color(.systemGray5)).frame(height: 1)
-            Text(lang.details)
-                .font(DesignTokens.Typography.micro)
-                .foregroundStyle(DesignTokens.Color.textTertiary)
-                .fixedSize()
-            Rectangle().fill(Color(.systemGray5)).frame(height: 1)
-        }
-        .padding(.vertical, DesignTokens.Spacing.xs)
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // MARK: Zona 2 — Detalles colapsables
-    // ─────────────────────────────────────────────────────────
-
-    // MARK: Recovery detail
 
     @ViewBuilder
-    private var recoveryDetailSection: some View {
-        if !viewModel.isLoading {
-            DisclosureGroup(
-                isExpanded: $showRecoveryBreakdown,
-                content: { recoveryBreakdownContent },
-                label: {
-                    disclosureLabel(
-                        icon: "bed.double.fill",
-                        title: lang.recoverySectionTitle,
-                        value: viewModel.recoveryScore.value.map { "\($0)/100" } ?? "—",
-                        accent: accent
-                    )
-                }
-            )
-            .tokenCard(padding: DesignTokens.Spacing.md)
-            .animation(DesignTokens.Motion.standard, value: showRecoveryBreakdown)
-        }
-    }
-
-    private var recoveryBreakdownContent: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            Divider()
-            if viewModel.recoveryInsights.isEmpty {
-                if let bd = viewModel.recoveryBreakdown, !bd.components.isEmpty {
-                    ForEach(bd.components, id: \.name) { component in
-                        metricRow(
-                            name: component.name,
-                            value: String(format: "%.1f %@", component.rawValue, component.rawUnit),
-                            status: component.status
-                        )
-                    }
-                } else {
-                    Text(lang.recoveryEmptyDetails)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Color.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.vertical, DesignTokens.Spacing.sm)
-                }
-            } else {
-                ForEach(Array(viewModel.recoveryInsights.enumerated()), id: \.offset) { _, insight in
-                    insightRow(insight: insight)
-                }
-            }
-        }
-        .padding(.top, DesignTokens.Spacing.xs)
-    }
-
-    // MARK: Sleep detail
-
-    @ViewBuilder
-    private var sleepDetailSection: some View {
-        let hasSleepData = !viewModel.lastNightSleepSummary.isEmpty
-            || !viewModel.quickMeaningLine.isEmpty
-            || !viewModel.sleepTrendLine.isEmpty
-
-        if !viewModel.isLoading, hasSleepData {
-            DisclosureGroup(
-                content: { sleepBreakdownContent },
-                label: {
-                    disclosureLabel(
-                        icon: "moon.zzz.fill",
-                        title: lang.lastNightSection,
-                        value: sleepChipValue,
-                        accent: DesignTokens.Color.info
-                    )
-                }
-            )
-            .tokenCard(padding: DesignTokens.Spacing.md)
-        }
-    }
-
-    private var sleepBreakdownContent: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Divider()
-
-            if !viewModel.lastNightSleepSummary.isEmpty {
-                Text(viewModel.lastNightSleepSummary)
-                    .font(DesignTokens.Typography.bodyMedium)
-                    .foregroundStyle(DesignTokens.Color.textPrimary)
-            }
-            if !viewModel.lastNightSleepWindow.isEmpty {
-                labeledRow(label: "Ventana", value: viewModel.lastNightSleepWindow)
-            }
-            if !viewModel.quickMeaningLine.isEmpty {
-                Text(viewModel.quickMeaningLine)
-                    .font(DesignTokens.Typography.captionRegular)
-                    .foregroundStyle(DesignTokens.Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if !viewModel.sleepTrendLine.isEmpty {
-                Text(viewModel.sleepTrendLine)
-                    .font(DesignTokens.Typography.captionRegular)
-                    .foregroundStyle(DesignTokens.Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if !viewModel.sleepConsistencyLine.isEmpty {
-                Text(viewModel.sleepConsistencyLine)
-                    .font(DesignTokens.Typography.captionRegular)
-                    .foregroundStyle(DesignTokens.Color.textSecondary)
-            }
-            if !viewModel.hrvVsBaselineLine.isEmpty || !viewModel.rhrVsBaselineLine.isEmpty {
-                Divider()
-                if !viewModel.hrvVsBaselineLine.isEmpty {
-                    Text(viewModel.hrvVsBaselineLine)
-                        .font(DesignTokens.Typography.micro)
-                        .foregroundStyle(DesignTokens.Color.textTertiary)
-                }
-                if !viewModel.rhrVsBaselineLine.isEmpty {
-                    Text(viewModel.rhrVsBaselineLine)
-                        .font(DesignTokens.Typography.micro)
-                        .foregroundStyle(DesignTokens.Color.textTertiary)
-                }
-            }
-            Text(lang.sleepMedicalDisclaimer)
-                .font(DesignTokens.Typography.micro)
-                .foregroundStyle(DesignTokens.Color.textQuaternary)
-        }
-        .padding(.top, DesignTokens.Spacing.xs)
-    }
-
-    // MARK: Activity detail
-
-    @ViewBuilder
-    private var activityDetailSection: some View {
-        if !viewModel.isLoading {
-            DisclosureGroup(
-                isExpanded: $showActivityBreakdown,
-                content: { activityBreakdownContent },
-                label: {
-                    disclosureLabel(
-                        icon: "figure.run",
-                        title: lang.homeLabelActivity,
-                        value: viewModel.activityScore.value.map { "\($0)/100" } ?? "—",
-                        accent: activityAccent
-                    )
-                }
-            )
-            .tokenCard(padding: DesignTokens.Spacing.md)
-            .animation(DesignTokens.Motion.standard, value: showActivityBreakdown)
-        }
-    }
-
-    private var activityAccent: Color {
-        guard let v = viewModel.activityScore.value else { return DesignTokens.Color.info }
-        if v >= 70 { return DesignTokens.Color.positive }
-        if v >= 40 { return DesignTokens.Color.info }
-        return DesignTokens.Color.caution
-    }
-
-    private var activityBreakdownContent: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            Divider()
-            if viewModel.activityInsights.isEmpty {
-                if let bd = viewModel.activityBreakdown, !bd.components.isEmpty {
-                    ForEach(bd.components, id: \.name) { comp in
-                        metricRow(
-                            name: comp.name,
-                            value: String(format: "%.1f %@", comp.rawValue, comp.rawUnit),
-                            status: comp.status
-                        )
-                    }
-                } else {
-                    Text(lang.recoveryEmptyDetails)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Color.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.vertical, DesignTokens.Spacing.sm)
-                }
-            } else {
-                ForEach(Array(viewModel.activityInsights.enumerated()), id: \.offset) { _, insight in
-                    insightRow(insight: insight)
-                }
-            }
-        }
-        .padding(.top, DesignTokens.Spacing.xs)
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // MARK: Zona 3 — Contextual
-    // ─────────────────────────────────────────────────────────
-
-    // MARK: History strip (7 días)
-
     private var historyStripSection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text(lang.recoveryHistoryTitle)
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
+        let days = viewModel.rollingRecoveryDays
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(lang.homeRecoveryWeeklyProgressTitle)
+                    .font(DesignTokens.Typography.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(DesignTokens.Color.textPrimary)
+                Spacer(minLength: DesignTokens.Spacing.sm)
+                Text(lang.homeRecoveryLast7Days)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(DesignTokens.Color.textSecondary)
+            }
 
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                ForEach(viewModel.recoveryHistoryDays) { day in
-                    historyBar(day: day)
+            HStack(alignment: .bottom, spacing: DesignTokens.Spacing.md) {
+                yAxis
+                HStack(alignment: .bottom, spacing: DesignTokens.Spacing.sm) {
+                    ForEach(days) { d in
+                        weeklyProgressBar(day: d)
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
         }
-        .tokenCard()
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .fill(DesignTokens.Color.surfaceCard)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                .stroke(Color(.separator).opacity(0.35), lineWidth: 1)
+        }
+        .tokenShadow(.card)
     }
 
-    private func historyBar(day: HomeViewModel.RecoveryHistoryDay) -> some View {
-        let level = DesignTokens.Color.recoveryLevel(score: day.recoveryScore)
-        return VStack(spacing: DesignTokens.Spacing.xs) {
-            Text("\(day.recoveryScore)")
-                .font(DesignTokens.Typography.microMedium)
-                .foregroundStyle(level.accent)
-                .monospacedDigit()
-            RoundedRectangle(cornerRadius: 3)
-                .fill(level.accent.opacity(colorScheme == .dark ? 0.70 : 0.55))
-                .frame(height: max(4, CGFloat(day.recoveryScore) / 100 * 40))
-            Text(day.weekdayShort)
+    private var yAxis: some View {
+        VStack {
+            Text("100")
+            Spacer()
+            Text("50")
+            Spacer()
+            Text("0")
+        }
+        .font(DesignTokens.Typography.micro)
+        .foregroundStyle(DesignTokens.Color.textTertiary)
+        .frame(width: 24, height: 120)
+    }
+
+    private func weeklyProgressBar(day: HomeViewModel.RollingRecoveryDay) -> some View {
+        let maxBar: CGFloat = 92
+        let percent = day.percent ?? 0
+        let ratio = CGFloat(min(100, max(0, percent))) / 100.0
+        let barH = max(minBar, min(ratio * maxBar, maxBar))
+        let track = LinearGradient(
+            colors: [
+                Color(.systemGray4).opacity(colorScheme == .dark ? 0.38 : 0.28),
+                Color(.systemGray4).opacity(0.10)
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+        let fill = LinearGradient(
+            colors: [
+                Color(uiColor: .systemOrange),
+                Color(uiColor: .systemOrange).opacity(0.75)
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+
+        return VStack(spacing: 8) {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(track)
+                    .frame(height: maxBar)
+                if day.percent != nil {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(fill)
+                        .frame(height: barH)
+                }
+            }
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.90 : 1))
+                    .frame(width: 5, height: 5)
+                    .offset(y: -2.5)
+            }
+
+            Text(lang.shortWeekday(day.dayOfWeek))
                 .font(DesignTokens.Typography.micro)
                 .foregroundStyle(DesignTokens.Color.textTertiary)
-                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(lang.recoveryHistoryChipA11y(weekday: day.weekdayShort, score: day.recoveryScore))
+        .accessibilityLabel("\(lang.shortWeekday(day.dayOfWeek)), \(day.percent.map(String.init) ?? "—") de 100")
     }
+
+    private let minBar: CGFloat = 6
 
     // MARK: Detox banner
 
@@ -877,115 +720,6 @@ struct HomeView: View {
         .accessibilityLabel(lang.detoxA11y(day: viewModel.detoxCurrentDay))
     }
 
-    // ─────────────────────────────────────────────────────────
-    // MARK: Sub-components reutilizables
-    // ─────────────────────────────────────────────────────────
-
-    private func disclosureLabel(icon: String, title: String, value: String, accent: Color) -> some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(accent)
-                .frame(width: 20)
-            Text(title)
-                .font(DesignTokens.Typography.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(DesignTokens.Color.textPrimary)
-            Spacer()
-            Text(value)
-                .font(DesignTokens.Typography.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(accent)
-                .monospacedDigit()
-        }
-    }
-
-    private func metricRow(name: String, value: String, status: ScoreBreakdown.ComponentStatus) -> some View {
-        HStack {
-            Circle()
-                .fill(statusColor(status))
-                .frame(width: 7, height: 7)
-            Text(name)
-                .font(DesignTokens.Typography.captionRegular)
-                .foregroundStyle(DesignTokens.Color.textPrimary)
-            Spacer()
-            Text(value)
-                .font(DesignTokens.Typography.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
-                .monospacedDigit()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name): \(value)")
-    }
-
-    private func insightRow(insight: MetricInsight) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
-                Circle()
-                    .fill(statusColor(for: insight.status))
-                    .frame(width: 7, height: 7)
-                    .padding(.top, 5)
-                Text(insight.message)
-                    .font(DesignTokens.Typography.captionRegular)
-                    .foregroundStyle(DesignTokens.Color.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let score = insight.normalizedScore {
-                insightProgressBar(score: score, insight: insight)
-                    .padding(.leading, DesignTokens.Spacing.md)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(insight.metricName): \(insight.message)")
-    }
-
-    private func insightProgressBar(score: Double, insight: MetricInsight) -> some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color(.systemGray5)).frame(height: 5)
-                Capsule()
-                    .fill(progressBarColor(for: score))
-                    .frame(width: geo.size.width * min(max(score / 100, 0), 1), height: 5)
-            }
-        }
-        .frame(height: 5)
-        .accessibilityElement()
-        .accessibilityLabel(lang.insightProgressA11y(metric: insight.metricName, percent: Int(min(score, 100))))
-    }
-
-    private func labeledRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(DesignTokens.Typography.micro)
-                .foregroundStyle(DesignTokens.Color.textTertiary)
-            Spacer()
-            Text(value)
-                .font(DesignTokens.Typography.micro)
-                .fontWeight(.medium)
-                .foregroundStyle(DesignTokens.Color.textSecondary)
-        }
-    }
-
-    // MARK: Colors helpers
-
-    private func statusColor(_ status: ScoreBreakdown.ComponentStatus) -> Color {
-        switch status {
-        case .warning: return DesignTokens.Color.destructive
-        case .good:    return DesignTokens.Color.positive
-        case .normal:  return DesignTokens.Color.caution
-        }
-    }
-
-    private func statusColor(for status: ScoreBreakdown.ComponentStatus) -> Color {
-        statusColor(status)
-    }
-
-    private func progressBarColor(for score: Double) -> Color {
-        if score >= 100 { return DesignTokens.Color.positive }
-        if score >= 40  { return DesignTokens.Color.info }
-        return DesignTokens.Color.caution
-    }
 }
 
 // ─────────────────────────────────────────────────────────
