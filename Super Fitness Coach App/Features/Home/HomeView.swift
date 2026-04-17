@@ -600,6 +600,7 @@ struct HomeView: View {
     @ViewBuilder
     private var historyStripSection: some View {
         let days = viewModel.rollingRecoveryDays
+        let isCollectingToday = (days.last?.isToday == true) && (days.last?.percent == nil)
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             HStack(alignment: .firstTextBaseline) {
                 Text(lang.homeRecoveryWeeklyProgressTitle)
@@ -621,6 +622,20 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: .infinity)
+
+            if isCollectingToday {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DesignTokens.Color.textTertiary)
+                    Text(lang.homeRecoveryCollectingOvernight)
+                        .font(DesignTokens.Typography.micro)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(lang.homeRecoveryCollectingOvernight)
+            }
         }
         .padding(DesignTokens.Spacing.md)
         .background(
@@ -670,21 +685,33 @@ struct HomeView: View {
         )
 
         return VStack(spacing: 8) {
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(track)
-                    .frame(height: maxBar)
-                if day.percent != nil {
+            ZStack {
+                ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(fill)
-                        .frame(height: barH)
+                        .fill(track)
+                        .frame(height: maxBar)
+                    if day.percent != nil {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(fill)
+                            .frame(height: barH)
+                    }
                 }
-            }
-            .overlay(alignment: .top) {
-                Circle()
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.90 : 1))
-                    .frame(width: 5, height: 5)
-                    .offset(y: -2.5)
+                .overlay {
+                    Text("\(percent)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(day.percent != nil ? Color.white.opacity(0.92) : DesignTokens.Color.textTertiary)
+                        .monospacedDigit()
+                }
+                .overlay {
+                    if day.isToday && day.percent == nil {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(DesignTokens.Color.textTertiary)
+                            .padding(6)
+                            .background(Circle().fill(.ultraThinMaterial))
+                            .accessibilityLabel(lang.homeRecoveryCollectingOvernight)
+                    }
+                }
             }
 
             Text(lang.shortWeekday(day.dayOfWeek))

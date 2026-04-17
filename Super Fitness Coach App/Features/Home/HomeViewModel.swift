@@ -325,6 +325,14 @@ final class HomeViewModel {
             heroRecoveryMessage = AppLanguage.current.homeRecoveryCollectingOvernight
             if let y = fetchYesterdayRecoverySnapshot(now: now) {
                 recoveryScore = .available(y.recoveryScore)
+                // Mostrar también métricas de AYER hasta que hoy esté listo (detalle Recovery).
+                hrv = y.hrv.map { .available($0) } ?? .unavailable
+                restingHR = y.restingHR.map { .available($0) } ?? .unavailable
+                sleepScore = y.sleepScore.map { .available($0) } ?? sleepScore
+                if let raw = y.recoveryConfidenceRaw,
+                   let level = HealthKitManager.DataConfidenceLevel(rawValue: raw) {
+                    recoveryConfidenceLabel = level.localizedLabel(language)
+                }
                 // No mostrar breakdown “de hoy” si estamos enseñando ayer.
                 recoveryBreakdown = nil
                 isShowingYesterdayRecovery = true
