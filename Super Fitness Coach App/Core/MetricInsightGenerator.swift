@@ -73,7 +73,7 @@ struct MetricInsightGenerator {
         config: FitnessConfig
     ) -> MetricInsight {
         let hours = component.rawValue
-        let goal = config.sleepGoalHours
+        let goal = config.effectiveSleepGoalHours
 
         let message: String
         switch component.status {

@@ -121,10 +121,19 @@ final class GamificationEngine {
     /// Si el último entreno que contó para la racha fue **hace 2+ días calendario**, la racha se pierde (no basta con abrir feedback).
     /// Llamar al arrancar y al refrescar pantallas que muestran la racha.
     func invalidateStaleStreakIfNeeded(calendar: Calendar = .current) {
-        guard let last = lastStreakWorkoutDay else { return }
+        guard let last = lastStreakWorkoutDay else {
+            // Sin fecha de último entreno no puede haber racha > 0 (estado incoherente p. ej. migración o persistencia).
+            if currentStreak > 0 {
+                currentStreak = 0
+                persistState()
+            }
+            return
+        }
         let todayStart = streakDayStart(for: Date(), calendar: calendar)
         let lastStart = streakDayStart(for: last, calendar: calendar)
-        guard let dayCount = calendar.dateComponents([.day], from: lastStart, to: todayStart).day else { return }
+        guard let dayCount = calendar.dateComponents([.day], from: lastStart, to: todayStart).day else {
+            return
+        }
         // 0 = mismo día, 1 = ayer (aún puedes entrenar hoy), ≥2 = saltaste al menos un día → racha rota
         if dayCount >= 2 {
             currentStreak = 0

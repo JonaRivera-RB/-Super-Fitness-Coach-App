@@ -53,6 +53,14 @@ struct SleepWindowBuilder {
         )
     }
 
+    /// Mismo criterio que el fetch de HealthKit: la ventana ajustada por meta+buffer no puede terminar
+    /// antes de un despertar real más tarde; al menos hasta el mediodía del día de levantar.
+    static func sleepFetchQueryEnd(window: ExpectedSleepWindow, calendar: Calendar = .current) -> Date {
+        let wakeDayStart = calendar.startOfDay(for: window.expectedEnd)
+        let throughNoon = calendar.date(byAdding: .hour, value: 12, to: wakeDayStart) ?? window.adjustedEnd
+        return max(window.adjustedEnd, throughNoon)
+    }
+
     private static func date(on day: Date, applying hm: DateComponents, calendar: Calendar) -> Date {
         var comps = calendar.dateComponents([.year, .month, .day], from: day)
         comps.hour = hm.hour

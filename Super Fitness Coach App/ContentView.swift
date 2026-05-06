@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @State private var hasCompletedOnboarding: Bool = false
     @State private var isCheckingOnboarding: Bool = true
 
@@ -85,6 +86,7 @@ struct ContentView: View {
                 let repo = UserProfileRepository(context: modelContext)
                 return (try? repo.fetch())?.effectiveFitnessConfig ?? .default
             }
+            healthKitManager.configureNotificationDelivery(notificationService)
             // Start observing HealthKit for new sleep data (auto-refresh on wake)
             // Only starts observers if already authorized — no permission prompt
             healthKitManager.startSleepMonitoring()
@@ -128,6 +130,12 @@ struct ContentView: View {
                 Task { @MainActor in
                     trainingPlanViewModel?.loadPlan()
                 }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                homeViewModel?.syncStreakFromEngine()
+                statsViewModel?.syncStreakFromEngine()
             }
         }
     }
@@ -309,7 +317,6 @@ struct ContentView: View {
                 trainingPlanRepository: repo,
                 gamificationEngine: ge,
                 detoxManager: dm,
-                notificationService: notificationService,
                 userProfileRepository: UserProfileRepository(context: modelContext),
                 recoverySnapshotRepository: RecoverySnapshotRepository(context: modelContext),
                 userName: userProfile?.name ?? ""

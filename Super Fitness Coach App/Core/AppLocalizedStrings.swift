@@ -147,6 +147,23 @@ extension AppLanguage {
         }
     }
 
+    /// Push local: datos de recuperación del día ya listos (cuando hay sueño sincronizado + confianza).
+    var notificationRecoveryDataReadyTitle: String {
+        switch self {
+        case .spanish: return "Tu coach"
+        case .english: return "Your coach"
+        }
+    }
+
+    func notificationRecoveryDataReadyBody(score: Int, emoji: String, tip: String) -> String {
+        switch self {
+        case .spanish:
+            return "Tu recuperación de hoy ya está lista: \(score) \(emoji). \(tip)"
+        case .english:
+            return "Today’s recovery data is ready: \(score) \(emoji). \(tip)"
+        }
+    }
+
     var notificationsOn: String {
         switch self {
         case .spanish: return "Activadas"
@@ -932,11 +949,302 @@ extension AppLanguage {
         }
     }
 
+    var homeMetricSleepContinuity: String {
+        switch self {
+        case .spanish: return "Continuidad (menos interrupciones)"
+        case .english: return "Continuity (fewer wake-ups)"
+        }
+    }
+
     var homeMetricSleepWindow: String {
         switch self {
         case .spanish: return "Ventana detectada"
         case .english: return "Detected window"
         }
+    }
+
+    // MARK: Sleep detail (MVP)
+
+    /// Barra de navegación del detalle de sueño cuando los datos son del día anterior (placeholder).
+    var sleepDetailNavTitleYesterday: String {
+        switch self {
+        case .spanish: return "AYER"
+        case .english: return "YESTERDAY"
+        }
+    }
+
+    /// Leyenda explícita: el usuario ve datos de ayer mientras hoy sigue cargando.
+    var sleepDetailTodayDataLoadingLegend: String {
+        switch self {
+        case .spanish:
+            return "Los datos del día de hoy aún se están cargando. La información que ves corresponde a ayer."
+        case .english:
+            return "Today’s data is still loading. What you’re seeing is from yesterday."
+        }
+    }
+
+    var sleepDetailSegmentDay: String {
+        switch self {
+        case .spanish: return "Día"
+        case .english: return "Day"
+        }
+    }
+
+    var sleepDetailSegmentWeek: String {
+        switch self {
+        case .spanish: return "Sem"
+        case .english: return "Wk"
+        }
+    }
+
+    var sleepDetailSegmentMonth: String {
+        switch self {
+        case .spanish: return "Mes"
+        case .english: return "Mo"
+        }
+    }
+
+    var sleepDetailTabSoon: String {
+        switch self {
+        case .spanish: return "Próximamente"
+        case .english: return "Coming soon"
+        }
+    }
+
+    var sleepDetailContributorsTitle: String {
+        switch self {
+        case .spanish: return "Contribuyentes a la calidad del sueño"
+        case .english: return "Sleep quality contributors"
+        }
+    }
+
+    var sleepDetailPhasesTitle: String {
+        switch self {
+        case .spanish: return "Fases"
+        case .english: return "Stages"
+        }
+    }
+
+    var sleepDetailDuration: String {
+        switch self {
+        case .spanish: return "Duración"
+        case .english: return "Duration"
+        }
+    }
+
+    var sleepDetailQuality: String {
+        switch self {
+        case .spanish: return "Calidad"
+        case .english: return "Quality"
+        }
+    }
+
+    var sleepDetailGoalNotReached: String {
+        switch self {
+        case .spanish: return "No alcanzado"
+        case .english: return "Not reached"
+        }
+    }
+
+    var sleepDetailHeadlineWhenLow: String {
+        switch self {
+        case .spanish: return "Es hora de priorizar el sueño"
+        case .english: return "It’s time to prioritize sleep"
+        }
+    }
+
+    var sleepDetailHeadlineWhenOK: String {
+        switch self {
+        case .spanish: return "Buen equilibrio en tus métricas de descanso"
+        case .english: return "You’re in a good range for rest metrics"
+        }
+    }
+
+    var sleepDetailRowTotal: String {
+        switch self {
+        case .spanish: return "Sueño total"
+        case .english: return "Total sleep"
+        }
+    }
+
+    var sleepDetailRowRestorative: String {
+        switch self {
+        case .spanish: return "Sueño reparador"
+        case .english: return "Restorative sleep"
+        }
+    }
+
+    var sleepDetailRowContinuity: String {
+        switch self {
+        case .spanish: return "Continuidad"
+        case .english: return "Continuity"
+        }
+    }
+
+    var sleepDetailRowEfficiency: String {
+        switch self {
+        case .spanish: return "Eficiencia"
+        case .english: return "Efficiency"
+        }
+    }
+
+    var sleepDetailRowRegularity: String {
+        switch self {
+        case .spanish: return "Regularidad"
+        case .english: return "Regularity"
+        }
+    }
+
+    var sleepDetailStatusAttention: String {
+        switch self {
+        case .spanish: return "Atención"
+        case .english: return "Attention"
+        }
+    }
+
+    var sleepDetailStatusNormal: String {
+        switch self {
+        case .spanish: return "Normal"
+        case .english: return "OK"
+        }
+    }
+
+    var sleepDetailStatusExcellent: String {
+        switch self {
+        case .spanish: return "Excelente"
+        case .english: return "Great"
+        }
+    }
+
+    var sleepDetailScaleAttention: String {
+        switch self {
+        case .spanish: return "<60"
+        case .english: return "<60"
+        }
+    }
+
+    var sleepDetailScaleNormal: String {
+        switch self {
+        case .spanish: return "60–85"
+        case .english: return "60–85"
+        }
+    }
+
+    var sleepDetailScaleExcellent: String {
+        switch self {
+        case .spanish: return ">85"
+        case .english: return ">85"
+        }
+    }
+
+    var sleepDetailPhaseAwake: String {
+        switch self {
+        case .spanish: return "Vigilia"
+        case .english: return "Awake"
+        }
+    }
+
+    var sleepDetailPhaseREM: String {
+        switch self { case .spanish: return "REM"; case .english: return "REM" }
+    }
+
+    var sleepDetailPhaseCore: String {
+        switch self {
+        case .spanish: return "Esencial"
+        case .english: return "Core"
+        }
+    }
+
+    var sleepDetailPhaseDeep: String {
+        switch self {
+        case .spanish: return "Profundo"
+        case .english: return "Deep"
+        }
+    }
+
+    var sleepDetailProportion: String {
+        switch self {
+        case .spanish: return "Proporción"
+        case .english: return "Share"
+        }
+    }
+
+    var sleepDetailMetaGoalHours: String {
+        switch self {
+        case .spanish: return "Meta"
+        case .english: return "Goal"
+        }
+    }
+
+    // MARK: Sleep detail — sheets (copy)
+
+    var sleepDetailSheetTotalTitle: String {
+        switch self { case .spanish: return "Sueño total"; case .english: return "Total sleep" }
+    }
+
+    var sleepDetailSheetTotalBody: String {
+        switch self {
+        case .spanish:
+            return "El sueño total es la base de la calidad. Incluye las fases que Apple Health registro como profundo, REM y ligero. Para adultos suele recomendarse alrededor de 7 a 9 h; dormir poco afecta la recuperación y el rendimiento."
+        case .english:
+            return "Total sleep is the foundation. It’s the sum of the stages Health recorded as deep, REM, and light. Most adults are advised to aim for roughly 7–9 hours. Too little sleep can hurt recovery and performance."
+        }
+    }
+
+    var sleepDetailSheetRestorativeTitle: String {
+        switch self { case .spanish: return "Sueño reparador"; case .english: return "Restorative sleep" }
+    }
+
+    var sleepDetailSheetRestorativeBody: String {
+        switch self {
+        case .spanish:
+            return "Suma el sueño profundo y REM dentro de la ventana. Son las fases más vinculadas a recuperación física y memoria. El porcentaje se calcula sobre el tiempo total de sueño detectado."
+        case .english:
+            return "This adds deep and REM time within the session—stages most tied to physical recovery and memory. The share is the fraction of your detected total sleep time."
+        }
+    }
+
+    var sleepDetailSheetContinuityTitle: String {
+        switch self { case .spanish: return "Continuidad"; case .english: return "Continuity" }
+    }
+
+    var sleepDetailSheetContinuityBody: String {
+        switch self {
+        case .spanish:
+            return "La continuidad mide interrupciones: más vigilia en la noche y más episodios suelen bajar el score. Cuartos frescos y rutinas fijas al acostarse ayudan; evita mucha cafeína o pantallas cerca de dormir."
+        case .english:
+            return "Continuity looks at how fragmented the night is—more time awake and more episodes usually lower the score. A cool, dark room and a steady wind‑down help; go easy on caffeine and screens before bed."
+        }
+    }
+
+    var sleepDetailSheetEfficiencyTitle: String {
+        switch self { case .spanish: return "Eficiencia"; case .english: return "Efficiency" }
+    }
+
+    var sleepDetailSheetEfficiencyBody: String {
+        switch self {
+        case .spanish:
+            return "Eficiencia = tiempo de sueño detectado / tiempo en cama aprox. (duración reloj de la sesión en HealthKit). Si el dispositivo no informa fases, puede mostrarse “—”."
+        case .english:
+            return "Efficiency is detected sleep time divided by approximate time in bed (clock time of the session from HealthKit). If staging is missing, you may see “—”."
+        }
+    }
+
+    var sleepDetailSheetRegularityTitle: String {
+        switch self { case .spanish: return "Regularidad"; case .english: return "Regularity" }
+    }
+
+    var sleepDetailSheetRegularityBody: String {
+        switch self {
+        case .spanish:
+            return "Mide qué tan cerca te acercas al horario de cama y de despertar en tu perfil. Más fiel al horario, mejor la puntuación. Es independiente de la “calidad de sueño” de las fases."
+        case .english:
+            return "This is how close your actual sleep times are to the sleep and wake times in your profile. Sticking to a regular schedule usually raises the score, separate from the stage‑based sleep quality."
+        }
+    }
+
+    var sleepDetailMoreInfo: String {
+        switch self { case .spanish: return "Más información"; case .english: return "More info" }
     }
 
     var homeMetricHRV: String {

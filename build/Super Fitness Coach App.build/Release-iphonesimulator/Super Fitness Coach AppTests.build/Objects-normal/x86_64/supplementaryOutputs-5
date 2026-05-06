@@ -1,0 +1,12 @@
+{
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/PropertyTests/PropertyTestsPlaceholder.swift" : {
+    "abi-baseline-json" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super_Fitness_Coach_AppTests.abi.json",
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.dia",
+    "objc-header" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super_Fitness_Coach_AppTests-Swift.h",
+    "swiftdoc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super_Fitness_Coach_AppTests.swiftdoc",
+    "swiftmodule" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super_Fitness_Coach_AppTests.swiftmodule",
+    "swiftsourceinfo" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super_Fitness_Coach_AppTests.swiftsourceinfo"
+  }
+}

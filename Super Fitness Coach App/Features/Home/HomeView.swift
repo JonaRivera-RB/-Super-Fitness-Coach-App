@@ -207,6 +207,7 @@ struct HomeView: View {
         .task { await viewModel.onAppear() }
         .onAppear {
             homeContentVisible = true
+            viewModel.syncStreakFromEngine()
             selectedHistoryDayId = viewModel.recoveryHistoryDays.last(where: { $0.isToday })?.id
                 ?? viewModel.recoveryHistoryDays.last?.id
         }

@@ -1,0 +1,66 @@
+{
+  "" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.dia",
+    "emit-module-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary-emit-module.dia",
+    "pch" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/Super Fitness Coach AppTests-primary.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/PropertyTests/PropertyTestsPlaceholder.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/PropertyTestsPlaceholder.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/PropertyTestsPlaceholder.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/PropertyTestsPlaceholder.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/PropertyTests/SleepWindowValidationPropertyTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepWindowValidationPropertyTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepWindowValidationPropertyTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepWindowValidationPropertyTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/DayManagerTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DayManagerTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DayManagerTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DayManagerTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/DetoxManagerTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DetoxManagerTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DetoxManagerTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/DetoxManagerTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/ExerciseServiceTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ExerciseServiceTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ExerciseServiceTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ExerciseServiceTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/HealthKitManagerTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/HealthKitManagerTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/HealthKitManagerTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/HealthKitManagerTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/ProgressTrackerTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ProgressTrackerTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ProgressTrackerTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/ProgressTrackerTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/RecoveryAdapterTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RecoveryAdapterTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RecoveryAdapterTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RecoveryAdapterTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/RoutineSessionStoreTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RoutineSessionStoreTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RoutineSessionStoreTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/RoutineSessionStoreTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/SleepHistoryAggregatorTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepHistoryAggregatorTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepHistoryAggregatorTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepHistoryAggregatorTests.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Tests/UnitTests/SleepSessionFilterTests.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepSessionFilterTests.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepSessionFilterTests.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/Super Fitness Coach AppTests.build/Objects-normal/x86_64/SleepSessionFilterTests.o"
+  }
+}

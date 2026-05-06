@@ -31,7 +31,11 @@ final class GamificationRepository {
     }
 
     func fetchState() throws -> GamificationState? {
-        let descriptor = FetchDescriptor<GamificationState>()
+        // Fila con lastActionDate más reciente (evita quedarnos con un duplicado obsoleto si existiera).
+        var descriptor = FetchDescriptor<GamificationState>(
+            sortBy: [SortDescriptor(\.lastActionDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
     }
 }

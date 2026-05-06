@@ -1,0 +1,376 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Onboarding/OnboardingView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "What's your name?",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 61
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter your name",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 65
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 89
+        }
+      },
+      {
+        "comment": "",
+        "key": "What's your goal?",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 108
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@%@",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 137
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 146
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 155
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your Body Metrics",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 174
+        }
+      },
+      {
+        "comment": "",
+        "key": "We use your weight and height to personalize workout intensity and recommendations.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 178
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unit",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 184
+        }
+      },
+      {
+        "comment": "",
+        "key": "Metric",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Imperial",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 189
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight (kg)",
+        "location": {
+          "startingColumn": 59,
+          "startingLine": 196
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight (lbs)",
+        "location": {
+          "startingColumn": 75,
+          "startingLine": 196
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight in kilograms",
+        "location": {
+          "startingColumn": 75,
+          "startingLine": 201
+        }
+      },
+      {
+        "comment": "",
+        "key": "Weight in pounds",
+        "location": {
+          "startingColumn": 99,
+          "startingLine": 201
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height (cm)",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 204
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height in centimeters",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 207
+        }
+      },
+      {
+        "comment": "",
+        "key": "Feet",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 210
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height feet",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 213
+        }
+      },
+      {
+        "comment": "",
+        "key": "Inches",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 214
+        }
+      },
+      {
+        "comment": "",
+        "key": "Height inches",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 217
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 232
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 242
+        }
+      },
+      {
+        "comment": "",
+        "key": "Connect Apple Health",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 268
+        }
+      },
+      {
+        "comment": "",
+        "key": "We use your sleep, heart rate, steps, and activity data to calculate your daily recovery score.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "",
+        "key": "Health data connected",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 280
+        }
+      },
+      {
+        "comment": "",
+        "key": "Using default recovery score",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 280
+        }
+      },
+      {
+        "comment": "",
+        "key": "Connect Health",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 298
+        }
+      },
+      {
+        "comment": "",
+        "key": "Skip for now",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 309
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 320
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sleep Schedule (Optional)",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 339
+        }
+      },
+      {
+        "comment": "",
+        "key": "Set your usual bedtime and wake time so we can pick the right sleep session and improve recovery accuracy.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 343
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enable sleep schedule",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 349
+        }
+      },
+      {
+        "comment": "",
+        "key": "Bedtime",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 355
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 357
+        }
+      },
+      {
+        "comment": "",
+        "key": "Wake",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 363
+        }
+      },
+      {
+        "comment": "",
+        "key": "Buffer",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 367
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld min",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 371
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld min",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 369
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 382
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get Started",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 403
+        }
+      },
+      {
+        "comment": "",
+        "key": "Skip for now",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 425
+        }
+      }
+    ]
+  },
+  "version": 1
+}

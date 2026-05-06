@@ -1,0 +1,16 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Home/ActivityDetailScreen.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%@: %@%@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 108
+        }
+      }
+    ]
+  },
+  "version": 1
+}

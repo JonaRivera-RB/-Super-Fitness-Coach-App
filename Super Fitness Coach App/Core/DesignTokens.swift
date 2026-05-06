@@ -106,6 +106,13 @@ enum DesignTokens {
         /// Días de descanso / modo detox.
         static var restDay: SwiftUI.Color     { .init(uiColor: .systemPurple) }
 
+        // MARK: Sleep phases (detalle; System colors dark/light safe)
+
+        static var sleepPhaseAwake: SwiftUI.Color { caution }
+        static var sleepPhaseREM: SwiftUI.Color { .init(uiColor: .systemTeal) }
+        static var sleepPhaseCore: SwiftUI.Color { info }
+        static var sleepPhaseDeep: SwiftUI.Color { .init(uiColor: .systemIndigo) }
+
         // MARK: Borders / Strokes
 
         /// Borde sutil sobre superficies (adapta opacity a dark/light).

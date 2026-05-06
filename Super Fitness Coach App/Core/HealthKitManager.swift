@@ -68,10 +68,20 @@ final class HealthKitManager {
     private(set) var lastRHRMatchMode: SleepWindowQuantityMatchMode?
     /// Alineación del sueño detectado con el horario esperado (0–100). Con `sleepGoal == nil` el filtro devuelve 0.
     private(set) var sleepConsistencyScore: Int = 0
+    /// Subscore 0–100 de continuidad (menos vigilia intranoche); `nil` si no hubo sesión de sueño detectada.
+    private(set) var sleepContinuitySubscore: Int?
+    /// Episodios de vigilia fusionados en la última sesión (útil para UI de detalle).
+    private(set) var sleepAwakeEpisodeCount: Int = 0
+    /// Segundos de vigilia dentro de la ventana de sesión (HealthKit `awake`).
+    private(set) var sleepAwakeSecondsDuringSession: TimeInterval?
+    /// Duración reloj inicio–fin de la sesión mostrada (para eficiencia vs TST).
+    private(set) var sleepSessionWallDuration: TimeInterval?
     /// Media de horas de sueño principal en hasta 14 noches completadas (excluye la noche que termina hoy).
     private(set) var sleepHours14DayAverage: Double?
     /// Cuántas noches entraron en esa media (puede ser menor a 14 si faltan datos).
     private(set) var sleepHistoryNightsCount: Int = 0
+    /// Último desglose de `SleepQualityScoring.compute` (build DEBUG / diagnóstico). `nil` si no hubo TST.
+    private(set) var lastSleepQualityDebugSnapshot: SleepQualityScoring.DebugSnapshot?
 
     // MARK: - Private
 
@@ -81,6 +91,8 @@ final class HealthKitManager {
     /// Observers call debounced refresh; use profile config (set via `configureObserverRefresh`).
     private var fitnessConfigForObservers: () -> FitnessConfig = { .default }
     private var debouncedRefreshTask: Task<Void, Never>?
+    /// Notificación cuando “hoy” pasa a datos listos (configurar desde `ContentView`).
+    private var notificationService: NotificationService?
 
     // Sleep Monitoring
     private var sleepObserverQuery: HKObserverQuery?
@@ -175,6 +187,11 @@ final class HealthKitManager {
     /// Call from app root with SwiftData: observers will refresh with the user’s real `FitnessConfig` (sleep goal, etc.).
     func configureObserverRefresh(_ provider: @escaping () -> FitnessConfig) {
         fitnessConfigForObservers = provider
+    }
+
+    /// Para avisar cuando el refresh detecta datos de recuperación de hoy ya fiables (tras sincronizar sueño).
+    func configureNotificationDelivery(_ service: NotificationService) {
+        notificationService = service
     }
 
     /// Coalesce multiple HKObserverQuery callbacks into one refresh after a short delay (~3s).
@@ -322,6 +339,9 @@ final class HealthKitManager {
         self.sleepSessionStart = sleepDetection.sessionStart
         self.sleepSessionEnd = sleepDetection.sessionEnd
         self.sleepConsistencyScore = sleepDetection.sleepConsistencyScore
+        self.sleepAwakeEpisodeCount = sleepDetection.awakeEpisodeCount
+        self.sleepAwakeSecondsDuringSession = sleepDetection.awakeSecondsDuringSession
+        self.sleepSessionWallDuration = sleepDetection.sessionWallDuration
         self.restingHRBaselineUsed = effectiveBaseline
         self.hrvBaselineUsed = effectiveHRVBaseline
         logger.info("refreshHealthData results — sleep: \(sleepDetection.totalSleepHours.map { String(format: "%.1f", $0) } ?? "nil")h, rhr: \(rhr.map { String(format: "%.0f", $0) } ?? "nil"), hrv: \(hrvMs.map { String(format: "%.0f", $0) } ?? "nil")ms, steps: \(steps.map { String(format: "%.0f", $0) } ?? "nil"), energy: \(energy.map { String(format: "%.0f", $0) } ?? "nil")kcal, rhrBaseline: \(String(format: "%.0f", effectiveBaseline))bpm, hrvBaseline: \(String(format: "%.0f", effectiveHRVBaseline))ms")
@@ -337,13 +357,31 @@ final class HealthKitManager {
 
         // --- Calculate Recovery Score ---
         if let totalSleep = sleepDetection.totalSleepHours {
-            let sleepQualityScore = Self.calculateSleepQualityScore(
-                totalHours: totalSleep, deepHours: sleepDetection.deepSleepHours,
-                remHours: sleepDetection.remSleepHours, sleepGoal: config.sleepGoalHours
+            let sq = SleepQualityScoring.compute(
+                totalSleepHours: totalSleep,
+                deepSleepHours: sleepDetection.deepSleepHours,
+                remSleepHours: sleepDetection.remSleepHours,
+                sleepGoalHours: config.effectiveSleepGoalHours,
+                sessionWallDuration: sleepDetection.sessionWallDuration,
+                awakeSecondsDuringSession: sleepDetection.awakeSecondsDuringSession,
+                sleepConfidence: sleepDetection.sleepConfidence
             )
-            let effectiveSleepScore = sleepQualityScore * sleepDetection.sleepConfidence
-            self.sleepScore = .available(Int(max(0, min(100, round(effectiveSleepScore)))))
-            logger.info("recovery: sleepQuality=\(String(format: "%.1f", sleepQualityScore)) confidence=\(String(format: "%.2f", sleepDetection.sleepConfidence)) effectiveSleep=\(String(format: "%.1f", effectiveSleepScore))")
+            self.sleepScore = .available(sq.displayScore)
+            self.sleepContinuitySubscore = Int(max(0, min(100, round(sq.continuitySubscore))))
+            self.lastSleepQualityDebugSnapshot = SleepQualityScoring.makeDebugSnapshot(
+                result: sq,
+                totalSleepHours: totalSleep,
+                goalHoursUsed: config.effectiveSleepGoalHours,
+                sleepConfidence: sleepDetection.sleepConfidence
+            )
+            logger.info("""
+            recovery: sleep composite display=\(sq.displayScore) raw=\(String(format: "%.1f", sq.rawWeightedComposite)) \
+            afterHourCap=\(String(format: "%.1f", sq.scoreAfterDurationHourCap)) \
+            forRecovery=\(String(format: "%.1f", sq.sleepQualityForRecovery)) \
+            conf=\(String(format: "%.2f", sleepDetection.sleepConfidence)) \
+            dur=\(String(format: "%.1f", sq.durationSubscore)) cont=\(String(format: "%.1f", sq.continuitySubscore)) \
+            rem=\(String(format: "%.1f", sq.remSubscore)) deep=\(String(format: "%.1f", sq.deepSubscore))
+            """)
             let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
             let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
 
@@ -355,18 +393,20 @@ final class HealthKitManager {
             let weights = Self.redistributeWeights(availableComponents: availableRecovery, originalWeights: originalWeights)
 
             let recScore = Self.calculateRecoveryScore(
-                sleepQualityScore: effectiveSleepScore,
+                sleepQualityScore: sq.sleepQualityForRecovery,
                 restingHRScore: restingHRScore ?? 0,
                 hrvScore: hrvNormalized
             )
             self.recoveryScore = .available(recScore)
             self.recoveryBreakdown = Self.buildRecoveryBreakdown(
-                sleepQualityScore: effectiveSleepScore, sleepRawHours: totalSleep, sleepGoal: config.sleepGoalHours,
+                sleepQualityScore: sq.sleepQualityForRecovery, sleepRawHours: totalSleep, sleepGoal: config.effectiveSleepGoalHours,
                 restingHRScore: restingHRScore ?? 0, restingHRRaw: rhr ?? 0, baseline: effectiveBaseline,
                 hrvScore: hrvNormalized, hrvRawMs: hrvMs, finalScore: recScore, weights: weights
             )
         } else if rhr != nil || hrvMs != nil {
             self.sleepScore = .unavailable
+            self.sleepContinuitySubscore = nil
+            self.lastSleepQualityDebugSnapshot = nil
             let restingHRScore = rhr.map { Self.normalizeRestingHR(actual: $0, baseline: effectiveBaseline) }
             let hrvNormalized = hrvMs.map { Self.normalizeHRV(actual: $0, baseline: effectiveHRVBaseline) }
             var available: [String] = []
@@ -381,6 +421,8 @@ final class HealthKitManager {
             self.recoveryBreakdown = nil
         } else {
             self.sleepScore = .unavailable
+            self.sleepContinuitySubscore = nil
+            self.lastSleepQualityDebugSnapshot = nil
             // Neutral recovery when no sleep and no HRV/RHR.
             self.recoveryScore = .available(50)
             self.recoveryBreakdown = nil
@@ -401,6 +443,23 @@ final class HealthKitManager {
             self.activityScore = .unavailable
             self.activityBreakdown = nil
         }
+
+        if shouldNotifyRecoveryDataReady,
+           case .available(let rec) = self.recoveryScore,
+           let notificationService {
+            await notificationService.scheduleRecoveryDataReadyIfNeeded(recoveryScore: rec)
+        }
+    }
+
+    /// Alineado con `HomeViewModel` “hoy listo”: sesión de sueño, confianza media+ y score disponible.
+    private var shouldNotifyRecoveryDataReady: Bool {
+        guard sleepSessionEnd != nil else { return false }
+        switch recoveryConfidence {
+        case .high, .medium: break
+        case .low, .insufficient: return false
+        }
+        guard case .available = recoveryScore else { return false }
+        return true
     }
 
     // MARK: - Sleep Monitoring (HKObserverQuery)
@@ -607,15 +666,6 @@ final class HealthKitManager {
         return Swift.min(100, Swift.max(0, score))
     }
 
-    static func calculateSleepQualityScore(totalHours: Double, deepHours: Double?, remHours: Double?, sleepGoal: Double) -> Double {
-        guard sleepGoal > 0 else { return 0 }
-        let durationScore = Swift.min(100, Swift.max(0, totalHours / sleepGoal * 100))
-        guard let deepHours, let remHours, totalHours > 0 else { return durationScore }
-        let deepScore = Swift.min(100, Swift.max(0, (deepHours / totalHours) / 0.175 * 100))
-        let remScore = Swift.min(100, Swift.max(0, (remHours / totalHours) / 0.225 * 100))
-        return durationScore * 0.50 + deepScore * 0.25 + remScore * 0.25
-    }
-
     static func calculateRecoveryScore(sleepQualityScore: Double, restingHRScore: Double, hrvScore: Double?) -> Int {
         if let hrvScore {
             return Int(round(sleepQualityScore * 0.45 + restingHRScore * 0.25 + hrvScore * 0.30))
@@ -652,15 +702,14 @@ final class HealthKitManager {
     ) -> ScoreBreakdown {
         let sleepWeight = weights["sleep"] ?? 0.45
         let hrWeight = weights["hr"] ?? 0.25
-        let durationScore = sleepGoal > 0 ? Swift.min(100, Swift.max(0, sleepRawHours / sleepGoal * 100)) : 0
 
         var components: [ScoreBreakdown.ScoreComponent] = [
             ScoreBreakdown.ScoreComponent(
                 name: "Sleep", rawValue: sleepRawHours, rawUnit: "h",
-                normalizedScore: durationScore, weight: sleepWeight,
+                normalizedScore: sleepQualityScore, weight: sleepWeight,
                 contribution: sleepQualityScore * sleepWeight,
-                description: "Slept \(String(format: "%.1f", sleepRawHours))h of your \(String(format: "%.0f", sleepGoal))h goal",
-                status: componentStatus(for: durationScore)
+                description: "Sleep quality \(String(format: "%.0f", sleepQualityScore))/100 (duration, continuity, REM/deep; goal \(String(format: "%.0f", sleepGoal))h)",
+                status: componentStatus(for: sleepQualityScore)
             ),
             ScoreBreakdown.ScoreComponent(
                 name: "Resting HR", rawValue: restingHRRaw, rawUnit: "bpm",
@@ -741,8 +790,13 @@ final class HealthKitManager {
         hrvBaselineUsed = nil
         lastRHRMatchMode = nil
         sleepConsistencyScore = 0
+        sleepContinuitySubscore = nil
+        sleepAwakeEpisodeCount = 0
+        sleepAwakeSecondsDuringSession = nil
+        sleepSessionWallDuration = nil
         sleepHours14DayAverage = nil
         sleepHistoryNightsCount = 0
+        lastSleepQualityDebugSnapshot = nil
     }
 
     private static func computeRecoveryConfidence(
@@ -786,7 +840,14 @@ final class HealthKitManager {
         goal: SleepGoal?
     ) async -> SleepDetectionResult {
         let sleepType = HKCategoryType(.sleepAnalysis)
-        let predicate = HKQuery.predicateForSamples(withStart: window.adjustedStart, end: window.adjustedEnd, options: [])
+        // No acotar el fetch al final de la ventana ajustada por meta: si el despertar real
+        // es mucho más tarde que la hora objetivo (+ buffer), HealthKit no devuelve esos tramos
+        // y la sesión “fusionada” termina en el último minuto incluido (p. ej. ~4:44 con meta 4:30).
+        // Ampliar hasta mediodía del día de despertar; el filtrado sigue en `SleepSessionFilter` (overlap con window).
+        let cal = Calendar.current
+        let queryEnd = SleepWindowBuilder.sleepFetchQueryEnd(window: window, calendar: cal)
+        logger.info("sleep query range: adjustedEnd=\(Self.formatLocalTime(window.adjustedEnd)) → queryEnd=\(Self.formatLocalTime(queryEnd)) (fetch through wake-day noon if needed)")
+        let predicate = HKQuery.predicateForSamples(withStart: window.adjustedStart, end: queryEnd, options: [])
 
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(
@@ -806,6 +867,9 @@ final class HealthKitManager {
                         remSleepHours: nil,
                         sleepConfidence: 0.2,
                         sleepConsistencyScore: 0,
+                        sessionWallDuration: nil,
+                        awakeSecondsDuringSession: nil,
+                        awakeEpisodeCount: 0,
                         rawSampleCount: 0,
                         mergedSessionCount: 0
                     ))

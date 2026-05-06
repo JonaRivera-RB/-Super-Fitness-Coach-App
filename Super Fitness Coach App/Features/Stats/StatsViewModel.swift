@@ -32,6 +32,11 @@ final class StatsViewModel {
         refresh()
     }
 
+    /// Sincroniza racha con el motor sin recargar historial/PRs (p. ej. al activar app desde otra pestaña).
+    func syncStreakFromEngine() {
+        currentStreak = gamificationEngine.displayedStreak()
+    }
+
     func refresh() {
         gamificationEngine.invalidateStaleStreakIfNeeded()
         totalPoints = gamificationEngine.totalPoints

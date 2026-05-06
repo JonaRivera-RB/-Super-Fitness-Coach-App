@@ -5,6 +5,7 @@
 
 import Foundation
 import Observation
+import os
 
 @Observable
 final class HomeViewModel {
@@ -27,8 +28,18 @@ final class HomeViewModel {
     private(set) var deepSleepHours: HealthDataStatus<Double> = .loading
     private(set) var remSleepHours: HealthDataStatus<Double> = .loading
     private(set) var sleepConsistencyScore: Int = 0
+    /// Continuidad intranoche (0–100); `nil` si no hay dato (p. ej. vista de ayer sin histórico).
+    private(set) var sleepContinuitySubscore: Int?
     private(set) var sleepSessionStart: Date?
     private(set) var sleepSessionEnd: Date?
+    /// Episodios de vigilia (última sesión); 0 si no hay dato.
+    private(set) var sleepAwakeEpisodeCount: Int = 0
+    private(set) var sleepAwakeSecondsDuringSession: TimeInterval?
+    private(set) var sleepSessionWallDuration: TimeInterval?
+    /// Desglose crudo de `SleepQualityScoring` del último refresh (solo útil con build DEBUG en detalle).
+    private(set) var sleepQualityDebugSnapshot: SleepQualityScoring.DebugSnapshot?
+    /// Meta de horas de sueño del perfil (refresco actual); para detalle.
+    private(set) var profileSleepGoalHours: Double = FitnessConfig.default.sleepGoalHours
     private(set) var restingHR: HealthDataStatus<Double> = .loading
     private(set) var hrv: HealthDataStatus<Double> = .loading
     private(set) var stepCount: HealthDataStatus<Double> = .loading
@@ -79,11 +90,12 @@ final class HomeViewModel {
     private(set) var recoveryInsights: [MetricInsight] = []
     private(set) var activityInsights: [MetricInsight] = []
 
+    @ObservationIgnored
+    private let logger = Logger(subsystem: "com.superfitnesscoach", category: "HomeViewModel")
     private let healthKitManager: HealthKitManager
     private let trainingPlanRepository: TrainingPlanRepository
     private let gamificationEngine: GamificationEngine
     private let detoxManager: DetoxManager
-    private let notificationService: NotificationService
     private let userProfileRepository: UserProfileRepository
     private let recoverySnapshotRepository: RecoverySnapshotRepository
     /// Nombre para saludo en Inicio (solo lectura desde la vista).
@@ -133,7 +145,6 @@ final class HomeViewModel {
         trainingPlanRepository: TrainingPlanRepository,
         gamificationEngine: GamificationEngine,
         detoxManager: DetoxManager,
-        notificationService: NotificationService,
         userProfileRepository: UserProfileRepository,
         recoverySnapshotRepository: RecoverySnapshotRepository,
         userName: String
@@ -142,7 +153,6 @@ final class HomeViewModel {
         self.trainingPlanRepository = trainingPlanRepository
         self.gamificationEngine = gamificationEngine
         self.detoxManager = detoxManager
-        self.notificationService = notificationService
         self.userProfileRepository = userProfileRepository
         self.recoverySnapshotRepository = recoverySnapshotRepository
         self.userName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -150,6 +160,11 @@ final class HomeViewModel {
 
     func onAppear() async { await refreshData(showLoading: true) }
     func refresh() async { await refreshData(showLoading: false) }
+
+    /// Solo racha: barato; `displayedStreak()` aplica `invalidate` antes de leer. Úsalo al vuelve a Inicio o al reactivar la app.
+    func syncStreakFromEngine() {
+        trainingStreakDays = gamificationEngine.displayedStreak()
+    }
 
     private func refreshData(showLoading: Bool = false) async {
         if showLoading { isLoading = true }
@@ -165,6 +180,7 @@ final class HomeViewModel {
         }
         stepsGoal = config.stepsGoal
         calorieGoal = config.calorieGoal
+        profileSleepGoalHours = config.effectiveSleepGoalHours
 
         await healthKitManager.refreshHealthData(config: config)
         let rawRecoveryScore = healthKitManager.recoveryScore
@@ -181,18 +197,29 @@ final class HomeViewModel {
         deepSleepHours = healthKitManager.deepSleepHours
         remSleepHours = healthKitManager.remSleepHours
         sleepConsistencyScore = healthKitManager.sleepConsistencyScore
+        sleepContinuitySubscore = healthKitManager.sleepContinuitySubscore
         sleepSessionStart = healthKitManager.sleepSessionStart
         sleepSessionEnd = healthKitManager.sleepSessionEnd
+        sleepAwakeEpisodeCount = healthKitManager.sleepAwakeEpisodeCount
+        sleepAwakeSecondsDuringSession = healthKitManager.sleepAwakeSecondsDuringSession
+        sleepSessionWallDuration = healthKitManager.sleepSessionWallDuration
+        sleepQualityDebugSnapshot = healthKitManager.lastSleepQualityDebugSnapshot
         restingHR = healthKitManager.restingHR
         hrv = healthKitManager.hrv
         stepCount = healthKitManager.stepCount
         activeEnergy = healthKitManager.activeEnergy
         let lang = AppLanguage.current
         recoveryConfidenceLabel = healthKitManager.recoveryConfidence.localizedLabel(lang)
-        populateRecoveryContextLines(config: config)
 
         applyOvernightRecoveryPresentationIfNeeded(language: lang)
         applyOvernightSleepPresentationIfNeeded(language: lang)
+        if isShowingYesterdaySleep {
+            sleepQualityDebugSnapshot = nil
+        }
+        // Después de posibles sustituciones "anoche" (snapshot) para aros/mensajes: textos de contexto
+        // alinean con el ViewModel, no con HK en bruto. Antes, la ventana 1:53–6:49 de HK y el VM
+        // a 4:44 del snapshot quedaban desincronizados.
+        populateRecoveryContextLines(config: config)
 
         let recoveryValue = recoveryScore.value ?? 50
         let activityValue = activityScore.value ?? 0
@@ -256,12 +283,8 @@ final class HomeViewModel {
         }
         loadRecoveryHistory()
         loadRollingRecoveryWindow(now: Date())
-
-        await notificationService.scheduleDailyNotification(
-            recoveryScore: recoveryValue,
-            statusEmoji: statusIndicator.emoji,
-            recommendation: Self.notificationRecommendationLine(recoveryScore: recoveryValue, language: AppLanguage.current)
-        )
+        // Notificación de “datos listos” la programa `HealthKitManager` al terminar el refresh
+        // (incl. observer de sueño en segundo plano), no a hora fija.
     }
 
     private func loadRollingRecoveryWindow(now: Date) {
@@ -363,6 +386,7 @@ final class HomeViewModel {
         guard !sleepReady else { return }
 
         if now < noonToday {
+            let todayRow = fetchTodayRecoverySnapshot(now: now)
             heroSleepMessage = language.homeRecoveryCollectingOvernight
             if let y = fetchYesterdayRecoverySnapshot(now: now) {
                 sleepScore = y.sleepScore.map { .available($0) } ?? .unavailable
@@ -370,17 +394,44 @@ final class HomeViewModel {
                 deepSleepHours = y.deepSleepHours.map { .available($0) } ?? .unavailable
                 remSleepHours = y.remSleepHours.map { .available($0) } ?? .unavailable
                 sleepConsistencyScore = y.sleepConsistencyScore ?? 0
-                sleepSessionStart = y.sleepSessionStart
-                sleepSessionEnd = y.sleepSessionEnd
-                isShowingYesterdaySleep = true
+                sleepContinuitySubscore = nil
+                // Ventana 1:53–6:49 “de anoche” ≠ fila "ayer" en SwiftData: `fetchYesterday` es el calendario
+                // (p. ej. 2/4) y su `sleepSession*` es de la noche que terminó **esa** mañana, no de la
+                // noche 2/4→3/4. Sin HK, usar solo el snapshot de **hoy** (misma noche), no `y`.
+                if !hasSleepSession,
+                   let t = todayRow,
+                   let tStart = t.sleepSessionStart,
+                   let tEnd = t.sleepSessionEnd {
+                    sleepSessionStart = tStart
+                    sleepSessionEnd = tEnd
+                }
+                isShowingYesterdaySleep = !hasSleepSession
             } else {
                 sleepScore = .unavailable
+                sleepContinuitySubscore = nil
             }
+            // #region agent log
+            let src: String
+            if hasSleepSession { src = "healthKit" }
+            else if todayRow?.sleepSessionEnd != nil { src = "todaySnapshot" }
+            else { src = "noWindow" }
+            logger.info("overnight-sleep: hasHKSession=\(hasSleepSession) sessionSource=\(src) isShowingPlaceholder=\(!hasSleepSession)")
+            agentDebugNDJSON(
+                message: "overnight-sleep",
+                data: [
+                    "hypothesisId": "H-sleep-window",
+                    "hasSleepSession": hasSleepSession,
+                    "sessionSource": src,
+                    "isShowingYesterdaySleep": !hasSleepSession
+                ] as [String: Any]
+            )
+            // #endregion
             return
         }
 
         heroSleepMessage = language.homeRecoveryNotCollectedByNoon
         sleepScore = .unavailable
+        sleepContinuitySubscore = nil
     }
 
     private func shouldPersistTodaySnapshot() -> Bool {
@@ -409,6 +460,49 @@ final class HomeViewModel {
         }
     }
 
+    /// Fila con `dayStart` = inicio de **hoy** (persistida por `upsertToday`). La ventana de sueño
+    /// "anoche → esta mañana" se asocia a **este** día, no a la fila "ayer" usada para scores placeholder.
+    private func fetchTodayRecoverySnapshot(now: Date) -> RecoverySnapshot? {
+        do {
+            let cal = Calendar.current
+            let todayStart = cal.startOfDay(for: now)
+            let recent = try recoverySnapshotRepository.fetchRecent(limit: 7, now: now)
+            return recent.first(where: { $0.dayStart == todayStart })
+        } catch {
+            return nil
+        }
+    }
+
+    // #region agent log
+    private func agentDebugNDJSON(message: String, data: [String: Any]) {
+        var payload: [String: Any] = [
+            "sessionId": "63c6d3",
+            "location": "HomeViewModel.applyOvernightSleepPresentationIfNeeded",
+            "message": message,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000)
+        ]
+        for (k, v) in data { payload[k] = v }
+        guard JSONSerialization.isValidJSONObject(payload),
+              let json = try? JSONSerialization.data(withJSONObject: payload),
+              var line = String(data: json, encoding: .utf8) else { return }
+        line += "\n"
+        let path = "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.cursor/debug-63c6d3.log"
+        let url = URL(fileURLWithPath: path)
+        if !FileManager.default.fileExists(atPath: path) {
+            FileManager.default.createFile(atPath: path, contents: nil)
+        }
+        guard let lineData = line.data(using: .utf8) else { return }
+        do {
+            let h = try FileHandle(forWritingTo: url)
+            defer { try? h.close() }
+            try h.seekToEnd()
+            try h.write(contentsOf: lineData)
+        } catch {
+            // Host path no escribible en dispositivo; `logger` arriba sigue siendo la fuente.
+        }
+    }
+    // #endregion
+
     private func loadRecoveryHistory() {
         do {
             let now = Date()
@@ -433,23 +527,6 @@ final class HomeViewModel {
             }
         } catch {
             recoveryHistoryDays = []
-        }
-    }
-
-    private static func notificationRecommendationLine(recoveryScore: Int, language: AppLanguage) -> String {
-        switch language {
-        case .spanish:
-            switch recoveryScore {
-            case ..<40: return "Prioriza descanso y movilidad suave."
-            case 40..<70: return "Intensidad moderada encaja bien con tu recuperación de hoy."
-            default: return "Buena recuperación para entrenar según tu plan."
-            }
-        case .english:
-            switch recoveryScore {
-            case ..<40: return "Prioritize rest and light mobility."
-            case 40..<70: return "Moderate intensity fits today’s recovery."
-            default: return "Good recovery—train as planned."
-            }
         }
     }
 
@@ -519,27 +596,27 @@ final class HomeViewModel {
         var hrvPct: Double?
         var rhrDelta: Double?
 
-        switch hk.sleepHours {
+        switch sleepHours {
         case .available(let hours):
             lastNightSleepSummary = String(format: "Dormiste ~%.1f h", hours)
         default:
             lastNightSleepSummary = "Sin datos de sueño para anoche"
         }
 
-        if let start = hk.sleepSessionStart, let end = hk.sleepSessionEnd {
+        if let start = sleepSessionStart, let end = sleepSessionEnd {
             lastNightSleepWindow = "\(Self.formatLocalTimeOnly(start)) → \(Self.formatLocalTimeOnly(end))"
         } else {
             lastNightSleepWindow = ""
         }
 
-        if config.sleepGoalHours > 0, case .available(let hours) = hk.sleepHours {
-            let goal = config.sleepGoalHours
-            let diff = hours - goal
+        let goalHours = config.effectiveSleepGoalHours
+        if goalHours > 0, case .available(let hours) = sleepHours {
+            let diff = hours - goalHours
             sleepDiff = diff
             if diff >= -0.05 {
-                sleepGoalComparisonLine = String(format: "Meta %.1f h · anoche %.1f h (en o por encima de la meta)", goal, hours)
+                sleepGoalComparisonLine = String(format: "Meta %.1f h · anoche %.1f h (en o por encima de la meta)", goalHours, hours)
             } else {
-                sleepGoalComparisonLine = String(format: "Meta %.1f h · anoche %.1f h (%.1f h menos que la meta)", goal, hours, -diff)
+                sleepGoalComparisonLine = String(format: "Meta %.1f h · anoche %.1f h (%.1f h menos que la meta)", goalHours, hours, -diff)
             }
         } else {
             sleepGoalComparisonLine = ""
@@ -623,14 +700,14 @@ final class HomeViewModel {
         if config.sleepGoal == nil {
             sleepConsistencyLine = ""
         } else {
-            let score = hk.sleepConsistencyScore
+            let score = sleepConsistencyScore
             let label: String
             switch score {
             case 70...100: label = "alta"
             case 40..<70: label = "media"
             default: label = "baja"
             }
-            if case .available = hk.sleepHours {
+            if case .available = sleepHours {
                 sleepConsistencyLine = String(format: "Regularidad vs tu horario: %d/100 (%@)", score, label)
             } else {
                 sleepConsistencyLine = String(format: "Regularidad vs tu horario: %d/100 (%@) — sin sueño registrado en la ventana", score, label)
@@ -638,7 +715,7 @@ final class HomeViewModel {
         }
 
         // Tendencia sueño vs media de noches completadas (excluye la noche que termina hoy)
-        if case .available(let lastNightH) = hk.sleepHours {
+        if case .available(let lastNightH) = sleepHours {
             if let avg = hk.sleepHours14DayAverage, hk.sleepHistoryNightsCount >= 3 {
                 let diff = lastNightH - avg
                 if abs(diff) < 0.15 {
@@ -666,27 +743,27 @@ final class HomeViewModel {
         var hrvPct: Double?
         var rhrDelta: Double?
 
-        switch hk.sleepHours {
+        switch sleepHours {
         case .available(let hours):
             lastNightSleepSummary = String(format: "You slept ~%.1f h", hours)
         default:
             lastNightSleepSummary = "No sleep data for last night"
         }
 
-        if let start = hk.sleepSessionStart, let end = hk.sleepSessionEnd {
+        if let start = sleepSessionStart, let end = sleepSessionEnd {
             lastNightSleepWindow = "\(Self.formatLocalTimeOnly(start)) → \(Self.formatLocalTimeOnly(end))"
         } else {
             lastNightSleepWindow = ""
         }
 
-        if config.sleepGoalHours > 0, case .available(let hours) = hk.sleepHours {
-            let goal = config.sleepGoalHours
-            let diff = hours - goal
+        let goalHoursEN = config.effectiveSleepGoalHours
+        if goalHoursEN > 0, case .available(let hours) = sleepHours {
+            let diff = hours - goalHoursEN
             sleepDiff = diff
             if diff >= -0.05 {
-                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (at or above goal)", goal, hours)
+                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (at or above goal)", goalHoursEN, hours)
             } else {
-                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (%.1f h below goal)", goal, hours, -diff)
+                sleepGoalComparisonLine = String(format: "Goal %.1f h · last night %.1f h (%.1f h below goal)", goalHoursEN, hours, -diff)
             }
         } else {
             sleepGoalComparisonLine = ""
@@ -767,21 +844,21 @@ final class HomeViewModel {
         if config.sleepGoal == nil {
             sleepConsistencyLine = ""
         } else {
-            let score = hk.sleepConsistencyScore
+            let score = sleepConsistencyScore
             let label: String
             switch score {
             case 70...100: label = "high"
             case 40..<70: label = "medium"
             default: label = "low"
             }
-            if case .available = hk.sleepHours {
+            if case .available = sleepHours {
                 sleepConsistencyLine = String(format: "Regularity vs your schedule: %d/100 (%@)", score, label)
             } else {
                 sleepConsistencyLine = String(format: "Regularity vs your schedule: %d/100 (%@) — no sleep in window", score, label)
             }
         }
 
-        if case .available(let lastNightH) = hk.sleepHours {
+        if case .available(let lastNightH) = sleepHours {
             if let avg = hk.sleepHours14DayAverage, hk.sleepHistoryNightsCount >= 3 {
                 let diff = lastNightH - avg
                 if abs(diff) < 0.15 {

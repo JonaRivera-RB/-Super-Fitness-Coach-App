@@ -107,6 +107,14 @@ struct FitnessConfig: Codable, Equatable {
         bufferMinutes: 60
     )
 
+    /// Meta de horas usada en Home, scoring y copys: duración del horario cama–despertar si está guardado y es válido; si no, **8 h** (no el valor almacenado en `sleepGoalHours` cuando no hay horario).
+    var effectiveSleepGoalHours: Double {
+        if let g = sleepGoal, g.isValid {
+            return g.durationHours
+        }
+        return Self.default.sleepGoalHours
+    }
+
     /// Valida que todos los campos estén dentro de rangos aceptables.
     var isValid: Bool {
         (4.0...12.0).contains(sleepGoalHours) &&

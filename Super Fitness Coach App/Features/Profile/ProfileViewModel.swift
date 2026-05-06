@@ -85,7 +85,7 @@ final class ProfileViewModel {
     }
 
     private func loadFitnessConfig(_ config: FitnessConfig) {
-        sleepGoalText = String(format: "%.1f", config.sleepGoalHours)
+        sleepGoalText = String(format: "%.1f", config.effectiveSleepGoalHours)
         stepsGoalText = String(format: "%.0f", config.stepsGoal)
         calorieGoalText = String(format: "%.0f", config.calorieGoal)
         baselineRestingHRText = String(format: "%.0f", config.baselineRestingHR)
@@ -375,8 +375,9 @@ final class ProfileViewModel {
             existing = .default
         }
 
+        let derivedHours = min(12, max(4, goal.durationHours))
         let updated = FitnessConfig(
-            sleepGoalHours: existing.sleepGoalHours,
+            sleepGoalHours: derivedHours,
             stepsGoal: existing.stepsGoal,
             calorieGoal: existing.calorieGoal,
             baselineRestingHR: existing.baselineRestingHR,

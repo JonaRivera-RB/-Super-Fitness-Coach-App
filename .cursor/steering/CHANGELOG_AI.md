@@ -6,6 +6,30 @@ Registro de **cambios introducidos o documentados con asistencia de IA**: qué, 
 
 ---
 
+## [2026-04-23] — Rediseño sleep score: 60/20/10/10, continuidad, techo por horas, confianza suave
+
+| Campo | Detalle |
+|-------|---------|
+| **Qué cambió** | Nuevo `SleepQualityScoring` (duración no lineal, cap por pocas horas, REM/Deep en banda, ajuste aditivo de confianza); `SleepDetectionResult` + vigilia en `SleepSessionFilter`; `HealthKitManager` y recovery usan el composite; `sleepContinuitySubscore` en Home + fila en `SleepDetailScreen`. |
+| **Por qué** | Plan producto: evitar compensación irreal REM/deep y alinear con HealthKit. |
+| **Riesgo** | **Medio.** Números de sueño/recovery cambian respecto a la fórmula antigua; pruebas de `ExerciseService` obsoletas sustituidas por smoke (API ya sin `parseExercises`). |
+| **Validación hecha** | `xcodebuild build-for-testing` (éxito). `xcodebuild test` falló en simulador (Mach -308) en el entorno; compila tests. |
+| **Rollback plan** | `git checkout --` de los archivos listados o `git revert` del commit. |
+
+---
+
+## [2026-04-22] — Steering: análisis comparativo algoritmos de sueño (Oura, Apple, SleepWatch)
+
+| Campo | Detalle |
+|-------|---------|
+| **Qué cambió** | Nuevo [.cursor/steering/SLEEP_ALGORITHMS_OURA_APPLE_SLEEPWATCH.md](SLEEP_ALGORITHMS_OURA_APPLE_SLEEPWATCH.md): marco público de staging/score de terceros y relación con VitrikFit (HealthKit + reglas locales). |
+| **Por qué** | Documentar referencia de producto sin tocar lógica de `HealthKitManager`. |
+| **Riesgo** | **Nulo.** Solo documentación en steering. |
+| **Validación hecha** | Revisión de contenido frente al plan acordado (sin editar el archivo `.cursor/plans/*.plan.md`). |
+| **Rollback plan** | `git checkout --` del steering añadido y de esta entrada en `CHANGELOG_AI.md`. |
+
+---
+
 ## [2026-04-15] — Racha (Home/Stats): reset visual a medianoche
 
 | Campo | Detalle |

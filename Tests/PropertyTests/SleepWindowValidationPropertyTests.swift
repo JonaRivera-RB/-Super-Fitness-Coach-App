@@ -621,67 +621,69 @@ struct SleepWindowPreservationTests {
         }
     }
 
-    // MARK: - Test 7: Sleep quality score preservation
-    // calculateSleepQualityScore produces consistent results for the same inputs.
+    // MARK: - Test 7: Sleep quality score preservation (SleepQualityScoring)
 
-    @Test("Preservation: Sleep quality score is consistent and follows expected formula")
+    @Test("Preservation: Sleep quality composite is deterministic and in 0...100")
     func sleepQualityScorePreservation() {
         var rng = SeededRNG(seed: 321)
 
         for _ in 0..<100 {
-            let totalHours = randomDouble(in: 0...12, using: &rng)
+            let totalHours = max(0.1, randomDouble(in: 0.1...12, using: &rng))
             let sleepGoal = randomDouble(in: 4...12, using: &rng)
             let hasPhases = rng.next() % 2 == 0
+            let conf = randomDouble(in: 0...1, using: &rng)
+            let wall = totalHours * 3600
 
-            if hasPhases && totalHours > 0 {
-                // With deep and REM phases
-                let deepRatio = randomDouble(in: 0...0.35, using: &rng)
-                let remRatio = randomDouble(in: 0...0.45, using: &rng)
+            if hasPhases {
+                let deepRatio = randomDouble(in: 0.05...0.35, using: &rng)
+                let remRatio = randomDouble(in: 0.05...0.35, using: &rng)
                 let deepHours = totalHours * deepRatio
                 let remHours = totalHours * remRatio
+                let awake = randomDouble(in: 0...(wall * 0.2), using: &rng)
 
-                let result1 = HealthKitManager.calculateSleepQualityScore(
-                    totalHours: totalHours, deepHours: deepHours,
-                    remHours: remHours, sleepGoal: sleepGoal
+                let r1 = SleepQualityScoring.compute(
+                    totalSleepHours: totalHours,
+                    deepSleepHours: deepHours,
+                    remSleepHours: remHours,
+                    sleepGoalHours: sleepGoal,
+                    sessionWallDuration: wall,
+                    awakeSecondsDuringSession: awake,
+                    sleepConfidence: conf
                 )
-                let result2 = HealthKitManager.calculateSleepQualityScore(
-                    totalHours: totalHours, deepHours: deepHours,
-                    remHours: remHours, sleepGoal: sleepGoal
+                let r2 = SleepQualityScoring.compute(
+                    totalSleepHours: totalHours,
+                    deepSleepHours: deepHours,
+                    remSleepHours: remHours,
+                    sleepGoalHours: sleepGoal,
+                    sessionWallDuration: wall,
+                    awakeSecondsDuringSession: awake,
+                    sleepConfidence: conf
                 )
-
-                // Determinism
-                #expect(result1 == result2, "Sleep quality score not deterministic")
-
-                // Verify formula: duration*0.50 + deep*0.25 + rem*0.25
-                let durationScore = Swift.min(100, Swift.max(0, totalHours / sleepGoal * 100))
-                let deepScore = Swift.min(100, Swift.max(0, (deepHours / totalHours) / 0.175 * 100))
-                let remScore = Swift.min(100, Swift.max(0, (remHours / totalHours) / 0.225 * 100))
-                let expected = durationScore * 0.50 + deepScore * 0.25 + remScore * 0.25
-
-                #expect(
-                    abs(result1 - expected) < 1e-10,
-                    "Sleep quality score mismatch: got \(result1), expected \(expected)"
-                )
+                #expect(r1.displayScore == r2.displayScore, "Sleep composite not deterministic")
+                #expect(r1.displayScore >= 0 && r1.displayScore <= 100)
             } else {
-                // Without phases — only duration score
-                let result = HealthKitManager.calculateSleepQualityScore(
-                    totalHours: totalHours, deepHours: nil,
-                    remHours: nil, sleepGoal: sleepGoal
+                let a = SleepQualityScoring.compute(
+                    totalSleepHours: totalHours,
+                    deepSleepHours: nil,
+                    remSleepHours: nil,
+                    sleepGoalHours: sleepGoal,
+                    sessionWallDuration: wall,
+                    awakeSecondsDuringSession: nil,
+                    sleepConfidence: conf
                 )
-
-                let expected = Swift.min(100, Swift.max(0, totalHours / sleepGoal * 100))
-                #expect(
-                    abs(result - expected) < 1e-10,
-                    "Sleep quality (no phases) mismatch: got \(result), expected \(expected)"
+                let b = SleepQualityScoring.compute(
+                    totalSleepHours: totalHours,
+                    deepSleepHours: nil,
+                    remSleepHours: nil,
+                    sleepGoalHours: sleepGoal,
+                    sessionWallDuration: wall,
+                    awakeSecondsDuringSession: nil,
+                    sleepConfidence: conf
                 )
+                #expect(a.displayScore == b.displayScore, "Sleep composite not deterministic")
+                #expect(a.displayScore >= 0 && a.displayScore <= 100)
             }
         }
-
-        // Edge case: sleepGoal = 0 should return 0
-        let zeroGoal = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 7.0, deepHours: 1.0, remHours: 1.5, sleepGoal: 0.0
-        )
-        #expect(zeroGoal == 0, "Sleep quality with goal=0 should return 0")
     }
 
     // MARK: - Test: Recovery Score without HRV uses fallback weights (0.60/0.40)

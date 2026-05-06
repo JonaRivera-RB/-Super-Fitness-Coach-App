@@ -12,7 +12,10 @@ final class NotificationService {
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "NotificationService")
 
     static let dailyNotificationIdentifier = "daily-fitness-notification"
+    /// Notificación one-shot cuando ya hay datos de recuperación de hoy (sustituye al recordatorio fijo a las 8:00).
+    static let recoveryDataReadyNotificationIdentifier = "recovery-data-ready"
     static let restTimerNotificationIdentifier = "rest-timer-finished"
+    private static let lastRecoveryDataReadyNotifiedDayKey = "com.superfitnesscoach.lastRecoveryDataReadyNotifiedDayStart"
 
     // MARK: - Request Permission
 
@@ -30,46 +33,70 @@ final class NotificationService {
         }
     }
 
-    // MARK: - Schedule Daily Notification
+    // MARK: - Recovery data ready (after sleep sync / wake)
 
-    /// Schedule a daily notification at 8:00 AM local time with the recovery score, status emoji, and recommendation.
-    /// Removes all pending notifications first to ensure exactly one is scheduled.
-    func scheduleDailyNotification(
-        recoveryScore: Int,
-        statusEmoji: String,
-        recommendation: String
-    ) async {
-        // Remove existing notifications before scheduling a new one
-        center.removeAllPendingNotificationRequests()
+    /// Emite un recordatorio local **una vez por día** cuando los datos de recuperación de hoy ya son fiables
+    /// (misma noción de “hoy listo” que en Home: sesión de sueño + confianza media/alta + score).
+    /// Dispara a ~1 s (no a las 8:00) y deja de programar notificaciones repetitivas a hora fija.
+    func scheduleRecoveryDataReadyIfNeeded(recoveryScore: Int) async {
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date())
+        if let prev = UserDefaults.standard.object(forKey: Self.lastRecoveryDataReadyNotifiedDayKey) as? TimeInterval {
+            let prevDay = Date(timeIntervalSince1970: prev)
+            if cal.isDate(prevDay, inSameDayAs: todayStart) {
+                return
+            }
+        }
 
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized else {
-            logger.info("Notifications not authorized, skipping schedule")
+            logger.info("Notifications not authorized, skipping data-ready")
             return
         }
 
+        // Quitar notificación antigua a las 8:00 (repetitiva) y cualquier one-shot duplicada del nuevo tipo.
+        center.removePendingNotificationRequests(withIdentifiers: [
+            Self.dailyNotificationIdentifier,
+            Self.recoveryDataReadyNotificationIdentifier
+        ])
+
+        let lang = AppLanguage.current
+        let emoji = recoveryScore < 40 ? "🔴" : recoveryScore < 70 ? "🟡" : "🟢"
+        let tip = Self.recommendationLine(recoveryScore: recoveryScore, language: lang)
         let content = UNMutableNotificationContent()
-        content.title = "Tu coach"
-        content.body = "Recuperación hoy: \(recoveryScore) \(statusEmoji). \(recommendation)"
+        content.title = lang.notificationRecoveryDataReadyTitle
+        content.body = lang.notificationRecoveryDataReadyBody(score: recoveryScore, emoji: emoji, tip: tip)
         content.sound = .default
 
-        var dateComponents = DateComponents()
-        dateComponents.hour = 8
-        dateComponents.minute = 0
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
-            identifier: Self.dailyNotificationIdentifier,
+            identifier: Self.recoveryDataReadyNotificationIdentifier,
             content: content,
             trigger: trigger
         )
-
         do {
             try await center.add(request)
-            logger.info("Daily notification scheduled at 8:00 AM")
+            UserDefaults.standard.set(todayStart.timeIntervalSince1970, forKey: Self.lastRecoveryDataReadyNotifiedDayKey)
+            logger.info("Recovery data ready notification scheduled (one-shot) score=\(recoveryScore)")
         } catch {
-            logger.error("Failed to schedule notification: \(error.localizedDescription)")
+            logger.error("Failed to schedule data-ready notification: \(error.localizedDescription)")
+        }
+    }
+
+    private static func recommendationLine(recoveryScore: Int, language: AppLanguage) -> String {
+        switch language {
+        case .spanish:
+            switch recoveryScore {
+            case ..<40: return "Prioriza descanso y movilidad suave."
+            case 40..<70: return "Intensidad moderada encaja bien con tu recuperación de hoy."
+            default: return "Buena recuperación para entrenar según tu plan."
+            }
+        case .english:
+            switch recoveryScore {
+            case ..<40: return "Prioritize rest and light mobility."
+            case 40..<70: return "Moderate intensity fits today’s recovery."
+            default: return "Good recovery—train as planned."
+            }
         }
     }
 

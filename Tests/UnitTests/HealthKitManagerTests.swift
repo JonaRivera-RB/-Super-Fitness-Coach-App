@@ -3,6 +3,7 @@
 //  Super Fitness Coach App
 //
 
+import Foundation
 import Testing
 @testable import Super_Fitness_Coach_App
 
@@ -139,59 +140,80 @@ struct HealthKitManagerTests {
     //     #expect(result == 100.0)
     // }
 
-    // MARK: - calculateSleepQualityScore tests
+    // MARK: - SleepQualityScoring
 
-    @Test func sleepQualityPerfectWithPhases() {
-        // 8h total, 1.4h deep (17.5%), 1.8h REM (22.5%), goal 8h
-        // durationScore = 100, deepScore = 100, remScore = 100
-        // result = 100*0.50 + 100*0.25 + 100*0.25 = 100
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 8.0, deepHours: 1.4, remHours: 1.8, sleepGoal: 8.0
+    @Test func sleepQualityScoringShortNightIsCapped() {
+        let r = SleepQualityScoring.compute(
+            totalSleepHours: 2.5,
+            deepSleepHours: 0.5,
+            remSleepHours: 0.4,
+            sleepGoalHours: 8.0,
+            sessionWallDuration: 2.5 * 3600,
+            awakeSecondsDuringSession: nil as TimeInterval?,
+            sleepConfidence: 1.0
         )
-        #expect(result == 100.0)
+        #expect(r.displayScore <= 45)
     }
 
-    @Test func sleepQualityDurationOnly() {
-        // When deep and REM are nil, falls back to duration-only
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 6.0, deepHours: nil, remHours: nil, sleepGoal: 8.0
+    @Test func sleepQualityScoringLongNightWithNeutralContinuityIsHigh() {
+        let r = SleepQualityScoring.compute(
+            totalSleepHours: 8.0,
+            deepSleepHours: 1.4,
+            remSleepHours: 1.8,
+            sleepGoalHours: 8.0,
+            sessionWallDuration: 8.0 * 3600,
+            awakeSecondsDuringSession: nil as TimeInterval?,
+            sleepConfidence: 1.0
         )
-        // 6/8 * 100 = 75
-        #expect(result == 75.0)
+        #expect(r.displayScore >= 85)
     }
 
-    @Test func sleepQualityZeroHours() {
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 0, deepHours: nil, remHours: nil, sleepGoal: 8.0
+    @Test func sleepQualityScoringPhasesDoNotRescueShortDuration() {
+        let r = SleepQualityScoring.compute(
+            totalSleepHours: 4.0,
+            deepSleepHours: 0.8,
+            remSleepHours: 1.2,
+            sleepGoalHours: 8.0,
+            sessionWallDuration: 4.0 * 3600,
+            awakeSecondsDuringSession: 0.0,
+            sleepConfidence: 1.0
         )
-        #expect(result == 0.0)
+        #expect(r.displayScore < 70)
     }
 
-    @Test func sleepQualityOverGoalClampsDuration() {
-        // 10h / 8h goal → durationScore clamped to 100
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 10.0, deepHours: nil, remHours: nil, sleepGoal: 8.0
+    @Test func sleepQualityScoringZeroGoalYieldsZero() {
+        let r = SleepQualityScoring.compute(
+            totalSleepHours: 7.0,
+            deepSleepHours: 1.0,
+            remSleepHours: 1.0,
+            sleepGoalHours: 0,
+            sessionWallDuration: 7.0 * 3600,
+            awakeSecondsDuringSession: nil as TimeInterval?,
+            sleepConfidence: 0.8
         )
-        #expect(result == 100.0)
+        #expect(r.displayScore == 0)
     }
 
-    @Test func sleepQualityZeroGoalReturnsZero() {
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 8.0, deepHours: 1.0, remHours: 1.0, sleepGoal: 0
+    @Test func sleepQualityScoringConfidenceIsSoftTweak() {
+        let low = SleepQualityScoring.compute(
+            totalSleepHours: 7.0,
+            deepSleepHours: 0.8,
+            remSleepHours: 1.0,
+            sleepGoalHours: 8.0,
+            sessionWallDuration: 7.0 * 3600,
+            awakeSecondsDuringSession: 300,
+            sleepConfidence: 0.2
         )
-        #expect(result == 0.0)
-    }
-
-    @Test func sleepQualityLowDeepAndREM() {
-        // 8h total, 0.7h deep (8.75%), 0.9h REM (11.25%), goal 8h
-        // durationScore = 100
-        // deepScore = (0.7/8.0) / 0.175 * 100 = 0.0875/0.175*100 = 50
-        // remScore = (0.9/8.0) / 0.225 * 100 = 0.1125/0.225*100 = 50
-        // result = 100*0.50 + 50*0.25 + 50*0.25 = 50 + 12.5 + 12.5 = 75
-        let result = HealthKitManager.calculateSleepQualityScore(
-            totalHours: 8.0, deepHours: 0.7, remHours: 0.9, sleepGoal: 8.0
+        let high = SleepQualityScoring.compute(
+            totalSleepHours: 7.0,
+            deepSleepHours: 0.8,
+            remSleepHours: 1.0,
+            sleepGoalHours: 8.0,
+            sessionWallDuration: 7.0 * 3600,
+            awakeSecondsDuringSession: 300,
+            sleepConfidence: 1.0
         )
-        #expect(result == 75.0)
+        #expect(abs(high.displayScore - low.displayScore) <= 20)
     }
 
     // MARK: - calculateRecoveryScore (new signature) tests
