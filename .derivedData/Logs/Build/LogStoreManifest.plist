@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>11</integer>
+	<key>logs</key>
+	<dict>
+		<key>71E54E65-530D-498D-A51F-E8A85961199C</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>71E54E65-530D-498D-A51F-E8A85961199C.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>1</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Super Fitness Coach App project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Super Fitness Coach App</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Super Fitness Coach App with scheme Super Fitness Coach App and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>797497678.42619896</real>
+			<key>timeStoppedRecording</key>
+			<real>797497691.66042399</real>
+			<key>title</key>
+			<string>Building project Super Fitness Coach App with scheme Super Fitness Coach App and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>71E54E65-530D-498D-A51F-E8A85961199C</string>
+		</dict>
+		<key>D9BE9246-ADE3-47E7-9DED-F30198187154</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>D9BE9246-ADE3-47E7-9DED-F30198187154.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>W</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>1</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>Super Fitness Coach App project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>Super Fitness Coach App</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project Super Fitness Coach App with scheme Super Fitness Coach App and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>797497982.40377104</real>
+			<key>timeStoppedRecording</key>
+			<real>797497992.41557395</real>
+			<key>title</key>
+			<string>Building project Super Fitness Coach App with scheme Super Fitness Coach App and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>D9BE9246-ADE3-47E7-9DED-F30198187154</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

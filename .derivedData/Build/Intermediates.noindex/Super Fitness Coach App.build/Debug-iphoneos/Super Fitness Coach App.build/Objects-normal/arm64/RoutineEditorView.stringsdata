@@ -1,0 +1,464 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Routine/RoutineEditorView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Mi rutina",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 65
+        }
+      },
+      {
+        "comment": "",
+        "key": "Listo",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 71
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cerrar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 76
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pegar",
+        "location": {
+          "startingColumn": 43,
+          "startingLine": 87
+        }
+      },
+      {
+        "comment": "",
+        "key": "Agregar ejercicio",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 94
+        }
+      },
+      {
+        "comment": "",
+        "key": "No se encontró el día seleccionado.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 147
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tu semana, a tu ritmo",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 175
+        }
+      },
+      {
+        "comment": "",
+        "key": "Elige el día y arma ejercicios, series y descansos.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 178
+        }
+      },
+      {
+        "comment": "",
+        "key": "Día",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Día %@",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 219
+        }
+      },
+      {
+        "comment": "",
+        "key": "Día de descanso",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 241
+        }
+      },
+      {
+        "comment": "",
+        "key": "Copiar desde otro día",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 258
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sin ejercicios este día.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 287
+        }
+      },
+      {
+        "comment": "",
+        "key": "Aún no hay ejercicios",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 304
+        }
+      },
+      {
+        "comment": "",
+        "key": "Toca + arriba para añadir el primero.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 306
+        }
+      },
+      {
+        "comment": "",
+        "key": "Duplicar",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 349
+        }
+      },
+      {
+        "comment": "",
+        "key": "Copiar",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 354
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pegar debajo",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 359
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sustituir…",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 366
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ejercicios del día",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 383
+        }
+      },
+      {
+        "comment": "",
+        "key": "Preparando tu rutina",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 399
+        }
+      },
+      {
+        "comment": "",
+        "key": "En un momento podrás editar tus días y ejercicios.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 402
+        }
+      },
+      {
+        "comment": "",
+        "key": "Compuesto",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 555
+        }
+      },
+      {
+        "comment": "",
+        "key": "Aislamiento",
+        "location": {
+          "startingColumn": 62,
+          "startingLine": 555
+        }
+      },
+      {
+        "comment": "",
+        "key": "Por serie",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 662
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 666
+        }
+      },
+      {
+        "comment": "",
+        "key": "Serie %lld",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 697
+        }
+      },
+      {
+        "comment": "",
+        "key": "Equivalente en la otra unidad debajo de cada campo.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 728
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sustitutos",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 765
+        }
+      },
+      {
+        "comment": "",
+        "key": "%llds",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 935
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sustitutos",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1073
+        }
+      },
+      {
+        "comment": "",
+        "key": "Guardados (%lld)",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 1034
+        }
+      },
+      {
+        "comment": "",
+        "key": "Añadir desde el catálogo",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 1049
+        }
+      },
+      {
+        "comment": "",
+        "key": "Buscar ejercicio sustituto",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 1025
+        }
+      },
+      {
+        "comment": "",
+        "key": "Busca arriba o elige un resultado para añadir.",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 1052
+        }
+      },
+      {
+        "comment": "",
+        "key": "No hay más resultados que añadir.",
+        "location": {
+          "startingColumn": 96,
+          "startingLine": 1052
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ · %@",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 1065
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancelar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1077
+        }
+      },
+      {
+        "comment": "",
+        "key": "Guardar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1080
+        }
+      },
+      {
+        "comment": "",
+        "key": "Agregar ejercicio",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1242
+        }
+      },
+      {
+        "comment": "",
+        "key": "Resultados",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 1168
+        }
+      },
+      {
+        "comment": "",
+        "key": "Buscar ejercicio (ej. press, squat, curl)",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 1137
+        }
+      },
+      {
+        "comment": "",
+        "key": "Equipo",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 1143
+        }
+      },
+      {
+        "comment": "",
+        "key": "Zona",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 1156
+        }
+      },
+      {
+        "comment": "",
+        "key": "Descargar catálogo",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 1184
+        }
+      },
+      {
+        "comment": "",
+        "key": "Agregado",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 1224
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ver detalle",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 1237
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ · %@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 1211
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancelar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1246
+        }
+      },
+      {
+        "comment": "",
+        "key": "Copiar día",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1416
+        }
+      },
+      {
+        "comment": "",
+        "key": "Copiar desde",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 1387
+        }
+      },
+      {
+        "comment": "",
+        "key": "Acción",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 1396
+        }
+      },
+      {
+        "comment": "",
+        "key": "Día",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1388
+        }
+      },
+      {
+        "comment": "",
+        "key": "Modo",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1397
+        }
+      },
+      {
+        "comment": "",
+        "key": "Aplicar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1406
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reemplazar borra los ejercicios actuales del día. Agregar los concatena al final.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1413
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancelar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1420
+        }
+      }
+    ]
+  },
+  "version": 1
+}

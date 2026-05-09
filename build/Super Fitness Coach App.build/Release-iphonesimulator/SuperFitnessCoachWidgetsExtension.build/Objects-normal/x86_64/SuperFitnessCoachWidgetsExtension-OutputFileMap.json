@@ -1,0 +1,31 @@
+{
+  "" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary.dia",
+    "emit-module-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary-emit-module.dia",
+    "pch" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsExtension-primary.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/SuperFitnessCoachWidgets/SuperFitnessCoachWidgets.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgets.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgets.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgets.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/SuperFitnessCoachWidgets/SuperFitnessCoachWidgetsBundle.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsBundle.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsBundle.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsBundle.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/SuperFitnessCoachWidgets/SuperFitnessCoachWidgetsControl.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsControl.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsControl.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/SuperFitnessCoachWidgetsControl.o"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Super Fitness Coach App.build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.build/Objects-normal/x86_64/GeneratedAssetSymbols.o"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Training/WorkoutExecutorView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld / %lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 86
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld. %@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 98
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld %@ · %lld %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 171
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 435
+        }
+      },
+      {
+        "comment": "",
+        "key": "0",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 717
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/build/Release-iphonesimulator/SuperFitnessCoachWidgetsExtension.appex/SuperFitnessCoachWidgetsExtension'
+relocations:     []
+...

@@ -1,0 +1,4 @@
+Target dependency graph (2 targets)
+Target 'Super Fitness Coach App' in project 'Super Fitness Coach App'
+➜ Explicit dependency on target 'SuperFitnessCoachWidgetsExtension' in project 'Super Fitness Coach App'
+Target 'SuperFitnessCoachWidgetsExtension' in project 'Super Fitness Coach App' (no dependencies)

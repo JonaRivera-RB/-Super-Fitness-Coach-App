@@ -1,0 +1,51 @@
+{
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Workout/WorkoutInsights.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutInsights.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutInsights.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutInsights.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutInsights.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutInsights.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Workout/WorkoutView.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutView.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutView.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutView.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutView.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/WorkoutView.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Models/AuthorizationStatus.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/AuthorizationStatus.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/AuthorizationStatus.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/AuthorizationStatus.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/AuthorizationStatus.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/AuthorizationStatus.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Models/DetoxProgress.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/DetoxProgress.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/DetoxProgress.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/DetoxProgress.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/DetoxProgress.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/DetoxProgress.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Models/Exercise.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/Exercise.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/Exercise.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/Exercise.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/Exercise.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/Exercise.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Models/ExerciseCatalogEntry.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/ExerciseCatalogEntry.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/ExerciseCatalogEntry.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/ExerciseCatalogEntry.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/ExerciseCatalogEntry.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/ExerciseCatalogEntry.swiftdeps"
+  },
+  "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Models/FitnessConfig.swift" : {
+    "const-values" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/FitnessConfig.swiftconstvalues",
+    "dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/FitnessConfig.d",
+    "diagnostics" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/FitnessConfig.dia",
+    "object" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/FitnessConfig.o",
+    "swift-dependencies" : "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/.derivedData/Build/Intermediates.noindex/Super Fitness Coach App.build/Debug-iphoneos/Super Fitness Coach App.build/Objects-normal/arm64/FitnessConfig.swiftdeps"
+  }
+}

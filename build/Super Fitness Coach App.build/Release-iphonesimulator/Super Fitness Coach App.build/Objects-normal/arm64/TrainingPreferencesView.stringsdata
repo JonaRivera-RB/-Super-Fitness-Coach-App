@@ -1,0 +1,160 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Training/TrainingPreferencesView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Cerrar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "Nuevo plan",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 50
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tu reto empieza aquí",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 76
+        }
+      },
+      {
+        "comment": "",
+        "key": "Elige objetivo y detalles; generamos semanas de entreno con tu estilo.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@%@",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 141
+        }
+      },
+      {
+        "comment": "",
+        "key": "Toca un día para alternar entreno o descanso (mín. 3 entrenos).",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 191
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld entrenos",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 233
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld descanso",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 237
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ya elegiste 2 grupos prioritarios.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 284
+        }
+      },
+      {
+        "comment": "",
+        "key": "Incluir cardio en el plan",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 297
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 301
+        }
+      },
+      {
+        "comment": "",
+        "key": "Semanas",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 314
+        }
+      },
+      {
+        "comment": "",
+        "key": "4 semanas",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 315
+        }
+      },
+      {
+        "comment": "",
+        "key": "6 semanas",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 316
+        }
+      },
+      {
+        "comment": "",
+        "key": "8 semanas",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 317
+        }
+      },
+      {
+        "comment": "",
+        "key": "Generando plan",
+        "location": {
+          "startingColumn": 58,
+          "startingLine": 353
+        }
+      },
+      {
+        "comment": "",
+        "key": "Generar plan de entrenamiento",
+        "location": {
+          "startingColumn": 77,
+          "startingLine": 353
+        }
+      },
+      {
+        "comment": "",
+        "key": "Generando tu plan…",
+        "location": {
+          "startingColumn": 51,
+          "startingLine": 339
+        }
+      },
+      {
+        "comment": "",
+        "key": "Generar mi plan",
+        "location": {
+          "startingColumn": 76,
+          "startingLine": 339
+        }
+      }
+    ]
+  },
+  "version": 1
+}

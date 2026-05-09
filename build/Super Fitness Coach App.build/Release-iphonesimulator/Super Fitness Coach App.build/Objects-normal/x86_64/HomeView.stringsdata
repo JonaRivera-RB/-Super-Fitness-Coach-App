@@ -1,0 +1,128 @@
+{
+  "source": "/Users/jonathanrivera/Desktop/CODE/Jona projects/Super Fitness Coach App/Super Fitness Coach App/Features/Home/HomeView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Cómo medimos tu recuperación",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 242
+        }
+      },
+      {
+        "comment": "",
+        "key": "—",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 408
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 402
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 518
+        }
+      },
+      {
+        "comment": "",
+        "key": "de 100",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 528
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@, %@ de 100",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 724
+        }
+      },
+      {
+        "comment": "",
+        "key": "100",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 655
+        }
+      },
+      {
+        "comment": "",
+        "key": "50",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 657
+        }
+      },
+      {
+        "comment": "",
+        "key": "0",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 659
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 701
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cómo medimos tu recuperación",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 809
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tu puntuación de recuperación diaria se calcula combinando señales de Apple Health.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 766
+        }
+      },
+      {
+        "comment": "",
+        "key": "Todos los valores se comparan con tu historial personal de los últimos 14 días, no con promedios generales.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 798
+        }
+      },
+      {
+        "comment": "",
+        "key": "Esta información es orientativa y no sustituye consejo médico profesional.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 802
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cerrar",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 813
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,293 @@
+[
+  {
+    "id": "fb-chest-1",
+    "name": "Push-Up",
+    "bodyPart": "chest",
+    "target": "pectorals",
+    "equipment": "body weight",
+    "instructions": [
+      "Place your hands slightly wider than shoulder-width apart on the floor.",
+      "Extend your legs back so you are balanced on your hands and toes.",
+      "Lower your body until your chest nearly touches the floor.",
+      "Push yourself back up to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-chest-2",
+    "name": "Incline Push-Up",
+    "bodyPart": "chest",
+    "target": "pectorals",
+    "equipment": "body weight",
+    "instructions": [
+      "Place your hands on an elevated surface like a bench or step.",
+      "Walk your feet back until your body forms a straight line.",
+      "Lower your chest toward the surface by bending your elbows.",
+      "Push back up to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-chest-3",
+    "name": "Wide Grip Push-Up",
+    "bodyPart": "chest",
+    "target": "pectorals",
+    "equipment": "body weight",
+    "instructions": [
+      "Place your hands wider than shoulder-width apart on the floor.",
+      "Keep your body in a straight line from head to heels.",
+      "Lower your body until your chest is just above the floor.",
+      "Push back up to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-shoulders-1",
+    "name": "Pike Push-Up",
+    "bodyPart": "shoulders",
+    "target": "deltoids",
+    "equipment": "body weight",
+    "instructions": [
+      "Start in a downward dog position with hands and feet on the floor.",
+      "Walk your feet closer to your hands to raise your hips high.",
+      "Bend your elbows and lower your head toward the floor.",
+      "Push back up to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-shoulders-2",
+    "name": "Lateral Raise",
+    "bodyPart": "shoulders",
+    "target": "deltoids",
+    "equipment": "dumbbell",
+    "instructions": [
+      "Stand with a dumbbell in each hand at your sides.",
+      "Keep a slight bend in your elbows.",
+      "Raise your arms out to the sides until they are at shoulder height.",
+      "Slowly lower back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-shoulders-3",
+    "name": "Shoulder Press",
+    "bodyPart": "shoulders",
+    "target": "deltoids",
+    "equipment": "dumbbell",
+    "instructions": [
+      "Hold a dumbbell in each hand at shoulder height with palms facing forward.",
+      "Press the dumbbells overhead until your arms are fully extended.",
+      "Slowly lower the dumbbells back to shoulder height.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-upper-arms-1",
+    "name": "Diamond Push-Up",
+    "bodyPart": "upper arms",
+    "target": "triceps",
+    "equipment": "body weight",
+    "instructions": [
+      "Place your hands close together under your chest forming a diamond shape.",
+      "Extend your legs back into a plank position.",
+      "Lower your body until your chest nearly touches your hands.",
+      "Push back up to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-upper-arms-2",
+    "name": "Bicep Curl",
+    "bodyPart": "upper arms",
+    "target": "biceps",
+    "equipment": "dumbbell",
+    "instructions": [
+      "Stand with a dumbbell in each hand, arms at your sides, palms facing forward.",
+      "Curl the weights up toward your shoulders by bending your elbows.",
+      "Squeeze your biceps at the top of the movement.",
+      "Slowly lower the dumbbells back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-upper-arms-3",
+    "name": "Hammer Curl",
+    "bodyPart": "upper arms",
+    "target": "biceps",
+    "equipment": "dumbbell",
+    "instructions": [
+      "Stand with a dumbbell in each hand, palms facing your body.",
+      "Curl the weights up toward your shoulders keeping palms facing inward.",
+      "Squeeze at the top of the movement.",
+      "Slowly lower back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-back-1",
+    "name": "Superman",
+    "bodyPart": "back",
+    "target": "lats",
+    "equipment": "body weight",
+    "instructions": [
+      "Lie face down on the floor with arms extended in front of you.",
+      "Simultaneously lift your arms, chest, and legs off the floor.",
+      "Hold the position for 2-3 seconds squeezing your back muscles.",
+      "Slowly lower back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-back-2",
+    "name": "Reverse Snow Angel",
+    "bodyPart": "back",
+    "target": "upper back",
+    "equipment": "body weight",
+    "instructions": [
+      "Lie face down with arms at your sides, palms facing down.",
+      "Lift your chest and arms slightly off the floor.",
+      "Sweep your arms overhead in an arc motion like a snow angel.",
+      "Reverse the motion back to your sides.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-back-3",
+    "name": "Bent Over Row",
+    "bodyPart": "back",
+    "target": "lats",
+    "equipment": "dumbbell",
+    "instructions": [
+      "Stand with feet shoulder-width apart holding dumbbells.",
+      "Hinge at the hips until your torso is nearly parallel to the floor.",
+      "Pull the dumbbells up toward your ribcage squeezing your shoulder blades.",
+      "Slowly lower the weights back down.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-upper-legs-1",
+    "name": "Bodyweight Squat",
+    "bodyPart": "upper legs",
+    "target": "quads",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet shoulder-width apart.",
+      "Lower your body by bending your knees and pushing your hips back.",
+      "Go down until your thighs are parallel to the floor.",
+      "Push through your heels to return to standing.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-upper-legs-2",
+    "name": "Lunge",
+    "bodyPart": "upper legs",
+    "target": "quads",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet hip-width apart.",
+      "Step forward with one leg and lower your hips until both knees are at 90 degrees.",
+      "Keep your front knee over your ankle.",
+      "Push back to the starting position.",
+      "Alternate legs and repeat."
+    ]
+  },
+  {
+    "id": "fb-upper-legs-3",
+    "name": "Glute Bridge",
+    "bodyPart": "upper legs",
+    "target": "glutes",
+    "equipment": "body weight",
+    "instructions": [
+      "Lie on your back with knees bent and feet flat on the floor.",
+      "Push through your heels to lift your hips toward the ceiling.",
+      "Squeeze your glutes at the top of the movement.",
+      "Slowly lower your hips back to the floor.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-lower-legs-1",
+    "name": "Standing Calf Raise",
+    "bodyPart": "lower legs",
+    "target": "calves",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet hip-width apart near a wall for balance.",
+      "Rise up onto your toes as high as possible.",
+      "Hold the top position for a moment.",
+      "Slowly lower your heels back to the floor.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-lower-legs-2",
+    "name": "Seated Calf Raise",
+    "bodyPart": "lower legs",
+    "target": "calves",
+    "equipment": "body weight",
+    "instructions": [
+      "Sit on a chair with feet flat on the floor.",
+      "Place a weight on your knees for added resistance if desired.",
+      "Raise your heels off the floor as high as possible.",
+      "Slowly lower your heels back down.",
+      "Repeat for the desired number of repetitions."
+    ]
+  },
+  {
+    "id": "fb-lower-legs-3",
+    "name": "Jump Rope",
+    "bodyPart": "lower legs",
+    "target": "calves",
+    "equipment": "body weight",
+    "instructions": [
+      "Hold the rope handles at hip height with elbows close to your body.",
+      "Swing the rope over your head.",
+      "Jump just high enough to clear the rope.",
+      "Land softly on the balls of your feet.",
+      "Maintain a steady rhythm and repeat."
+    ]
+  },
+  {
+    "id": "fb-cardio-1",
+    "name": "Jumping Jacks",
+    "bodyPart": "cardio",
+    "target": "cardiovascular system",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet together and arms at your sides.",
+      "Jump and spread your feet wide while raising your arms overhead.",
+      "Jump again to return to the starting position.",
+      "Repeat at a steady pace."
+    ]
+  },
+  {
+    "id": "fb-cardio-2",
+    "name": "High Knees",
+    "bodyPart": "cardio",
+    "target": "cardiovascular system",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet hip-width apart.",
+      "Run in place bringing your knees up to hip height.",
+      "Pump your arms as you alternate legs.",
+      "Maintain a quick pace throughout."
+    ]
+  },
+  {
+    "id": "fb-cardio-3",
+    "name": "Burpees",
+    "bodyPart": "cardio",
+    "target": "cardiovascular system",
+    "equipment": "body weight",
+    "instructions": [
+      "Stand with feet shoulder-width apart.",
+      "Drop into a squat and place your hands on the floor.",
+      "Jump your feet back into a plank position.",
+      "Do a push-up, then jump your feet back to your hands.",
+      "Jump up explosively with arms overhead and repeat."
+    ]
+  }
+]
