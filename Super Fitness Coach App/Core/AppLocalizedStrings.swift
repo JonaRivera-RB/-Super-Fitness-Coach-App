@@ -1524,6 +1524,148 @@ extension AppLanguage {
         }
     }
 
+    // MARK: Sleep outlook (Home — datos locales + opcional Foundation Models)
+
+    var sleepOutlookCardTitle: String {
+        switch self {
+        case .spanish: return "Perspectiva de sueño"
+        case .english: return "Sleep outlook"
+        }
+    }
+
+    var sleepOutlookDisclaimer: String {
+        switch self {
+        case .spanish:
+            return "Orientación general de bienestar basada en tu historial en la app; no es consejo médico."
+        case .english:
+            return "General wellness guidance from your in-app history; not medical advice."
+        }
+    }
+
+    var sleepOutlookAppleBadge: String {
+        switch self {
+        case .spanish: return "Texto asistido por Apple Intelligence"
+        case .english: return "Text refined with Apple Intelligence"
+        }
+    }
+
+    var sleepOutlookRefiningAccessibility: String {
+        switch self {
+        case .spanish: return "Refinando texto con Apple Intelligence"
+        case .english: return "Refining text with Apple Intelligence"
+        }
+    }
+
+    var sleepOutlookFoundationInstructions: String {
+        switch self {
+        case .spanish:
+            return """
+            Eres coach de bienestar en una app de fitness. Escribe 2–4 frases cortas en español de tono cercano y práctico.
+            No des diagnósticos médicos ni menciones medicaciones. No inventes números que no aparezcan en el bloque de métricas.
+            Si la banda es strained, sugiere priorizar descanso sin alarmar. Si es favorable, refuerza lo positivo sin exagerar.
+            """
+        case .english:
+            return """
+            You are a wellness coach in a fitness app. Write 2–4 short sentences in English in a friendly, practical tone.
+            Do not give medical diagnoses or mention medications. Do not invent numbers absent from the metrics block.
+            If the band is strained, suggest prioritizing rest without alarming. If favorable, reinforce positives without exaggerating.
+            """
+        }
+    }
+
+    func sleepOutlookFoundationUserPrompt(metricsBlock: String) -> String {
+        switch self {
+        case .spanish:
+            return """
+            Resume solo con estas etiquetas agregadas (no añadas cifras nuevas):
+            \(metricsBlock)
+            """
+        case .english:
+            return """
+            Summarize using ONLY these aggregated tags (do not add new numbers):
+            \(metricsBlock)
+            """
+        }
+    }
+
+    func sleepOutlookComposeTemplate(_ snapshot: SleepOutlookSnapshot) -> String {
+        var parts: [String] = snapshot.facts.map { sleepOutlookSentence(for: $0) }
+        parts.append(sleepOutlookBandClosing(snapshot.band))
+        return parts.joined(separator: " ")
+    }
+
+    private func sleepOutlookSentence(for fact: SleepOutlookFact) -> String {
+        switch self {
+        case .spanish:
+            switch fact {
+            case .insufficientHistory(let days):
+                return "Aún hay pocas noches con datos de sueño en la app (\(days) día(s)); cuando lleves más días veremos mejor las tendencias."
+            case .nightsBelowGoalLast7(let count, let goal):
+                if count == 0 {
+                    return "En los últimos 7 días tus horas de sueño coinciden bastante con tu meta de \(Self.formatHours(goal))."
+                }
+                let threshold = max(5.5, goal * 0.85)
+                return "\(count) de las últimas 7 noches estuvieron por debajo de \(Self.formatHours(threshold)) (menos de lo recomendado vs tu meta)."
+            case .sleepHoursTrend(let diff):
+                if diff >= 0.35 {
+                    return "La última semana dormiste algo más de media que la semana anterior (≈+\(Self.formatHours(abs(diff))) h entre semanas)."
+                }
+                return "La última semana dormiste algo menos de media que la anterior (≈−\(Self.formatHours(abs(diff))) h entre semanas)."
+            case .recoveryGapShortSleepVersusRested(let delta):
+                return "En tu historial reciente, tras noches más cortas tu recuperación fue ~\(delta) puntos menor de media que tras noches con mejor sueño."
+            case .fragmentedSleep(let score):
+                return "La continuidad del sueño última fue baja (\(score)/100), lo que suele acompañar sensación de sueño menos reparador."
+            }
+        case .english:
+            switch fact {
+            case .insufficientHistory(let days):
+                return "There are still few nights with sleep data in the app (\(days) day(s)); trends will be clearer as you log more."
+            case .nightsBelowGoalLast7(let count, let goal):
+                if count == 0 {
+                    return "Over the last 7 days your sleep duration mostly aligns with your \(Self.formatHours(goal)) goal."
+                }
+                let threshold = max(5.5, goal * 0.85)
+                return "\(count) of the last 7 nights were under \(Self.formatHours(threshold)), below what fits your goal."
+            case .sleepHoursTrend(let diff):
+                if diff >= 0.35 {
+                    return "You slept a bit more on average last week than the prior week (≈+\(Self.formatHours(abs(diff))) h between weeks)."
+                }
+                return "You slept a bit less on average last week than the prior week (≈−\(Self.formatHours(abs(diff))) h between weeks)."
+            case .recoveryGapShortSleepVersusRested(let delta):
+                return "In recent history, recovery averaged ~\(delta) points lower after shorter nights than after better sleep nights."
+            case .fragmentedSleep(let score):
+                return "Last night's sleep continuity was low (\(score)/100), which often pairs with less restorative sleep."
+            }
+        }
+    }
+
+    private func sleepOutlookBandClosing(_ band: SleepOutlookBand) -> String {
+        switch self {
+        case .spanish:
+            switch band {
+            case .strained:
+                return "Si mantienes este patrón, es probable que la recuperación siga floja; intenta proteger una noche más larga cuando puedas."
+            case .neutral:
+                return "Sigue observando tu sueño; pequeños ajustes de horario suelen notarse en cómo te sientes al entrenar."
+            case .favorable:
+                return "Con este ritmo de sueño tienes buena base para recuperarte bien; mantén la constancia."
+            }
+        case .english:
+            switch band {
+            case .strained:
+                return "If this pattern continues, recovery may stay muted—try to protect a longer night when you can."
+            case .neutral:
+                return "Keep observing sleep patterns; small schedule tweaks often show up in how training feels."
+            case .favorable:
+                return "This sleep pattern supports recovery well—consistency is doing you favors."
+            }
+        }
+    }
+
+    private static func formatHours(_ value: Double) -> String {
+        String(format: "%.1f", value)
+    }
+
     var homeQuickTrain: String {
         switch self {
         case .spanish: return "Entrenar"

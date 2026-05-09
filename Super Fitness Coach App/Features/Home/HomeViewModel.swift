@@ -6,6 +6,9 @@
 import Foundation
 import Observation
 import os
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 @Observable
 final class HomeViewModel {
@@ -90,8 +93,15 @@ final class HomeViewModel {
     private(set) var recoveryInsights: [MetricInsight] = []
     private(set) var activityInsights: [MetricInsight] = []
 
+    /// Perspectiva de sueño (reglas locales + texto opcional con Foundation Models).
+    private(set) var sleepOutlookSnapshot: SleepOutlookSnapshot?
+    private(set) var sleepOutlookParagraph: String = ""
+    private(set) var sleepOutlookLoadingAppleModel: Bool = false
+    private(set) var sleepOutlookUsedAppleModel: Bool = false
+
     @ObservationIgnored
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "HomeViewModel")
+    @ObservationIgnored private var sleepOutlookRequestID: UInt64 = 0
     private let healthKitManager: HealthKitManager
     private let trainingPlanRepository: TrainingPlanRepository
     private let gamificationEngine: GamificationEngine
@@ -283,8 +293,59 @@ final class HomeViewModel {
         }
         loadRecoveryHistory()
         loadRollingRecoveryWindow(now: Date())
+        await generateSleepOutlook(language: lang)
         // Notificación de “datos listos” la programa `HealthKitManager` al terminar el refresh
         // (incl. observer de sueño en segundo plano), no a hora fija.
+    }
+
+    private func generateSleepOutlook(language: AppLanguage) async {
+        guard authorizationStatus == .authorized else {
+            sleepOutlookSnapshot = nil
+            sleepOutlookParagraph = ""
+            sleepOutlookLoadingAppleModel = false
+            sleepOutlookUsedAppleModel = false
+            return
+        }
+
+        sleepOutlookLoadingAppleModel = false
+        sleepOutlookRequestID += 1
+        let rid = sleepOutlookRequestID
+
+        let snaps = (try? recoverySnapshotRepository.fetchRecent(limit: 28, now: Date())) ?? []
+        let dtos = snaps.map {
+            RecoverySnapshotDayDTO(dayStart: $0.dayStart, recoveryScore: $0.recoveryScore, sleepHours: $0.sleepHours)
+        }
+
+        let snapshot = SleepOutlookFactsEngine.compute(
+            now: Date(),
+            calendar: .current,
+            sleepGoalHours: profileSleepGoalHours,
+            snapshots: dtos,
+            latestSleepHours: sleepHours.value,
+            latestSleepContinuity: sleepContinuitySubscore
+        )
+
+        guard rid == sleepOutlookRequestID else { return }
+
+        sleepOutlookSnapshot = snapshot
+        sleepOutlookParagraph = SleepOutlookNarrator.templateParagraph(snapshot: snapshot, language: language)
+        sleepOutlookUsedAppleModel = false
+
+        var wantsFM = false
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            wantsFM = SystemLanguageModel.default.isAvailable
+        }
+        #endif
+
+        guard wantsFM else { return }
+
+        sleepOutlookLoadingAppleModel = true
+        let result = await SleepOutlookNarrator.narrate(snapshot: snapshot, language: language)
+        guard rid == sleepOutlookRequestID else { return }
+        sleepOutlookParagraph = result.text
+        sleepOutlookUsedAppleModel = result.usedAppleModel
+        sleepOutlookLoadingAppleModel = false
     }
 
     private func loadRollingRecoveryWindow(now: Date) {

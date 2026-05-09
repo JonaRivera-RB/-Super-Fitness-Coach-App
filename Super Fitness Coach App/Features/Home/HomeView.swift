@@ -178,6 +178,10 @@ struct HomeView: View {
                         .opacity(homeContentVisible ? 1 : 0)
                         .offset(y: homeContentVisible ? 0 : 10)
                         .animation(DesignTokens.Motion.springSnappy.delay(0.26), value: homeContentVisible)
+                    sleepOutlookSection
+                        .opacity(homeContentVisible ? 1 : 0)
+                        .offset(y: homeContentVisible ? 0 : 12)
+                        .animation(DesignTokens.Motion.springSnappy.delay(0.30), value: homeContentVisible)
 
                     // ── Contextual ───────────────────
                     if !viewModel.recoveryHistoryDays.isEmpty {
@@ -586,6 +590,63 @@ struct HomeView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ),
+                                lineWidth: 1
+                            )
+                    }
+            )
+            .tokenShadow(.card)
+        }
+    }
+
+    @ViewBuilder
+    private var sleepOutlookSection: some View {
+        if viewModel.authorizationStatus == .authorized,
+           !viewModel.isLoading,
+           viewModel.sleepOutlookSnapshot != nil {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                HStack(alignment: .center, spacing: DesignTokens.Spacing.sm) {
+                    Image(systemName: "moon.zzz.fill")
+                        .foregroundStyle(DesignTokens.Color.info)
+                        .accessibilityHidden(true)
+                    Text(lang.sleepOutlookCardTitle)
+                        .font(DesignTokens.Typography.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(DesignTokens.Color.textPrimary)
+                    Spacer(minLength: 0)
+                    if viewModel.sleepOutlookLoadingAppleModel {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel(lang.sleepOutlookRefiningAccessibility)
+                    }
+                }
+
+                Text(viewModel.sleepOutlookParagraph)
+                    .font(DesignTokens.Typography.body)
+                    .foregroundStyle(DesignTokens.Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(
+                        "\(viewModel.sleepOutlookParagraph) \(lang.sleepOutlookDisclaimer)"
+                    )
+
+                if viewModel.sleepOutlookUsedAppleModel {
+                    Label(lang.sleepOutlookAppleBadge, systemImage: "sparkles")
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Color.textSecondary)
+                }
+
+                Text(lang.sleepOutlookDisclaimer)
+                    .font(DesignTokens.Typography.micro)
+                    .foregroundStyle(DesignTokens.Color.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(DesignTokens.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                            .stroke(
+                                DesignTokens.Color.info.opacity(colorScheme == .dark ? 0.35 : 0.22),
                                 lineWidth: 1
                             )
                     }

@@ -6,6 +6,18 @@ Registro de **cambios introducidos o documentados con asistencia de IA**: qué, 
 
 ---
 
+## [2026-05-06] — Home: perspectiva de sueño (reglas locales + Foundation Models opcional)
+
+| Campo | Detalle |
+|-------|---------|
+| **Qué cambió** | `SleepOutlookFactsEngine` + `SleepOutlookNarrator` (FoundationModels con fallback), tarjeta en `HomeView`, `generateSleepOutlook` en `HomeViewModel`, strings en `AppLocalizedStrings`, tests `SleepOutlookFactsEngineTests`; scheme Xcode enlaza target de tests en Test Action. |
+| **Por qué** | Feature planificada: lectura orientativa de sueño/recuperación on-device sin tocar scores en `HealthKitManager`. |
+| **Riesgo** | **Medio-bajo.** Latencia opcional si Apple Intelligence genera texto; guardarraíles pueden forzar fallback a plantillas. |
+| **Validación hecha** | `xcodebuild build` + `xcodebuild test -only-testing:…SleepOutlookFactsEngineTests` (éxito). |
+| **Rollback plan** | `git revert` o checkout de archivos tocados + revert del `.xcscheme` si no se desea test action. |
+
+---
+
 ## [2026-04-23] — Rediseño sleep score: 60/20/10/10, continuidad, techo por horas, confianza suave
 
 | Campo | Detalle |
