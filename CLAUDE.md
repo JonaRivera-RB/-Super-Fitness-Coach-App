@@ -1,162 +1,153 @@
-# VitrikFit — Guía de arquitectura para Claude
+# VitrikFit — Fuente de la verdad
 
-> Generado por auditoría de código real. No asumir; verificar si algo parece desactualizado.
+App de fitness iOS en SwiftUI + SwiftData. Este archivo describe **cómo está construido el
+proyecto y cómo escribir código nuevo en él**.
 
----
-
-## Resumen del proyecto
-
-App de fitness iOS (SwiftUI + SwiftData) con:
-- Recovery score diario calculado desde HealthKit (HRV, RHR, sueño)
-- Plan guiado semanal con progresión automática + ajuste por recuperación
-- "Mi rutina" personalizable (alternativa al plan guiado)
-- Gamificación (puntos, niveles, racha, insignias)
-- Catálogo de 414 ejercicios (API wger.de + fallback JSON local)
-- Apple Watch companion app
-- Soporte bilingüe ES/EN
-
-**Targets**: iOS app principal · watchOS app · Tests (Unit + Property)
+> **Verificado contra el código el 2026-08-15.** Todo lo que sigue se comprobó ejecutando
+> búsquedas sobre el repo, no se heredó de documentación previa.
 
 ---
 
-## Arquitectura real
+## Cómo no pudrir este archivo
 
-### Patrón: MVVM + Composition Root + Repository
+La documentación anterior de este repo se borró entera porque afirmaba cosas falsas: daba por
+pendiente un refactor que ya estaba hecho, ignoraba 13 archivos de `Core/` y describía un target
+de watchOS que no existe. Se pudrió por dos causas concretas. Evítalas:
 
-```
-App.swift
-└── ContentView  ← Composition Root (servicio/VM init + nav state)
-    └── TabView
-        ├── HomeView            ← ViewModel injected
-        ├── WorkoutView         ← VM injected + @Query propio
-        ├── StatsView           ← ViewModel injected
-        └── ProfileView         ← ViewModel injected
-```
+1. **No dupliques este archivo.** Había 5 copias byte a byte en `.cursor/steering/` que se
+   desincronizaron. Si otra herramienta necesita contexto, apúntala aquí; no copies.
+2. **No escribas aquí lo que el código ya dice.** Nada de conteos de líneas, inventarios de
+   archivos ni listas de funciones: `find` y `grep` lo regeneran en un segundo y siempre estarán
+   más al día que un `.md`. Este archivo es para lo que el código **no puede** decir — por qué
+   algo se decidió así, qué invariante no fuerza el compilador, qué se rompe si tocas X.
 
-**Frameworks clave**:
-- `@Observable` (Observation framework, NO `ObservableObject` / Combine)
-- `SwiftData` para persistencia (NO CoreData)
-- `HealthKit` para métricas de salud
-- `WatchConnectivity` para Watch
-
-### Capa de servicios (Core/)
-
-```
-Composition Root
-├── HealthKitManager        @Observable  — Toda la lógica HealthKit
-├── GamificationEngine      @Observable  — Puntos/niveles/racha
-├── ExerciseService         @Observable  — Catálogo de ejercicios (API + cache)
-├── DetoxManager                         — Challenge alcohol-free
-├── NotificationService                  — Notificaciones locales
-├── TrainingPlanGenerator   (struct)     — Generación de planes
-├── AICoach                 (struct)     — Mensajes del coach (stateless)
-├── GymCoach                (struct)     — Micro-coaching en sesión (stateless)
-├── RecoveryAdapter         (struct)     — Score → ajuste peso/volumen
-├── WeeklyProgressionEngine (struct)     — Multiplicadores semanales
-├── SetLogger                            — Logging por sesión
-├── DayManager                           — Skip/complete/reschedule días
-└── WCSessionManager                     — Watch connectivity
-```
-
-### Capa de datos
-
-```
-Repositories/  ← Toda la lógica SwiftData va aquí
-├── TrainingPlanRepository   — Plan activo, WorkoutLogs, performance
-├── UserProfileRepository    — Perfil + preferencias
-├── GamificationRepository   — Estado de gamificación
-├── DetoxRepository          — Progreso detox
-├── RecoverySnapshotRepository — Historial local de recovery score
-└── UserRoutineRepository    — Rutina personalizada del usuario
-```
-
-**Regla**: Ninguna Vista ni ViewModel accede a `ModelContext` directamente.
-Solo los Repositories tocan SwiftData.
+Regla práctica: si puedes responder la pregunta con un `grep`, no va aquí.
 
 ---
 
-## Mapa de módulos y responsabilidades
+## Qué es el producto
 
-### `Features/Home/`
-- **HomeViewModel**: Orquesta refresh de HealthKit → calcula labels de recovery/activity/sueño → genera mensaje AICoach → programa notificación → persiste snapshot. **620 líneas, hace demasiado** (ver deuda técnica).
-- **HomeView**: Dashboard principal con scroll. ~1000 líneas pero toda UI, sin lógica de negocio.
+Entrenamiento adaptado a tu recuperación real. La app lee HealthKit (HRV, frecuencia cardiaca en
+reposo, sueño), calcula un **recovery score** diario y **ajusta el entrenamiento del día** en
+consecuencia: si dormiste mal, baja el peso y el volumen.
 
-### `Features/Training/`
-- **TrainingPlanView + VM**: Muestra semana actual, estados de días, acciones (skip/complete/reschedule).
-- **TrainingPreferencesView + VM**: Formulario para generar nuevo plan. Llama a `TrainingPlanGenerator`.
-- **WorkoutExecutorView + VM**: Sesión activa de entrenamiento. Gestiona timer de descanso, PR detection, logging por serie. El VM recibe `PlannedExercise[]` ya construido — no hace fetch.
-- **FeedbackView + VM**: Post-workout. Recibe `[WorkoutLog]` + otorga puntos de gamificación.
-- **ExerciseDetailView**: Vista de detalle de ejercicio con GIF + sustitutos. Sin ViewModel propio.
+Alrededor de ese núcleo hay: plan guiado semanal con progresión automática, "Mi rutina"
+personalizable como alternativa, gamificación (puntos, niveles, racha, insignias), catálogo de
+ejercicios offline y un challenge alcohol-free. Bilingüe ES/EN.
 
-### `Features/Workout/`
-- **WorkoutView**: Tab "Entrenamiento". Muestra Plan Guiado o Mi Rutina (Picker si ambos existen). Usa `@Query` SwiftData directo + `TrainingPlanViewModel` inyectado (dos fuentes de verdad — ver deuda técnica).
-
-### `Features/Stats/`
-- **StatsViewModel**: Lee de GamificationEngine + TrainingPlanRepository. Construye historial y PRs.
-- **StatsView**: Muestra nivel, puntos, racha, badges, historial, PRs. **Sin gráficas** (deuda técnica).
-
-### `Features/Profile/`
-- **ProfileView + VM**: Edición de perfil, unidades, estado HealthKit, notificaciones.
-
-### `Features/Routine/`
-- **RoutineEditorView**: Editor de Mi Rutina. Sin ViewModel propio (usa `modelContext` directamente — excepción documentada).
-
-### `Features/Detox/`
-- **DetoxView + VM**: Challenge alcohol-free. Aislado del resto del sistema.
-
-### `Core/HealthKitManager.swift` (~48.5 KB)
-El archivo más grande y crítico. Hace:
-1. Autorización HealthKit
-2. Fetch de sueño + filtrado por ventana
-3. Cálculo de recovery score (HRV, RHR, sueño, baseline 14 días)
-4. Cálculo de activity score (steps, calorías activas)
-5. Sleep consistency score vs horario configurado
-6. Observers para actualización en background
-7. Publicación de todos los estados como propiedades `private(set)`
-
-**NO TOCAR sin consultar.** Cada cambio aquí afecta Home, notificaciones y WorkoutExecutor.
-
-### `Core/AppLocalizedStrings.swift` (~45.7 KB)
-Todas las cadenas UI como extensiones de `AppLanguage`. Patrón:
-```swift
-var miClave: String {
-    switch self {
-    case .spanish: return "..."
-    case .english: return "..."
-    }
-}
-```
-Agregar strings nuevos siempre aquí, nunca literales en las Vistas.
-
-### `Core/AppSemanticPalette.swift`
-Sistema de color dark/light safe. Usar `AppSemanticPalette.systemBlue` en lugar de `Color.blue`.
-`HomeView` tiene su propio `Color.homeAccent` (naranja) definido en extensión privada local — correcto para colores de módulo específicos.
+**Local-first**: no hay backend, ni login, ni sincronización. El usuario es un `UserProfile` en
+SwiftData más los permisos del sistema. Ver `DECISIONS.md` (D1, D8).
 
 ---
 
-## Convenciones que ya usa el proyecto
+## Targets y build
+
+Hay **tres** targets, y solo tres:
+
+| Target | Qué es |
+|---|---|
+| `Super Fitness Coach App` | La app iOS |
+| `SuperFitnessCoachWidgetsExtension` | Extensión WidgetKit |
+| `Super Fitness Coach AppTests` | Unit + property tests |
+
+- Bundle: `com.riverland.Super-Fitness-Coach-App` · Swift 5.0 · deployment target iOS 26.1
+- Entitlements: HealthKit y HealthKit background delivery. **ActivityKit está deliberadamente
+  ausente** (D9).
+- El proyecto usa **grupos sincronizados con el sistema de archivos**
+  (`PBXFileSystemSynchronizedRootGroup`) sobre `Super Fitness Coach App/`, `Tests/` y
+  `SuperFitnessCoachWidgets/`. Consecuencia práctica: **añadir un `.swift` dentro de esas carpetas
+  lo mete al build automáticamente**, no hay que tocar el `.xcodeproj`. Y a la inversa: un archivo
+  fuera de esas tres rutas no compila aunque exista.
+
+⚠️ La carpeta `Super Fitness Coach Watch App/` **no está en ningún target ni grupo sincronizado**:
+es código huérfano que no compila. Ver `PENDIENTES.md` → P1.
+
+---
+
+## Arquitectura
+
+**MVVM + Composition Root + Repository.** Sin capa de casos de uso (D2), sin contenedor de
+inyección de dependencias.
+
+### Regla de dependencia (la invariante central)
+
+```
+Vista  →  ViewModel  →  Servicio (Core/)  →  Repositorio  →  SwiftData
+```
+
+Las flechas van en una sola dirección y **ninguna vista ni ViewModel toca `ModelContext`**. Solo
+los repositorios hablan con SwiftData.
+
+Excepciones reales que existen hoy, ambas conocidas y acotadas:
+- `RoutineEditorView` usa `modelContext` directamente.
+- `WorkoutView` usa `@Query` además del ViewModel inyectado — dos fuentes de verdad, ver
+  `PENDIENTES.md` → P2.
+
+No añadas excepciones nuevas sin registrarlas ahí.
+
+### Composition Root
+
+`ContentView` es donde se cablea todo. Construye los servicios y los ViewModels, los guarda en
+`@State` opcionales, y expone `servicesReady` para no renderizar hasta que estén listos. También
+gestiona los tabs, el onboarding y el estado de las sheets.
+
+La lógica de la **sesión de entreno** ya **no** vive aquí: está en
+`Core/WorkoutSessionCoordinator.swift`, que construye los executors, resuelve los `sessionId` y
+marca días completados. Si necesitas tocar el flujo entreno → executor → feedback, ese es el
+archivo.
+
+### Capas
+
+- **`Core/`** — servicios de negocio. Los `@Observable` con estado (`HealthKitManager`,
+  `GamificationEngine`, `ExerciseService`, `ExerciseImageLoader`, `DetoxManager`,
+  `WorkoutSessionCoordinator`) y los `struct` sin estado (generadores, scorers, adapters,
+  formatters).
+- **`Models/`** — 11 `@Model` de SwiftData más enums y value types de apoyo.
+- **`Repositories/`** — único punto de acceso a SwiftData. Reciben `ModelContext` en el `init`,
+  nunca lo leen del entorno.
+- **`Features/<Nombre>/`** — una carpeta por pantalla, con su `View` y su `ViewModel`.
+
+### Schema SwiftData
+
+Registrado en `Super_Fitness_Coach_AppApp.swift`. Añadir o quitar una propiedad de cualquiera de
+estos modelos **requiere pensar en migración y probar en dispositivo real con datos previos**:
+
+`UserProfile` · `TrainingPlan` · `TrainingWeek` · `TrainingDayPlan` · `WorkoutLog` ·
+`UserRoutine` · `UserRoutineDay` · `GamificationState` · `RecoverySnapshot` · `DetoxProgress` ·
+`ExerciseCatalogEntry`
+
+Un modelo nuevo hay que registrarlo en el `.modelContainer` o no persiste.
+
+---
+
+## Convenciones
 
 ### ViewModels
+
 ```swift
 @Observable
 final class MiViewModel {
-    private(set) var estado: String = ""   // NO public var
-    
+    private(set) var estado: String = ""      // el estado se expone solo-lectura
+
     @ObservationIgnored
     private let logger = Logger(subsystem: "com.superfitnesscoach", category: "MiVM")
-    
-    func onAppear() async { ... }          // async, llamado desde .task {}
-    func refresh() async { ... }           // sin showLoading
+
+    func onAppear() async { ... }
 }
 ```
 
+`@Observable` del framework Observation. **No** `ObservableObject`, **no** Combine.
+`@ObservationIgnored` en todo lo que no sea estado observable (loggers, dependencias) para no
+disparar invalidaciones de vista inútiles.
+
 ### Vistas
+
 ```swift
 struct MiView: View {
-    var viewModel: MiViewModel             // var, no @State (ya es @Observable)
+    var viewModel: MiViewModel                 // var, no @State: el VM ya es @Observable
     @Environment(\.appLanguage) private var lang
     @Environment(\.colorScheme) private var colorScheme
-    
+
     var body: some View {
         // ...
         .task { await viewModel.onAppear() }
@@ -164,12 +155,15 @@ struct MiView: View {
 }
 ```
 
-### Strings localizadas
-```swift
-// En la vista:
-Text(lang.miClave)
+El ViewModel se recibe como `var`, no como `@State`. Envolverlo en `@State` en la vista hija crea
+una segunda instancia.
 
-// En AppLocalizedStrings.swift:
+### Textos
+
+Todas las cadenas de UI van en `Core/AppLocalizedStrings.swift`, como propiedades de
+`AppLanguage`, siempre en **los dos idiomas**:
+
+```swift
 var miClave: String {
     switch self {
     case .spanish: return "Texto en español"
@@ -178,223 +172,108 @@ var miClave: String {
 }
 ```
 
-### Colores
-```swift
-// Sistema (dark/light safe) → AppSemanticPalette
-AppSemanticPalette.systemBlue
-AppSemanticPalette.muscleTagBackground(colorScheme)
+En la vista: `Text(lang.miClave)`. Nunca literales sueltos en las vistas.
 
-// Solo si es un color de branding del módulo específico:
-static let homeAccent = Color(red: 1.0, green: 122/255, blue: 38/255)
-```
+### Color
 
-### Estado de datos HealthKit
+Dos sistemas conviven y hay que saber cuál usar:
+
+- **`DesignTokens`** — el sistema actual, introducido con el rediseño de Home. Es al que se está
+  migrando.
+- **`AppSemanticPalette`** — el anterior, seguro en dark/light. Sigue en uso en varias pantallas.
+
+Para código nuevo usa `DesignTokens`. Nunca `Color.blue` / `Color.teal` directos: no son
+dark-safe. Un color de branding propio de un módulo puede vivir en una extensión privada de ese
+archivo (como `Color.homeAccent` en Home); eso es correcto, no deuda.
+
+### Datos de HealthKit
+
+Nunca asumas que hay valor. El estado es un enum de tres casos y hay que cubrir los tres:
+
 ```swift
-// Siempre usar el enum, nunca asumir que hay valor:
 switch viewModel.recoveryScore {
-case .loading: ProgressView()
-case .unavailable: Text("—")
-case .available(let v): Text("\(v)")
+case .loading:            ProgressView()
+case .unavailable:        Text("—")
+case .available(let v):   Text("\(v)")
 }
 ```
+
+Este es el error más fácil de cometer en esta app: HealthKit puede no tener datos (usuario sin
+Watch, permisos denegados, primer arranque) y la UI tiene que sostenerlo sin romperse.
 
 ### Logging
+
 ```swift
-@ObservationIgnored
 private let logger = Logger(subsystem: "com.superfitnesscoach", category: "NombreClase")
-
-logger.info("Mensaje informativo")
-logger.warning("Advertencia")
-logger.error("Error: \(error.localizedDescription)")
 ```
 
-### Repositories
-```swift
-// SIEMPRE reciben ModelContext en init, nunca lo guardan como @Environment
-final class MiRepository {
-    private let context: ModelContext
-    init(context: ModelContext) { self.context = context }
-}
-
-// Se instancian en ContentView y se pasan a los ViewModels
-```
+`subsystem` siempre ese; `category` el nombre de la clase.
 
 ---
 
-## Dónde va cada feature nueva
+## Dónde va cada cosa
 
-| Tipo de feature | Dónde va |
+| Necesito… | Va en… |
 |---|---|
-| Nueva pantalla completa | `Features/{Nombre}/NombreView.swift` + `NombreViewModel.swift` |
-| Nuevo servicio de negocio | `Core/NombreService.swift` |
-| Nueva utilidad stateless | `Core/NombreUtility.swift` (struct, no class) |
-| Nuevo modelo persistido | `Models/NombreModel.swift` + registrar en App.swift + ContentView preview |
-| Nuevo acceso a datos | `Repositories/NombreRepository.swift` |
-| Nueva cadena UI | Agregar a `Core/AppLocalizedStrings.swift` (ambos idiomas) |
-| Nuevo color semántico | Agregar a `Core/AppSemanticPalette.swift` |
-| Nueva métrica HealthKit | `Core/HealthKitManager.swift` — consultar primero |
+| Pantalla nueva | `Features/<Nombre>/<Nombre>View.swift` + `<Nombre>ViewModel.swift` |
+| Servicio de negocio con estado | `Core/<Nombre>Service.swift`, `@Observable final class` |
+| Cálculo sin estado | `Core/<Nombre>.swift`, `struct` con funciones puras |
+| Acceso a datos | `Repositories/<Nombre>Repository.swift` |
+| Modelo persistido | `Models/` + registrar en `Super_Fitness_Coach_AppApp.swift` |
+| Cadena de UI | `Core/AppLocalizedStrings.swift`, ES y EN |
+| Tab nuevo | Enum `Tab` de `ContentView` + case en el `TabView` |
+| Sheet del flujo de entreno | `ContentView` (necesita el coordinator) |
+| Sheet local de una pantalla | La propia vista |
 
-### Reglas de navegación
-- Tabs nuevos → registrar en `ContentView.Tab` enum + añadir case en `TabView`
-- Sheets → el estado (`@State private var showingX`) vive en `ContentView` si es cross-tab, o en la Vista hija si es local
-- Las sheets que involucran `WorkoutExecutorViewModel` siempre van en `ContentView` (necesita el orquestador de sesión)
-
----
-
-## Deuda técnica (ordenada por impacto en seguridad al agregar features)
-
-### 🔴 Alta — Arreglar antes de agregar features en las áreas afectadas
-
-**1. ContentView como Composition Root sobrecargado (~480 líneas)**
-- Hace: service init + VM creation + sheet management + business logic de sesión
-- Riesgo: cualquier feature nueva de Training o Workout tiene que tocar ContentView
-- Acción: extraer `WorkoutSessionCoordinator` que gestione el flujo workout → executor → feedback → complete
-
-**2. Lógica de sesión en ContentView**
-- `buildWorkoutExecutorViewModel`, `buildRoutineExecutorViewModel`, `loadOrCreateSessionId`, `clearSessionId`, `markRoutineDayCompleted` son lógica de negocio en la capa de presentación
-- Acción: mover a `WorkoutSessionCoordinator` (servicio, no VM)
-
-**3. `populateRecoveryContextLinesES` / `populateRecoveryContextLinesEN` duplicadas**
-- Dos funciones de ~140 líneas cada una que son casi idénticas
-- Riesgo: cualquier cambio en la lógica de sueño requiere editarlas en paralelo
-- Acción: unificar en una función parametrizada por `AppLanguage`
-
-**4. WorkoutView con dos fuentes de verdad**
-- Usa `@Query` (SwiftData) para `activePlans` + `TrainingPlanViewModel` inyectado
-- Pueden desincronizarse tras operaciones asíncronas
-- Acción: eliminar el `@Query` directo; que `TrainingPlanViewModel` sea la única fuente
-
-### 🟡 Media — Afectan calidad pero no bloquean features nuevas
-
-**5. HomeViewModel con demasiadas responsabilidades (~620 líneas)**
-- Mezcla: data refresh + text formatting + business logic + side effects (notificación, snapshot)
-- Acción: extraer `SleepContextFormatter` (las líneas ES/EN de sueño) + mover `scheduleDailyNotification` a un servicio separado
-
-**6. HealthKitManager monolítico (48.5 KB)**
-- Todo el pipeline de HealthKit en un archivo
-- Riesgo bajo de tocar (está bien testeado conceptualmente), pero difícil de mantener
-- Acción futura: separar en `SleepPipeline`, `CardioMetricsManager`, `RecoveryScorer`
-
-**7. `ExerciseService.shared` singleton innecesario**
-- Tiene `static let shared = ExerciseService()` pero también se inyecta desde ContentView
-- Riesgo de dos instancias con caches separadas
-- Acción: eliminar `static let shared`
-
-**8. `StatusIndicator.label` hardcodeado en inglés**
-- `HomeViewModel.StatusIndicator.label` devuelve "Fatigued"/"Medium"/"Optimal" (inglés fijo)
-- Acción: usar `AppLanguage` para localizarlo
-
-### 🟢 Baja — No bloquean nada, mejoras de pulido
-
-**9. Instrucciones de ejercicios en inglés**
-- `PlannedExercise.instructions: [String]` viene de la API en inglés
-- No hay capa de traducción
-- Acción: display en inglés con nota, o llamar a endpoint de traducción de wger
-
-**10. StatsView sin gráficas**
-- `StatsViewModel` tiene `recentHistory` y `prRecords` completos
-- La pantalla muestra listas pero no charts
-- Acción: Swift Charts — necesita diseño previo (¿qué métricas priorizar?)
-
-**11. Pantalla post-workout casi vacía**
-- `FeedbackView` recibe `[WorkoutLog]` con toda la data de la sesión
-- Solo muestra puntos otorgados
-- Acción: enriquecer con resumen de sets, PRs detectados, comparativa vs sesión anterior
-
-**12. Sistema de color inconsistente**
-- `HomeView` usa `Color.homeAccent` (naranja custom)
-- `WorkoutExecutorView` usa `AppSemanticPalette`
-- Algunos módulos usan `Color.teal` / `Color.blue` directos (no dark-safe)
-- Acción: auditar todas las vistas y migrar a `AppSemanticPalette`
+Las funciones puras de `Core/` son el sitio preferente para lógica nueva: son las únicas
+trivialmente testeables sin HealthKit ni SwiftData.
 
 ---
 
-## Plan de acción priorizado
+## Zonas frágiles
 
-### Fase 1 — Refactorizar para agregar features sin riesgo
+No son intocables, pero exigen leer antes y validar después.
 
-**Hacer primero, antes de cualquier feature nueva de Training:**
-
-1. Extraer `WorkoutSessionCoordinator` desde ContentView
-   - Mueve: `buildWorkoutExecutorViewModel`, `buildRoutineExecutorViewModel`, `loadOrCreateSessionId`, `clearSessionId`, `markRoutineDayCompleted`, `applyPerformanceUpdates`
-   - ContentView lo crea e inyecta igual que los otros servicios
-   - Resultado: ContentView ~480 → ~280 líneas; lógica testeable
-
-2. Unificar `populateRecoveryContextLinesES/EN` en HomeViewModel
-   - Una sola función `populateRecoveryContextLines(config:language:)`
-   - Elimina ~140 líneas duplicadas
-
-3. Eliminar `@Query` de WorkoutView
-   - Usar solo `TrainingPlanViewModel` como fuente de verdad
-   - Pasar `hasPlan` / `hasRoutine` desde el VM
-
-### Fase 2 — Features que se pueden agregar YA sin tocar arquitectura
-
-Estos son seguros de implementar sobre la arquitectura actual:
-
-- **Gráficas en Stats**: Agregar Swift Charts en `StatsView`. El VM ya tiene los datos. Solo UI.
-- **Post-workout enriquecido**: Mejorar `FeedbackView` con los `WorkoutLog` que ya recibe.
-- **Nuevas insignias**: Agregar cases a `BadgeMilestone` + lógica en `GamificationEngine.isMilestoneReached`.
-- **Nuevo ejercicio sustituto**: El catálogo y `alternateExerciseIds` ya lo soportan.
-- **Notificaciones adicionales**: Extender `NotificationService` sin tocar otras capas.
-- **Mejoras de UI en Perfil**: `ProfileView` está limpio y aislado.
-
-### Fase 3 — Requieren diseño antes de implementar
-
-Estos NO se deben tocar sin diseño previo:
-
-- **Home scroll refactor**: Dividir en secciones independientes requiere definir si HomeViewModel se divide también o solo la vista.
-- **Traducción de instrucciones**: Definir si es client-side (Translate API) o se pre-procesan los datos del catálogo.
-- **Semana 2+ del plan con gráfica de progreso**: Requiere decidir cómo visualizar la progressión sin sobrecargar TrainingPlanViewModel.
-- **Social / compartir**: Requiere decisiones de privacidad sobre datos de salud.
-- **Nueva métrica HealthKit** (ej. VO2max): Tocar HealthKitManager siempre requiere revisión completa del pipeline de scoring.
-
----
-
-## ⛔ No tocar sin consultar primero
-
-| Archivo / área | Por qué |
+| Zona | Por qué |
 |---|---|
-| `Core/HealthKitManager.swift` | Afecta todo el scoring; cambio en queries puede romper datos de sueño/HRV |
-| `Repositories/TrainingPlanRepository.swift` | Lógica de avance de semana, performance updates; errores aquí corrompen el plan |
-| `ContentView.swift` — flujo de sheets de workout | La orquestación executor → complete → feedback es frágil y tiene workarounds de SwiftData |
-| Schema SwiftData (`@Model` classes) | Requiere migration si se añaden/eliminan propiedades; probar en dispositivo real |
-| `Core/TrainingPlanGenerator.swift` | Cambios aquí afectan todos los planes generados; requiere tests |
-| `Core/RecoveryAdapter.swift` | Calibrado contra datos reales; modificar los multiplicadores requiere validación |
+| `Core/HealthKitManager.swift` | El archivo más grande y central. Autorización, fetch de sueño, recovery score, activity score, consistencia de sueño, observers en background. Alimenta Home, notificaciones y el ajuste del entreno: un cambio en las queries se propaga a todo |
+| `Repositories/TrainingPlanRepository.swift` | Avance de semana y actualización de rendimiento. Un error aquí corrompe el plan del usuario de forma persistente |
+| `Core/TrainingPlanGenerator.swift` | Afecta a todos los planes generados |
+| `Core/RecoveryAdapter.swift` | Los multiplicadores están calibrados contra datos reales; cambiarlos a ojo desajusta el producto entero |
+| `Core/WorkoutSessionCoordinator.swift` + sheets de entreno | La orquestación executor → complete → feedback tiene workarounds de SwiftData |
+| Cualquier `@Model` | Migración de schema |
 
 ---
 
-## Entorno de testing
+## Tests
 
-```
-Tests/
-├── UnitTests/
-│   ├── DayManagerTests.swift
-│   ├── DetoxManagerTests.swift
-│   ├── ExerciseServiceTests.swift
-│   ├── HealthKitManagerTests.swift
-│   ├── ProgressTrackerTests.swift
-│   ├── RecoveryAdapterTests.swift
-│   ├── RoutineSessionStoreTests.swift
-│   └── SleepHistoryAggregatorTests.swift
-└── PropertyTests/
-    └── SleepWindowValidationPropertyTests.swift
-```
+`Tests/UnitTests/` y `Tests/PropertyTests/`. Cubren sobre todo `Core/`: sueño, recuperación,
+progreso, detox, catálogo y el motor de outlook de sueño.
 
-Todo código nuevo en `Core/` debe tener tests unitarios.
-Los ViewModels no tienen tests actualmente (no crítico si el VM solo orquesta).
+- **Todo lo nuevo en `Core/` lleva test unitario.** Es la regla que sostiene la calidad aquí,
+  porque los ViewModels no están testeados.
+- Los ViewModels no tienen tests y no es crítico *mientras solo orquesten*. Si un ViewModel
+  acumula lógica de negocio, esa lógica debe bajar a `Core/` y testearse ahí.
 
 ---
 
-## Specs en `.kiro/`
+## Specs de producto
 
-El directorio `.kiro/specs/` contiene especificaciones de features:
-- `activity-progress-insights/`
-- `body-metrics-onboarding/`
-- `sleep-window-goal/`
-- `sleep-window-recovery-validation/`
-- `smart-fitness-coach/`
-- `smart-home-dashboard/`
-- `smart-training-plan/`
+`.kiro/specs/` contiene 7 features especificadas (`requirements.md` + `design.md` + `tasks.md`).
+**Revisa si existe spec antes de implementar una feature.** El estado de las que quedaron a medias
+está en `PENDIENTES.md`.
 
-Antes de implementar una feature, revisar si hay spec en este directorio.
+---
+
+## Los otros documentos
+
+Este archivo dice **cómo está construido**. Los demás no lo repiten:
+
+- **`DECISIONS.md`** — por qué está construido así. Decisiones vigentes con su tradeoff, y la
+  lista de lo que no se cambia sin acuerdo explícito.
+- **`PENDIENTES.md`** — deuda técnica verificada y specs a medio terminar.
+- **`BUGS.md`** — bugs reproducibles y sospechas sin confirmar.
+- **`ALGORITMOS_SUENO.md`** — material de referencia, no instrucciones. Cómo puntúan el sueño
+  Oura, Apple y SleepWatch, y en qué se diferencia el composite de VitrikFit
+  (`Core/SleepQualityScoring.swift`). Léelo antes de tocar el scoring de sueño: los pesos y las
+  bandas de fase están calibrados, no son arbitrarios.

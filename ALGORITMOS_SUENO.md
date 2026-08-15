@@ -73,8 +73,56 @@ Ninguna de estas apps publica el **código** ni **fórmulas cerradas** con pesos
 
 ## Cómo se relaciona con VitrikFit
 
-- La app lee **categorías de HealthKit** (`sleepAnalysis`) ya producidas por el sistema/Watch; el **cálculo de fases** no es propio de la app.
-- La **puntuación de sueño** en código usa reglas fijas: duración vs meta, proporciones **deep/REM** con referencias 17.5% / 22.5%, y **penalización por alineación** vía `sleepConfidence` (ver `HealthKitManager`, `SleepSessionFilter`) — enfoque **diferente** a Oura (7 factores) o Apple (50/30/20 si aplica al producto del usuario en el reloj).
+> Sección **verificada contra el código el 2026-08-15** (`Core/SleepQualityScoring.swift`). La
+> versión anterior citaba proporciones deep/REM de 17.5% / 22.5% que ya no existen en el código:
+> el scoring evolucionó de puntos de referencia fijos a bandas.
+
+**Las fases no las calcula la app.** VitrikFit lee categorías de HealthKit (`sleepAnalysis`) ya
+producidas por el sistema y el Watch. Es decir, hereda el clasificador de Apple descrito arriba —
+acelerómetro, epochs de 30 s, cuatro estados. Lo que la app aporta es la **capa de puntuación**
+por encima de esas muestras.
+
+### Composite real
+
+`SleepQualityScoring` combina cuatro subscores con pesos fijos:
+
+| Componente | Peso |
+|---|---|
+| Duración vs meta | **60%** |
+| Continuidad | **20%** |
+| REM | **10%** |
+| Deep | **10%** |
+
+Sobre eso actúan cuatro reglas más:
+
+- **Curvatura por debajo de la meta** (`belowGoalCurvature = 1.45`): dormir de menos se penaliza
+  de forma no lineal, `ratio^1.45`. Quedarse corto duele progresivamente más.
+- **Bandas óptimas de fase**, como % del tiempo total dormido — no valores puntuales:
+  deep **10%–28%**, REM **15%–32%**. Aproximan las referencias de la AASM.
+- **Neutrales cuando falta el dato**, en lugar de castigar: sin muestras `awake` la continuidad
+  vale 78; sin desglose de fases (solo `asleep` genérico) las fases valen 72. Es una decisión
+  deliberada: no penalizar al usuario por lo que su hardware no reporta.
+- **Ajuste por confianza** (`confidenceDeltaPoints = 8.0`): `sleepConfidence` —que produce
+  `SleepSessionFilter`— suma o resta hasta 8 puntos respecto a un centro de 0.5, en lugar de
+  multiplicar el score entero.
+
+### Comparación honesta con los tres
+
+Contra **Apple** (50% duración / 30% regularidad / 20% interrupciones), VitrikFit es
+estructuralmente muy parecido: ambos son composites ponderados dominados por la duración. Las
+diferencias reales son dos — VitrikFit carga más en duración (60 vs 50) y **no puntúa la
+regularidad de horario dentro del score de sueño**, mientras que Apple le da un 30%. En cambio
+VitrikFit sí puntúa las fases (20% entre REM y deep), que Apple no incluye en su score.
+
+Contra **Oura**, la diferencia es de fondo: Oura genera sus propias fases con hardware y ML
+propios, y su score tiene 7 contribuidores con pesos no públicos. VitrikFit tiene 4 componentes
+con pesos abiertos en el código, sobre fases de terceros.
+
+Contra **SleepWatch**, VitrikFit no usa comparación con una comunidad ni audio.
+
+**La ventaja competitiva de VitrikFit no está en el score de sueño**, que es más simple que
+cualquiera de los tres. Está en lo que hace *después*: alimentar el recovery score y **ajustar el
+entrenamiento del día**. Ninguno de los tres cierra ese bucle.
 
 ---
 
