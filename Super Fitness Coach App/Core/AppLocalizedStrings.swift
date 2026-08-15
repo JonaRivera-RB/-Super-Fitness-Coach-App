@@ -2705,6 +2705,224 @@ extension AppLanguage {
     }
 }
 
+// MARK: - Onboarding (3 pasos)
+
+extension AppLanguage {
+
+    // MARK: Onboarding — común
+
+    func onboardingStepCaption(_ step: Int) -> String {
+        switch self {
+        case .spanish: return "Paso \(step) de 3"
+        case .english: return "Step \(step) of 3"
+        }
+    }
+
+    var onboardingContinue: String {
+        switch self {
+        case .spanish: return "Continuar"
+        case .english: return "Continue"
+        }
+    }
+
+    var onboardingBack: String {
+        switch self {
+        case .spanish: return "Atrás"
+        case .english: return "Back"
+        }
+    }
+
+    var onboardingKeyboardDone: String {
+        switch self {
+        case .spanish: return "Hecho"
+        case .english: return "Done"
+        }
+    }
+
+    var onboardingSaveFailed: String {
+        switch self {
+        case .spanish: return "No se pudo guardar tu perfil. Intenta de nuevo."
+        case .english: return "We couldn't save your profile. Please try again."
+        }
+    }
+
+    // MARK: Onboarding — paso 1 «Tú»
+
+    var onboardingYouTitle: String {
+        switch self {
+        case .spanish: return "Empecemos\npor ti"
+        case .english: return "Let's start\nwith you"
+        }
+    }
+
+    var onboardingNameCaption: String {
+        switch self {
+        case .spanish: return "Cómo te llamas"
+        case .english: return "Your name"
+        }
+    }
+
+    var onboardingNamePlaceholder: String {
+        switch self {
+        case .spanish: return "Tu nombre"
+        case .english: return "Your name"
+        }
+    }
+
+    var onboardingGoalCaption: String {
+        switch self {
+        case .spanish: return "Qué buscas"
+        case .english: return "What you're after"
+        }
+    }
+
+    // MARK: Onboarding — paso 2 «Tu cuerpo»
+
+    var onboardingBodyTitle: String {
+        switch self {
+        case .spanish: return "Tu cuerpo"
+        case .english: return "Your body"
+        }
+    }
+
+    var onboardingBodySubtitle: String {
+        switch self {
+        case .spanish:
+            return "Peso y altura ajustan la intensidad. Apple Health también nos da sueño y pulso para tu score de recuperación."
+        case .english:
+            return "Weight and height tune your intensity. Apple Health also gives us sleep and heart rate for your recovery score."
+        }
+    }
+
+    var onboardingHealthCardTitle: String {
+        switch self {
+        case .spanish: return "Conectar Apple Health"
+        case .english: return "Connect Apple Health"
+        }
+    }
+
+    var onboardingHealthCardSubtitle: String {
+        switch self {
+        case .spanish: return "Rellena peso y altura al instante"
+        case .english: return "Fills in weight and height instantly"
+        }
+    }
+
+    var onboardingHealthConnect: String {
+        switch self {
+        case .spanish: return "Conectar"
+        case .english: return "Connect"
+        }
+    }
+
+    var onboardingHealthConnected: String {
+        switch self {
+        case .spanish: return "Apple Health conectado"
+        case .english: return "Apple Health connected"
+        }
+    }
+
+    var onboardingHealthNotConnected: String {
+        switch self {
+        case .spanish: return "Apple Health sin conectar"
+        case .english: return "Apple Health not connected"
+        }
+    }
+
+    var onboardingHealthImported: String {
+        switch self {
+        case .spanish: return "Importado de Apple Health"
+        case .english: return "Imported from Apple Health"
+        }
+    }
+
+    var onboardingOrTypeIt: String {
+        switch self {
+        case .spanish: return "o escríbelo"
+        case .english: return "or type it"
+        }
+    }
+
+    var onboardingWeightCaption: String {
+        switch self {
+        case .spanish: return "Peso"
+        case .english: return "Weight"
+        }
+    }
+
+    var onboardingHeightCaption: String {
+        switch self {
+        case .spanish: return "Altura"
+        case .english: return "Height"
+        }
+    }
+
+    var onboardingLater: String {
+        switch self {
+        case .spanish: return "Prefiero hacerlo después"
+        case .english: return "I'd rather do it later"
+        }
+    }
+
+    // MARK: Onboarding — paso 3 «Listo»
+
+    func onboardingDoneTitle(_ name: String) -> String {
+        switch self {
+        case .spanish: return "Listo, \(name)"
+        case .english: return "All set, \(name)"
+        }
+    }
+
+    var onboardingDoneSubtitle: String {
+        switch self {
+        case .spanish: return "Tu plan de fuerza empieza hoy. Puedes cambiar todo esto en Ajustes."
+        case .english: return "Your strength plan starts today. You can change all of this in Settings."
+        }
+    }
+
+    var onboardingChange: String {
+        switch self {
+        case .spanish: return "Cambiar"
+        case .english: return "Change"
+        }
+    }
+
+    var onboardingNoMetrics: String {
+        switch self {
+        case .spanish: return "Sin peso ni altura"
+        case .english: return "No weight or height"
+        }
+    }
+
+    var onboardingSleepTitle: String {
+        switch self {
+        case .spanish: return "Horario de sueño"
+        case .english: return "Sleep schedule"
+        }
+    }
+
+    var onboardingSleepAccuracy: String {
+        switch self {
+        case .spanish: return "mejora la precisión del score"
+        case .english: return "improves score accuracy"
+        }
+    }
+
+    var onboardingSleepNote: String {
+        switch self {
+        case .spanish: return "Si lo activas usamos esas horas por defecto; puedes afinarlas más tarde."
+        case .english: return "If you turn it on we'll use those hours by default; you can fine-tune them later."
+        }
+    }
+
+    var onboardingStart: String {
+        switch self {
+        case .spanish: return "Empezar a entrenar"
+        case .english: return "Start training"
+        }
+    }
+}
+
 // MARK: - FitnessGoal display (rawValue stays English for persistence)
 
 extension FitnessGoal {
@@ -2716,6 +2934,19 @@ extension FitnessGoal {
         case (.gainMuscle, .english): return "Gain muscle"
         case (.beHealthy, .spanish): return "Salud"
         case (.beHealthy, .english): return "Be healthy"
+        }
+    }
+
+    /// Copy del onboarding, más concreta que `displayName` («Perder grasa» en
+    /// lugar de «Perder peso»). Solo presentación: el `rawValue` no cambia.
+    func onboardingLabel(_ language: AppLanguage) -> String {
+        switch (self, language) {
+        case (.loseWeight, .spanish): return "Perder grasa"
+        case (.loseWeight, .english): return "Lose fat"
+        case (.gainMuscle, .spanish): return "Ganar músculo"
+        case (.gainMuscle, .english): return "Gain muscle"
+        case (.beHealthy, .spanish): return "Estar sano"
+        case (.beHealthy, .english): return "Stay healthy"
         }
     }
 }
